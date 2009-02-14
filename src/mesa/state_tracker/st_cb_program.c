@@ -62,11 +62,14 @@ static void st_bind_program( GLcontext *ctx,
    struct st_context *st = st_context(ctx);
 
    switch (target) {
-   case GL_VERTEX_PROGRAM_ARB: 
+   case GL_VERTEX_PROGRAM_ARB:
       st->dirty.st |= ST_NEW_VERTEX_PROGRAM;
       break;
    case GL_FRAGMENT_PROGRAM_ARB:
       st->dirty.st |= ST_NEW_FRAGMENT_PROGRAM;
+      break;
+   case GL_GEOMETRY_SHADER_ARB:
+      st->dirty.st |= ST_NEW_GEOMETRY_PROGRAM;
       break;
    }
 }
@@ -83,6 +86,7 @@ static void st_use_program( GLcontext *ctx,
 
    st->dirty.st |= ST_NEW_FRAGMENT_PROGRAM;
    st->dirty.st |= ST_NEW_VERTEX_PROGRAM;
+   st->dirty.st |= ST_NEW_GEOMETRY_PROGRAM;
 
    _mesa_use_program(ctx, program);
 }
@@ -119,6 +123,14 @@ static struct gl_program *st_new_program( GLcontext *ctx,
 					  &prog->Base,
 					  target, 
 					  id );
+   }
+   case GL_GEOMETRY_SHADER_ARB: {
+      struct st_geometry_program *prog = CALLOC_STRUCT(st_geometry_program);
+
+      prog->serialNo = SerialNo++;
+
+      return _mesa_init_fragment_program(ctx, &prog->Base,
+                                         target, id);
    }
 
    default:
@@ -178,6 +190,21 @@ st_delete_program(GLcontext *ctx, struct gl_program *prog)
          }
 
          st_free_translated_vertex_programs(st, stfp->vertex_programs);
+      }
+      break;
+   case GL_GEOMETRY_SHADER_ARB:
+      {
+         struct st_geometry_program *stgp = (struct st_geometry_program *) prog;
+
+         if (stgp->driver_shader) {
+            cso_delete_geometry_shader(st->cso_context, stgp->driver_shader);
+            stgp->driver_shader = NULL;
+         }
+
+         if (stgp->state.tokens) {
+            FREE((void *)stgp->state.tokens);
+            stgp->state.tokens = NULL;
+         }
       }
       break;
    default:

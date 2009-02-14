@@ -51,10 +51,11 @@ struct bitmap_cache;
 #define FRONT_STATUS_COPY_OF_BACK 2
 
 
-#define ST_NEW_MESA                    0x1 /* Mesa state has changed */
-#define ST_NEW_FRAGMENT_PROGRAM        0x2
-#define ST_NEW_VERTEX_PROGRAM          0x4
-#define ST_NEW_FRAMEBUFFER             0x8
+#define ST_NEW_MESA                    0x01 /* Mesa state has changed */
+#define ST_NEW_FRAGMENT_PROGRAM        0x02
+#define ST_NEW_VERTEX_PROGRAM          0x04
+#define ST_NEW_FRAMEBUFFER             0x08
+#define ST_NEW_GEOMETRY_PROGRAM        0x10
 
 
 struct st_state_flags {

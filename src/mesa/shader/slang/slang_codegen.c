@@ -358,6 +358,20 @@ _slang_input_index(const char *name, GLenum target, GLuint *swizzleOut)
       { "gl_MultiTexCoord7", VERT_ATTRIB_TEX7, SWIZZLE_NOOP },
       { NULL, 0, SWIZZLE_NOOP }
    };
+   static const struct input_info geoInputs[] = {
+      { "gl_VerticesIn", GEOM_ATTRIB_VERTICES, SWIZZLE_NOOP },
+      { "gl_FrontColorIn", GEOM_ATTRIB_COLOR0, SWIZZLE_NOOP },
+      { "gl_BackColorIn", GEOM_ATTRIB_COLOR1, SWIZZLE_NOOP },
+      { "gl_FrontSecondaryColorIn", GEOM_ATTRIB_SECONDARY_COLOR0, SWIZZLE_NOOP },
+      { "gl_BackSecondaryColorIn", GEOM_ATTRIB_SECONDARY_COLOR1, SWIZZLE_NOOP },
+      { "gl_TexCoordIn", GEOM_ATTRIB_TEX_COORD, SWIZZLE_NOOP },
+      { "gl_FogFragCoordIn", GEOM_ATTRIB_FOG_FRAG_COORD, SWIZZLE_NOOP },
+      { "gl_PositionIn", GEOM_ATTRIB_POSITION, SWIZZLE_NOOP },
+      { "gl_ClipVertexIn", GEOM_ATTRIB_CLIP_VERTEX, SWIZZLE_NOOP },
+      { "gl_PointSizeIn", GEOM_ATTRIB_POINT_SIZE, SWIZZLE_NOOP },
+      { "gl_PrimitiveIDIn", GEOM_ATTRIB_PRIMITIVE_ID, SWIZZLE_NOOP },
+      { NULL, 0, SWIZZLE_NOOP }
+   };
    static const struct input_info fragInputs[] = {
       { "gl_FragCoord", FRAG_ATTRIB_WPOS, SWIZZLE_NOOP },
       { "gl_Color", FRAG_ATTRIB_COL0, SWIZZLE_NOOP },
@@ -371,7 +385,8 @@ _slang_input_index(const char *name, GLenum target, GLuint *swizzleOut)
    };
    GLuint i;
    const struct input_info *inputs
-      = (target == GL_VERTEX_PROGRAM_ARB) ? vertInputs : fragInputs;
+      = (target == GL_VERTEX_PROGRAM_ARB) ? vertInputs :
+      ((target == GL_FRAGMENT_PROGRAM_ARB) ? fragInputs : geoInputs);
 
    ASSERT(MAX_TEXTURE_COORD_UNITS == 8); /* if this fails, fix vertInputs above */
 
@@ -409,6 +424,20 @@ _slang_output_index(const char *name, GLenum target)
       { "gl_PointSize", VERT_RESULT_PSIZ },
       { NULL, 0 }
    };
+   static const struct output_info geoOutputs[] = {
+      { "gl_Position", GEOM_RESULT_POS },
+      { "gl_FrontColor", GEOM_RESULT_COL0 },
+      { "gl_BackColor", GEOM_RESULT_COL1 },
+      { "gl_FrontSecondaryColor", GEOM_RESULT_SCOL0 },
+      { "gl_BackSecondaryColor", GEOM_RESULT_SCOL1 },
+      { "gl_TexCoord", GEOM_RESULT_TEX0 },
+      { "gl_FogFragCoord", GEOM_RESULT_FOGC },
+      { "gl_ClipVertex", GEOM_RESULT_CLPV },
+      { "gl_PointSize", GEOM_RESULT_PSIZ },
+      { "gl_PrimitiveID", GEOM_RESULT_PRID },
+      { "gl_Layer", GEOM_RESULT_LAYR },
+      { NULL, 0 }
+   };
    static const struct output_info fragOutputs[] = {
       { "gl_FragColor", FRAG_RESULT_COLOR },
       { "gl_FragDepth", FRAG_RESULT_DEPTH },
@@ -417,7 +446,8 @@ _slang_output_index(const char *name, GLenum target)
    };
    GLuint i;
    const struct output_info *outputs
-      = (target == GL_VERTEX_PROGRAM_ARB) ? vertOutputs : fragOutputs;
+      = (target == GL_VERTEX_PROGRAM_ARB) ? vertOutputs :
+      ((target == GL_FRAGMENT_PROGRAM_ARB) ? fragOutputs : geoOutputs);
 
    for (i = 0; outputs[i].Name; i++) {
       if (strcmp(outputs[i].Name, name) == 0) {
@@ -4296,7 +4326,7 @@ _slang_codegen_global_variable(slang_assemble_ctx *A, slang_variable *var,
    const char *varName = (char *) var->a_name;
    GLboolean success = GL_TRUE;
    slang_ir_storage *store = NULL;
-   int dbg = 0;
+   int dbg = 1;
    const GLenum datatype = _slang_gltype_from_specifier(&var->type.specifier);
    const GLint size = _slang_sizeof_type_specifier(&var->type.specifier);
    const GLint arrayLen = _slang_array_length(var);
@@ -4464,14 +4494,22 @@ _slang_codegen_global_variable(slang_assemble_ctx *A, slang_variable *var,
             assert(index < FRAG_ATTRIB_MAX);
             store = _slang_new_ir_storage_swz(PROGRAM_INPUT, index,
                                               size, swizzle);
-         }
-         else {
+         } else if (type == SLANG_UNIT_VERTEX_BUILTIN) {
             /* vertex program output */
             GLint index = _slang_output_index(varName, GL_VERTEX_PROGRAM_ARB);
             GLuint swizzle = _slang_var_swizzle(size, 0);
             assert(index >= 0);
             assert(index < VERT_RESULT_MAX);
             assert(type == SLANG_UNIT_VERTEX_BUILTIN);
+            store = _slang_new_ir_storage_swz(PROGRAM_OUTPUT, index,
+                                              size, swizzle);
+         } else {
+            /* geometry program output */
+            GLint index = _slang_output_index(varName, GL_GEOMETRY_SHADER_ARB);
+            GLuint swizzle = _slang_var_swizzle(size, 0);
+            assert(index >= 0);
+            assert(index < GEOM_RESULT_MAX);
+            assert(type == SLANG_UNIT_GEOMETRY_BUILTIN);
             store = _slang_new_ir_storage_swz(PROGRAM_OUTPUT, index,
                                               size, swizzle);
          }
@@ -4518,11 +4556,15 @@ _slang_codegen_global_variable(slang_assemble_ctx *A, slang_variable *var,
       if (type == SLANG_UNIT_VERTEX_BUILTIN) {
          GLint index = _slang_output_index(varName, GL_VERTEX_PROGRAM_ARB);
          store = _slang_new_ir_storage(PROGRAM_OUTPUT, index, size);
-      }
-      else {
+      } else if (type == SLANG_UNIT_FRAGMENT_BUILTIN) {
          GLint index = _slang_output_index(varName, GL_FRAGMENT_PROGRAM_ARB);
          GLint specialSize = 4; /* treat all fragment outputs as float[4] */
          assert(type == SLANG_UNIT_FRAGMENT_BUILTIN);
+         store = _slang_new_ir_storage(PROGRAM_OUTPUT, index, specialSize);
+      } else {
+         GLint index = _slang_output_index(varName, GL_GEOMETRY_SHADER_ARB);
+         GLint specialSize = 4; /* treat all fragment outputs as float[4] */
+         assert(type == SLANG_UNIT_GEOMETRY_BUILTIN);
          store = _slang_new_ir_storage(PROGRAM_OUTPUT, index, specialSize);
       }
       if (dbg) printf("OUTPUT ");
@@ -4572,7 +4614,7 @@ _slang_codegen_function(slang_assemble_ctx * A, slang_function * fun)
       /* we only really generate code for main, all other functions get
        * inlined or codegen'd upon an actual call.
        */
-#if 0
+#if 1
       /* do some basic error checking though */
       if (fun->header.type.specifier.type != SLANG_SPEC_VOID) {
          /* check that non-void functions actually return something */
@@ -4592,7 +4634,7 @@ _slang_codegen_function(slang_assemble_ctx * A, slang_function * fun)
       return GL_TRUE;  /* not an error */
    }
 
-#if 0
+#if 1
    printf("\n*********** codegen_function %s\n", (char *) fun->header.a_name);
    slang_print_function(fun, 1);
 #endif

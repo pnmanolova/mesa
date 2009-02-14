@@ -209,7 +209,109 @@ typedef enum
    VERT_RESULT_MAX = (VERT_RESULT_VAR0 + MAX_VARYING)
 } gl_vert_result;
 
+/*********************************************/
 
+/**
+ * Indexes for geometry program attributes.
+ */
+enum
+{
+   GEOM_ATTRIB_VERTICES = 0, /*gl_VerticesIn*/
+   GEOM_ATTRIB_COLOR0 = 1,
+   GEOM_ATTRIB_COLOR1 = 2,
+   GEOM_ATTRIB_SECONDARY_COLOR0 = 3,
+   GEOM_ATTRIB_SECONDARY_COLOR1 = 4,
+   GEOM_ATTRIB_TEX_COORD = 5,
+   GEOM_ATTRIB_FOG_FRAG_COORD = 6,
+   GEOM_ATTRIB_POSITION = 7,
+   GEOM_ATTRIB_POINT_SIZE = 8,
+   GEOM_ATTRIB_CLIP_VERTEX = 9,
+   GEOM_ATTRIB_PRIMITIVE_ID = 10,
+
+   GEOM_ATTRIB_GENERIC0 = 16,
+   GEOM_ATTRIB_GENERIC1 = 17,
+   GEOM_ATTRIB_GENERIC2 = 18,
+   GEOM_ATTRIB_GENERIC3 = 19,
+   GEOM_ATTRIB_GENERIC4 = 20,
+   GEOM_ATTRIB_GENERIC5 = 21,
+   GEOM_ATTRIB_GENERIC6 = 22,
+   GEOM_ATTRIB_GENERIC7 = 23,
+   GEOM_ATTRIB_GENERIC8 = 24,
+   GEOM_ATTRIB_GENERIC9 = 25,
+   GEOM_ATTRIB_GENERIC10 = 26,
+   GEOM_ATTRIB_GENERIC11 = 27,
+   GEOM_ATTRIB_GENERIC12 = 28,
+   GEOM_ATTRIB_GENERIC13 = 29,
+   GEOM_ATTRIB_GENERIC14 = 30,
+   GEOM_ATTRIB_GENERIC15 = 31,
+   GEOM_ATTRIB_MAX = 32
+};
+
+/**
+ * Bitflags for geometry attributes.
+ * These are used in bitfields in many places.
+ */
+/*@{*/
+#define GEOM_BIT_VERTICES    (1 << GEOM_ATTRIB_VERTICES)
+#define GEOM_BIT_COLOR0      (1 << GEOM_ATTRIB_COLOR0)
+#define GEOM_BIT_COLOR1      (1 << GEOM_ATTRIB_COLOR1)
+#define GEOM_BIT_SCOLOR0     (1 << GEOM_ATTRIB_SECONDARY_COLOR0)
+#define GEOM_BIT_SCOLOR1     (1 << GEOM_ATTRIB_SECONDARY_COLOR1)
+#define GEOM_BIT_TEX_COORD   (1 << GEOM_ATTRIB_TEX_COORD)
+#define GEOM_BIT_FOG_COORD   (1 << GEOM_ATTRIB_FOG_FRAG_COORD)
+#define GEOM_BIT_POSITION    (1 << GEOM_ATTRIB_POSITION)
+#define GEOM_BIT_POINT_SIDE  (1 << GEOM_ATTRIB_POINT_SIZE)
+#define GEOM_BIT_CLIP_VERTEX (1 << GEOM_ATTRIB_CLIP_VERTEX)
+#define GEOM_BIT_PRIM_ID     (1 << GEOM_ATTRIB_PRIMITIVE_ID)
+#define GEOM_BIT_GENERIC0    (1 << GEOM_ATTRIB_GENERIC0)
+#define GEOM_BIT_GENERIC1    (1 << GEOM_ATTRIB_GENERIC1)
+#define GEOM_BIT_GENERIC2    (1 << GEOM_ATTRIB_GENERIC2)
+#define GEOM_BIT_GENERIC3    (1 << GEOM_ATTRIB_GENERIC3)
+#define GEOM_BIT_GENERIC4    (1 << GEOM_ATTRIB_GENERIC4)
+#define GEOM_BIT_GENERIC5    (1 << GEOM_ATTRIB_GENERIC5)
+#define GEOM_BIT_GENERIC6    (1 << GEOM_ATTRIB_GENERIC6)
+#define GEOM_BIT_GENERIC7    (1 << GEOM_ATTRIB_GENERIC7)
+#define GEOM_BIT_GENERIC8    (1 << GEOM_ATTRIB_GENERIC8)
+#define GEOM_BIT_GENERIC9    (1 << GEOM_ATTRIB_GENERIC9)
+#define GEOM_BIT_GENERIC10   (1 << GEOM_ATTRIB_GENERIC10)
+#define GEOM_BIT_GENERIC11   (1 << GEOM_ATTRIB_GENERIC11)
+#define GEOM_BIT_GENERIC12   (1 << GEOM_ATTRIB_GENERIC12)
+#define GEOM_BIT_GENERIC13   (1 << GEOM_ATTRIB_GENERIC13)
+#define GEOM_BIT_GENERIC14   (1 << GEOM_ATTRIB_GENERIC14)
+#define GEOM_BIT_GENERIC15   (1 << GEOM_ATTRIB_GENERIC15)
+
+#define GEOM_BIT_TEX(u)  (1 << (GEOM_ATTRIB_TEX0 + (u)))
+#define GEOM_BIT_GENERIC(g)  (1 << (GEOM_ATTRIB_GENERIC0 + (g)))
+/*@}*/
+
+
+/**
+ * Indexes for geometry program result attributes
+ */
+/*@{*/
+#define GEOM_RESULT_POS 0
+#define GEOM_RESULT_COL0 1
+#define GEOM_RESULT_COL1 2
+#define GEOM_RESULT_SCOL0 3
+#define GEOM_RESULT_SCOL1 4
+#define GEOM_RESULT_FOGC 5
+#define GEOM_RESULT_TEX0 6
+#define GEOM_RESULT_TEX1 7
+#define GEOM_RESULT_TEX2 8
+#define GEOM_RESULT_TEX3 9
+#define GEOM_RESULT_TEX4 10
+#define GEOM_RESULT_TEX5 11
+#define GEOM_RESULT_TEX6 12
+#define GEOM_RESULT_TEX7 13
+#define GEOM_RESULT_PSIZ 14
+#define GEOM_RESULT_CLPV 15
+#define GEOM_RESULT_PRID 16
+#define GEOM_RESULT_LAYR 17
+#define GEOM_RESULT_VAR0 18  /**< shader varying */
+#define GEOM_RESULT_MAX  (GEOM_RESULT_VAR0 + MAX_VARYING)
+/*@}*/
+
+/*********************************************/
 /**
  * Indexes for fragment program input attributes.
  */
@@ -1809,6 +1911,13 @@ struct gl_vertex_program
 };
 
 
+/** Geometry program object */
+struct gl_geometry_program
+{
+   struct gl_program Base;   /**< base class */
+};
+
+
 /** Fragment program object */
 struct gl_fragment_program
 {
@@ -1865,6 +1974,28 @@ struct gl_vertex_program_state
 
    GLboolean _Overriden;
 };
+
+
+/**
+ * Context state for geometry programs.
+ */
+struct gl_geometry_program_state
+{
+   GLboolean Enabled;               /**< GL_ARB_GEOMETRY_SHADER4 */
+   GLboolean _Enabled;              /**< Enabled and valid program? */
+   struct gl_geometry_program *Current;  /**< user-bound geometry program */
+
+   /** Currently enabled and valid program (including internal programs
+    * and compiled shader programs).
+    */
+   struct gl_geometry_program *_Current;
+
+   GLfloat Parameters[MAX_PROGRAM_ENV_PARAMS][4]; /**< Env params */
+
+   /** Cache of fixed-function programs */
+   struct gl_program_cache *Cache;
+};
+
 
 
 /**
@@ -2011,12 +2142,13 @@ struct gl_shader_program
    /* post-link info: */
    struct gl_vertex_program *VertexProgram;     /**< Linked vertex program */
    struct gl_fragment_program *FragmentProgram; /**< Linked fragment prog */
+   struct gl_geometry_program *GeometryProgram; /**< Linked geometry prog */
    struct gl_uniform_list *Uniforms;
    struct gl_program_parameter_list *Varying;
    GLboolean LinkStatus;   /**< GL_LINK_STATUS */
    GLboolean Validated;
    GLchar *InfoLog;
-};   
+};
 
 
 #define GLSL_DUMP      0x1  /**< Dump shaders to stdout */
@@ -2392,6 +2524,7 @@ struct gl_constants
 
    struct gl_program_constants VertexProgram;   /**< GL_ARB_vertex_program */
    struct gl_program_constants FragmentProgram; /**< GL_ARB_fragment_program */
+   struct gl_program_constants GeometryProgram;  /**< GL_ARB_geometry_shader4 */
    GLuint MaxProgramMatrices;
    GLuint MaxProgramMatrixStackDepth;
 
@@ -2426,6 +2559,7 @@ struct gl_extensions
    GLboolean ARB_fragment_program_shadow;
    GLboolean ARB_fragment_shader;
    GLboolean ARB_framebuffer_object;
+   GLboolean ARB_geometry_shader4;
    GLboolean ARB_half_float_pixel;
    GLboolean ARB_imaging;
    GLboolean ARB_multisample;
@@ -2941,6 +3075,7 @@ struct __GLcontextRec
    struct gl_vertex_program_state VertexProgram;
    struct gl_fragment_program_state FragmentProgram;
    struct gl_ati_fragment_shader_state ATIFragmentShader;
+   struct gl_geometry_program_state GeometryProgram;
 
    struct gl_shader_state Shader; /**< GLSL shader object state */
 

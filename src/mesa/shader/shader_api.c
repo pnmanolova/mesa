@@ -249,7 +249,8 @@ struct gl_shader *
 _mesa_new_shader(GLcontext *ctx, GLuint name, GLenum type)
 {
    struct gl_shader *shader;
-   assert(type == GL_FRAGMENT_SHADER || type == GL_VERTEX_SHADER);
+   assert(type == GL_FRAGMENT_SHADER || type == GL_VERTEX_SHADER ||
+          type == GL_GEOMETRY_SHADER_ARB);
    shader = CALLOC_STRUCT(gl_shader);
    if (shader) {
       shader->Type = type;
@@ -607,6 +608,7 @@ _mesa_create_shader(GLcontext *ctx, GLenum type)
    switch (type) {
    case GL_FRAGMENT_SHADER:
    case GL_VERTEX_SHADER:
+   case GL_GEOMETRY_SHADER_ARB:
       sh = _mesa_new_shader(ctx, name, type);
       break;
    default:

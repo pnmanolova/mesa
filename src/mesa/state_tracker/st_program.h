@@ -102,6 +102,30 @@ struct st_vertex_program
 };
 
 
+/**
+ * Derived from Mesa gl_geometry_program:
+ */
+struct st_geometry_program
+{
+   struct gl_geometry_program Base;  /**< The Mesa geometry program */
+   GLuint serialNo;
+
+   /** maps a Mesa VERT_ATTRIB_x to a packed TGSI input index */
+   GLuint input_to_index[VERT_ATTRIB_MAX];
+   /** maps a TGSI input index back to a Mesa VERT_ATTRIB_x */
+   GLuint index_to_input[PIPE_MAX_SHADER_INPUTS];
+
+   GLuint num_inputs;
+
+   struct pipe_shader_state state;
+   void *driver_shader;
+
+   /*struct draw_geometry_shader *draw_shader;*/
+
+   GLuint param_state;
+};
+
+
 static INLINE struct st_fragment_program *
 st_fragment_program( struct gl_fragment_program *fp )
 {

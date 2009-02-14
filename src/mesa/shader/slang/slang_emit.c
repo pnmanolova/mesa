@@ -2479,15 +2479,17 @@ _slang_emit_code(slang_ir_node *n, slang_var_table *vt,
 
    if (!emitInfo.EmitCondCodes) {
       emitInfo.EmitHighLevelInstructions = GL_TRUE;
-   }      
+   }
 
    /* Check uniform/constant limits */
    if (prog->Target == GL_FRAGMENT_PROGRAM_ARB) {
       maxUniforms = ctx->Const.FragmentProgram.MaxUniformComponents / 4;
    }
-   else {
-      assert(prog->Target == GL_VERTEX_PROGRAM_ARB);
+   else if (prog->Target == GL_VERTEX_PROGRAM_ARB) {
       maxUniforms = ctx->Const.VertexProgram.MaxUniformComponents / 4;
+   } else {
+      assert(prog->Target == GL_GEOMETRY_SHADER_ARB);
+      maxUniforms = ctx->Const.GeometryProgram.MaxUniformComponents / 4;
    }
    if (prog->Parameters->NumParameters > maxUniforms) {
       slang_info_log_error(log, "Constant/uniform register limit exceeded "

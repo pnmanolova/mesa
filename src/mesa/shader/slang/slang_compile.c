@@ -2348,10 +2348,13 @@ parse_code_unit(slang_parse_ctx * C, slang_code_unit * unit,
        unit->type == SLANG_UNIT_FRAGMENT_SHADER) {
       maxRegs = ctx->Const.FragmentProgram.MaxTemps;
    }
-   else {
-      assert(unit->type == SLANG_UNIT_VERTEX_BUILTIN ||
-             unit->type == SLANG_UNIT_VERTEX_SHADER);
+   else if (unit->type == SLANG_UNIT_VERTEX_BUILTIN ||
+            unit->type == SLANG_UNIT_VERTEX_SHADER) {
       maxRegs = ctx->Const.VertexProgram.MaxTemps;
+   } else {
+      assert(unit->type == SLANG_UNIT_GEOMETRY_BUILTIN ||
+             unit->type == SLANG_UNIT_GEOMETRY_SHADER);
+      maxRegs = ctx->Const.GeometryProgram.MaxTemps;
    }
 
    /* setup output context */
@@ -2739,9 +2742,11 @@ _slang_compile(GLcontext *ctx, struct gl_shader *shader)
    if (shader->Type == GL_VERTEX_SHADER) {
       type = SLANG_UNIT_VERTEX_SHADER;
    }
-   else {
-      assert(shader->Type == GL_FRAGMENT_SHADER);
+   else if (shader->Type == GL_FRAGMENT_SHADER) {
       type = SLANG_UNIT_FRAGMENT_SHADER;
+   } else {
+      assert(shader->Type == GL_GEOMETRY_SHADER_ARB);
+      type = SLANG_UNIT_GEOMETRY_SHADER;
    }
 
    if (!shader->Source)
@@ -2755,8 +2760,10 @@ _slang_compile(GLcontext *ctx, struct gl_shader *shader)
       GLenum progTarget;
       if (shader->Type == GL_VERTEX_SHADER)
          progTarget = GL_VERTEX_PROGRAM_ARB;
-      else
+      else if (shader->Type == GL_FRAGMENT_SHADER)
          progTarget = GL_FRAGMENT_PROGRAM_ARB;
+      else
+         progTarget = GL_GEOMETRY_SHADER_ARB;
       shader->Program = ctx->Driver.NewProgram(ctx, progTarget, 1);
       shader->Program->Parameters = _mesa_new_parameter_list();
       shader->Program->Varying = _mesa_new_parameter_list();
