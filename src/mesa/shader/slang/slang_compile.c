@@ -2763,7 +2763,7 @@ _slang_compile(GLcontext *ctx, struct gl_shader *shader)
       else if (shader->Type == GL_FRAGMENT_SHADER)
          progTarget = GL_FRAGMENT_PROGRAM_ARB;
       else
-         progTarget = GL_GEOMETRY_SHADER_ARB;
+         progTarget = MESA_GEOMETRY_PROGRAM;
       shader->Program = ctx->Driver.NewProgram(ctx, progTarget, 1);
       shader->Program->Parameters = _mesa_new_parameter_list();
       shader->Program->Varying = _mesa_new_parameter_list();

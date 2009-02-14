@@ -74,6 +74,11 @@ _mesa_init_fragment_program(GLcontext *ctx,
                             GLenum target, GLuint id);
 
 extern struct gl_program *
+_mesa_init_geometry_program(GLcontext *ctx,
+                            struct gl_geometry_program *prog,
+                            GLenum target, GLuint id);
+
+extern struct gl_program *
 _mesa_new_program(GLcontext *ctx, GLenum target, GLuint id);
 
 extern void

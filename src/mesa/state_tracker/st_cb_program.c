@@ -68,7 +68,7 @@ static void st_bind_program( GLcontext *ctx,
    case GL_FRAGMENT_PROGRAM_ARB:
       st->dirty.st |= ST_NEW_FRAGMENT_PROGRAM;
       break;
-   case GL_GEOMETRY_SHADER_ARB:
+   case MESA_GEOMETRY_PROGRAM:
       st->dirty.st |= ST_NEW_GEOMETRY_PROGRAM;
       break;
    }
@@ -124,12 +124,12 @@ static struct gl_program *st_new_program( GLcontext *ctx,
 					  target, 
 					  id );
    }
-   case GL_GEOMETRY_SHADER_ARB: {
+   case MESA_GEOMETRY_PROGRAM: {
       struct st_geometry_program *prog = CALLOC_STRUCT(st_geometry_program);
 
       prog->serialNo = SerialNo++;
 
-      return _mesa_init_fragment_program(ctx, &prog->Base,
+      return _mesa_init_geometry_program(ctx, &prog->Base,
                                          target, id);
    }
 
@@ -192,7 +192,7 @@ st_delete_program(GLcontext *ctx, struct gl_program *prog)
          st_free_translated_vertex_programs(st, stfp->vertex_programs);
       }
       break;
-   case GL_GEOMETRY_SHADER_ARB:
+   case MESA_GEOMETRY_PROGRAM:
       {
          struct st_geometry_program *stgp = (struct st_geometry_program *) prog;
 

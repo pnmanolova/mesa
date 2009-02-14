@@ -41,6 +41,13 @@
 #include "glapi/glapi.h"
 #include "math/m_matrix.h"	/* GLmatrix */
 
+/**
+ * Internal token
+ *  Must be simply different than GL_VERTEX_PROGRAM
+ *    and GL_FRAGMENT_PROGRAM_ARB
+ *  FIXME: this will have to be a real GL extension
+ */
+#define MESA_GEOMETRY_PROGRAM 0x9999
 
 /**
  * Color channel data type.

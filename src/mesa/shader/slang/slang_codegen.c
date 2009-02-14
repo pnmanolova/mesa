@@ -4505,7 +4505,7 @@ _slang_codegen_global_variable(slang_assemble_ctx *A, slang_variable *var,
                                               size, swizzle);
          } else {
             /* geometry program output */
-            GLint index = _slang_output_index(varName, GL_GEOMETRY_SHADER_ARB);
+            GLint index = _slang_output_index(varName, MESA_GEOMETRY_PROGRAM);
             GLuint swizzle = _slang_var_swizzle(size, 0);
             assert(index >= 0);
             assert(index < GEOM_RESULT_MAX);
@@ -4562,7 +4562,7 @@ _slang_codegen_global_variable(slang_assemble_ctx *A, slang_variable *var,
          assert(type == SLANG_UNIT_FRAGMENT_BUILTIN);
          store = _slang_new_ir_storage(PROGRAM_OUTPUT, index, specialSize);
       } else {
-         GLint index = _slang_output_index(varName, GL_GEOMETRY_SHADER_ARB);
+         GLint index = _slang_output_index(varName, MESA_GEOMETRY_PROGRAM);
          GLint specialSize = 4; /* treat all fragment outputs as float[4] */
          assert(type == SLANG_UNIT_GEOMETRY_BUILTIN);
          store = _slang_new_ir_storage(PROGRAM_OUTPUT, index, specialSize);

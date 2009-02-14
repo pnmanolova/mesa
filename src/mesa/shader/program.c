@@ -277,6 +277,19 @@ _mesa_init_vertex_program( GLcontext *ctx, struct gl_vertex_program *prog,
       return NULL;
 }
 
+/**
+ * Initialize a new geometry program object.
+ */
+struct gl_program *
+_mesa_init_geometry_program( GLcontext *ctx, struct gl_geometry_program *prog,
+                             GLenum target, GLuint id)
+{
+   if (prog)
+      return _mesa_init_program_struct( ctx, &prog->Base, target, id );
+   else
+      return NULL;
+}
+
 
 /**
  * Allocate and initialize a new fragment/vertex program object but
