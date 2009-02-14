@@ -71,6 +71,7 @@ struct options {
    gl_prog_print_mode Mode;
    const char *VertFile;
    const char *FragFile;
+   const char *GeoFile;
    const char *OutputFile;
    GLboolean Params;
    struct gl_sl_pragmas Pragmas;
@@ -244,7 +245,8 @@ CompileShader(const char *filename, GLenum type)
    GLuint shader;
 
    assert(type == GL_FRAGMENT_SHADER ||
-          type == GL_VERTEX_SHADER);
+          type == GL_VERTEX_SHADER ||
+          type == GL_GEOMETRY_SHADER_ARB);
 
    shader = _mesa_CreateShader(type);
    ReadShader(shader, filename);
@@ -261,6 +263,7 @@ Usage(void)
    printf("  --vs FILE          vertex shader input filename\n");
    printf("  --fs FILE          fragment shader input filename\n");
    printf("  --arb              emit ARB-style instructions\n");
+   printf("  --gs FILE          geometry shader input filename\n");
    printf("  --nv               emit NV-style instructions\n");
    printf("  --debug            force #pragma debug(on)\n");
    printf("  --nodebug          force #pragma debug(off)\n");
@@ -282,6 +285,7 @@ ParseOptions(int argc, char *argv[])
    Options.Mode = PROG_PRINT_DEBUG;
    Options.VertFile = NULL;
    Options.FragFile = NULL;
+   Options.GeoFile = NULL;
    Options.OutputFile = NULL;
    Options.Params = GL_FALSE;
    Options.Pragmas.IgnoreOptimize = GL_FALSE;
@@ -301,6 +305,10 @@ ParseOptions(int argc, char *argv[])
       }
       else if (strcmp(argv[i], "--fs") == 0) {
          Options.FragFile = argv[i + 1];
+         i++;
+      }
+      else if (strcmp(argv[i], "--gs") == 0) {
+         Options.GeoFile = argv[i + 1];
          i++;
       }
       else if (strcmp(argv[i], "--arb") == 0) {
@@ -372,6 +380,9 @@ main(int argc, char *argv[])
    }
    else if (Options.FragFile) {
       shader = CompileShader(Options.FragFile, GL_FRAGMENT_SHADER);
+   }
+   else if (Options.GeoFile) {
+      shader = CompileShader(Options.GeoFile, GL_GEOMETRY_SHADER_ARB);
    }
 
    if (shader) {
