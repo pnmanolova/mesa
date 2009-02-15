@@ -20,21 +20,22 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-attribute int gl_VerticesIn;
+const int gl_VerticesIn = 6;
 
-varying vec4 gl_FrontColorIn[];
-varying vec4 gl_BackColorIn[];
-varying vec4 gl_FrontSecondaryColorIn[];
-varying vec4 gl_BackSecondaryColorIn[];
-//varying vec4 gl_TexCoordIn[][];
-varying float gl_FogFragCoordIn[];
-varying vec4 gl_PositionIn[];
-varying float gl_PointSizeIn[];
-varying vec4 gl_ClipVertexIn[];
+varying vec4 gl_FrontColorIn[gl_VerticesIn];
+varying vec4 gl_BackColorIn[gl_VerticesIn];
+varying vec4 gl_FrontSecondaryColorIn[gl_VerticesIn];
+varying vec4 gl_BackSecondaryColorIn[gl_VerticesIn];
+//varying vec4 gl_TexCoordIn[gl_VerticesIn][gl_MaxTextureCoords];
+varying float gl_FogFragCoordIn[gl_VerticesIn];
+varying vec4 gl_PositionIn[gl_VerticesIn];
+varying float gl_PointSizeIn[gl_VerticesIn];
+varying vec4 gl_ClipVertexIn[gl_VerticesIn];
 
 varying vec4 gl_FrontColor;
 varying vec4 gl_BackColor;
 varying vec4 gl_FrontSecondaryColor;
 varying vec4 gl_BackSecondaryColor;
-varying vec4 gl_TexCoord[];
+varying vec4 gl_TexCoord[gl_VerticesIn];
 varying float gl_FogFragCoord;
+

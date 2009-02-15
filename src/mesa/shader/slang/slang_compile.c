@@ -2628,7 +2628,8 @@ compile_object(grammar * id, const char *source, slang_code_object * object,
    grammar_set_reg8(*id, (const byte *) "parsing_builtin", 1);
 
    /* if parsing user-specified shader, load built-in library */
-   if (type == SLANG_UNIT_FRAGMENT_SHADER || type == SLANG_UNIT_VERTEX_SHADER) {
+   if (type == SLANG_UNIT_FRAGMENT_SHADER || type == SLANG_UNIT_VERTEX_SHADER ||
+       type == SLANG_UNIT_GEOMETRY_SHADER) {
       /* compile core functionality first */
       if (!compile_binary(slang_core_gc,
                           &object->builtin[SLANG_BUILTIN_CORE],
@@ -2719,7 +2720,7 @@ compile_shader(GLcontext *ctx, slang_code_object * object,
    GLboolean success;
    grammar id = 0;
 
-#if 0 /* for debug */
+#if 1 /* for debug */
    _mesa_printf("********* COMPILE SHADER ***********\n");
    _mesa_printf("%s\n", shader->Source);
    _mesa_printf("************************************\n");
