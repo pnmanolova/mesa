@@ -2488,7 +2488,7 @@ _slang_emit_code(slang_ir_node *n, slang_var_table *vt,
    else if (prog->Target == GL_VERTEX_PROGRAM_ARB) {
       maxUniforms = ctx->Const.VertexProgram.MaxUniformComponents / 4;
    } else {
-      assert(prog->Target == GL_GEOMETRY_SHADER_ARB);
+      assert(prog->Target == MESA_GEOMETRY_PROGRAM);
       maxUniforms = ctx->Const.GeometryProgram.MaxUniformComponents / 4;
    }
    if (prog->Parameters->NumParameters > maxUniforms) {

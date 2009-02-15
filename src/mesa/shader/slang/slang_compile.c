@@ -2592,6 +2592,10 @@ static const byte slang_vertex_builtin_gc[] = {
 #include "library/slang_vertex_builtin_gc.h"
 };
 
+static const byte slang_geometry_builtin_gc[] = {
+#include "library/slang_geometry_builtin_gc.h"
+};
+
 static GLboolean
 compile_object(grammar * id, const char *source, slang_code_object * object,
                slang_unit_type type, slang_info_log * infolog,
@@ -2681,6 +2685,13 @@ compile_object(grammar * id, const char *source, slang_code_object * object,
                              &object->builtin[SLANG_BUILTIN_TARGET],
                              base_version,
                              SLANG_UNIT_VERTEX_BUILTIN, infolog, NULL,
+                             &object->builtin[SLANG_BUILTIN_COMMON], NULL))
+            return GL_FALSE;
+      } else if (type == SLANG_UNIT_GEOMETRY_SHADER) {
+         if (!compile_binary(slang_geometry_builtin_gc,
+                             &object->builtin[SLANG_BUILTIN_TARGET],
+                             base_version,
+                             SLANG_UNIT_GEOMETRY_BUILTIN, infolog, NULL,
                              &object->builtin[SLANG_BUILTIN_COMMON], NULL))
             return GL_FALSE;
       }

@@ -55,7 +55,7 @@ slang_pp_version_syn.h: syn_to_c slang_pp_version.syn
 
 builtin_110: slang_common_builtin_gc.h slang_core_gc.h slang_fragment_builtin_gc.h slang_vertex_builtin_gc.h
 
-builtin_120: slang_120_core_gc.h slang_builtin_120_common_gc.h slang_builtin_120_fragment_gc.h
+builtin_120: slang_120_core_gc.h slang_builtin_120_common_gc.h slang_builtin_120_fragment_gc.h slang_geometry_builtin_gc.h
 
 
 slang_120_core_gc.h: gc_to_bin slang_120_core.gc
@@ -79,3 +79,5 @@ slang_fragment_builtin_gc.h: gc_to_bin slang_fragment_builtin.gc
 slang_vertex_builtin_gc.h: gc_to_bin slang_vertex_builtin.gc
 	./gc_to_bin 2 slang_vertex_builtin.gc slang_vertex_builtin_gc.h
 
+slang_geometry_builtin_gc.h: gc_to_bin slang_geometry_builtin.gc
+	./gc_to_bin 2 slang_geometry_builtin.gc slang_geometry_builtin_gc.h
