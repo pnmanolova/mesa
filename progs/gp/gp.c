@@ -6,6 +6,7 @@
 #include <math.h>
 #define GL_GLEXT_PROTOTYPES
 #include <GL/glut.h>
+#include <GL/glext.h>
 
 static const char *filename = NULL;
 static GLuint nr_steps = 4;
@@ -119,9 +120,20 @@ static void prepare_shaders()
    glAttachShader(program, vertShader);
    glAttachShader(program, geoShader);
    glAttachShader(program, fragShader);
+
+   glProgramParameteriARB(program, GL_GEOMETRY_INPUT_TYPE_ARB, GL_TRIANGLES);
+   glProgramParameteriARB(program, GL_GEOMETRY_OUTPUT_TYPE_ARB, GL_LINE_STRIP);
+
+   {
+      int temp;
+      glGetIntegerv(GL_MAX_GEOMETRY_OUTPUT_VERTICES_ARB,&temp);
+      glProgramParameteriEXT(program,GL_GEOMETRY_VERTICES_OUT_ARB,temp);
+   }
+
    glLinkProgram(program);
    check_link(program);
    glUseProgram(program);
+
 
    setup_uniforms();
 }

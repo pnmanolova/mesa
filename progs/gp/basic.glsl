@@ -9,4 +9,5 @@ void main()
     gl_Position = gl_PositionIn[i];
     EmitVertex();
   }
+  EndPrimitive();
 }
