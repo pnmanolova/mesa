@@ -1027,10 +1027,10 @@ static const char GetTexFilterFuncSGIS_names[] =
     "";
 #endif
 
-#if defined(need_GL_NV_register_combiners)
-static const char GetCombinerOutputParameterfvNV_names[] = 
-    "iiip\0" /* Parameter signature */
-    "glGetCombinerOutputParameterfvNV\0"
+#if defined(need_GL_SUN_vertex)
+static const char ReplacementCodeuiColor4ubVertex3fvSUN_names[] = 
+    "ppp\0" /* Parameter signature */
+    "glReplacementCodeuiColor4ubVertex3fvSUN\0"
     "";
 #endif
 
@@ -1784,6 +1784,13 @@ static const char WindowPos4ivMESA_names[] =
     "";
 #endif
 
+#if defined(need_GL_ARB_geometry_shader4)
+static const char FramebufferTextureLayer_names[] = 
+    "iiiii\0" /* Parameter signature */
+    "glFramebufferTextureLayerARB\0"
+    "";
+#endif
+
 #if defined(need_GL_VERSION_1_3)
 static const char MultiTexCoord3svARB_names[] = 
     "ip\0" /* Parameter signature */
@@ -1964,6 +1971,13 @@ static const char GenTextures_names[] =
     "ip\0" /* Parameter signature */
     "glGenTextures\0"
     "glGenTexturesEXT\0"
+    "";
+#endif
+
+#if defined(need_GL_ARB_geometry_shader4)
+static const char FramebufferTextureARB_names[] = 
+    "iiii\0" /* Parameter signature */
+    "glFramebufferTextureARB\0"
     "";
 #endif
 
@@ -3515,10 +3529,10 @@ static const char SeparableFilter2D_names[] =
     "";
 #endif
 
-#if defined(need_GL_SUN_vertex)
-static const char ReplacementCodeuiColor4ubVertex3fvSUN_names[] = 
-    "ppp\0" /* Parameter signature */
-    "glReplacementCodeuiColor4ubVertex3fvSUN\0"
+#if defined(need_GL_ARB_geometry_shader4)
+static const char ProgramParameteriARB_names[] = 
+    "iii\0" /* Parameter signature */
+    "glProgramParameteriARB\0"
     "";
 #endif
 
@@ -3747,6 +3761,13 @@ static const char MultiTexCoord4dARB_names[] =
     "";
 #endif
 
+#if defined(need_GL_ARB_geometry_shader4)
+static const char FramebufferTextureFaceARB_names[] = 
+    "iiiii\0" /* Parameter signature */
+    "glFramebufferTextureFaceARB\0"
+    "";
+#endif
+
 #if defined(need_GL_VERSION_1_4) || defined(need_GL_EXT_secondary_color)
 static const char SecondaryColor3usEXT_names[] = 
     "iii\0" /* Parameter signature */
@@ -3767,6 +3788,13 @@ static const char DeleteProgramsNV_names[] =
     "ip\0" /* Parameter signature */
     "glDeleteProgramsARB\0"
     "glDeleteProgramsNV\0"
+    "";
+#endif
+
+#if defined(need_GL_NV_register_combiners)
+static const char GetCombinerOutputParameterfvNV_names[] = 
+    "iiip\0" /* Parameter signature */
+    "glGetCombinerOutputParameterfvNV\0"
     "";
 #endif
 
@@ -4972,6 +5000,16 @@ static const struct dri_extension_function GL_ARB_framebuffer_object_functions[]
 };
 #endif
 
+#if defined(need_GL_ARB_geometry_shader4)
+static const struct dri_extension_function GL_ARB_geometry_shader4_functions[] = {
+    { FramebufferTextureLayer_names, FramebufferTextureLayer_remap_index, -1 },
+    { FramebufferTextureARB_names, FramebufferTextureARB_remap_index, -1 },
+    { ProgramParameteriARB_names, ProgramParameteriARB_remap_index, -1 },
+    { FramebufferTextureFaceARB_names, FramebufferTextureFaceARB_remap_index, -1 },
+    { NULL, 0, 0 }
+};
+#endif
+
 #if defined(need_GL_ARB_matrix_palette)
 static const struct dri_extension_function GL_ARB_matrix_palette_functions[] = {
     { MatrixIndexusvARB_names, MatrixIndexusvARB_remap_index, -1 },
@@ -5781,12 +5819,12 @@ static const struct dri_extension_function GL_NV_point_sprite_functions[] = {
 static const struct dri_extension_function GL_NV_register_combiners_functions[] = {
     { CombinerOutputNV_names, CombinerOutputNV_remap_index, -1 },
     { CombinerParameterfvNV_names, CombinerParameterfvNV_remap_index, -1 },
-    { GetCombinerOutputParameterfvNV_names, GetCombinerOutputParameterfvNV_remap_index, -1 },
     { FinalCombinerInputNV_names, FinalCombinerInputNV_remap_index, -1 },
     { GetCombinerInputParameterfvNV_names, GetCombinerInputParameterfvNV_remap_index, -1 },
     { GetCombinerOutputParameterivNV_names, GetCombinerOutputParameterivNV_remap_index, -1 },
     { CombinerParameteriNV_names, CombinerParameteriNV_remap_index, -1 },
     { GetFinalCombinerInputParameterivNV_names, GetFinalCombinerInputParameterivNV_remap_index, -1 },
+    { GetCombinerOutputParameterfvNV_names, GetCombinerOutputParameterfvNV_remap_index, -1 },
     { CombinerInputNV_names, CombinerInputNV_remap_index, -1 },
     { CombinerParameterfNV_names, CombinerParameterfNV_remap_index, -1 },
     { GetFinalCombinerInputParameterfvNV_names, GetFinalCombinerInputParameterfvNV_remap_index, -1 },
@@ -6154,6 +6192,7 @@ static const struct dri_extension_function GL_SUN_vertex_functions[] = {
     { TexCoord2fColor4fNormal3fVertex3fSUN_names, TexCoord2fColor4fNormal3fVertex3fSUN_remap_index, -1 },
     { TexCoord2fNormal3fVertex3fvSUN_names, TexCoord2fNormal3fVertex3fvSUN_remap_index, -1 },
     { ReplacementCodeuiTexCoord2fNormal3fVertex3fSUN_names, ReplacementCodeuiTexCoord2fNormal3fVertex3fSUN_remap_index, -1 },
+    { ReplacementCodeuiColor4ubVertex3fvSUN_names, ReplacementCodeuiColor4ubVertex3fvSUN_remap_index, -1 },
     { ReplacementCodeuiTexCoord2fVertex3fSUN_names, ReplacementCodeuiTexCoord2fVertex3fSUN_remap_index, -1 },
     { TexCoord2fNormal3fVertex3fSUN_names, TexCoord2fNormal3fVertex3fSUN_remap_index, -1 },
     { Color3fVertex3fSUN_names, Color3fVertex3fSUN_remap_index, -1 },
@@ -6175,7 +6214,6 @@ static const struct dri_extension_function GL_SUN_vertex_functions[] = {
     { Normal3fVertex3fvSUN_names, Normal3fVertex3fvSUN_remap_index, -1 },
     { Color4fNormal3fVertex3fSUN_names, Color4fNormal3fVertex3fSUN_remap_index, -1 },
     { ReplacementCodeuiTexCoord2fColor4fNormal3fVertex3fSUN_names, ReplacementCodeuiTexCoord2fColor4fNormal3fVertex3fSUN_remap_index, -1 },
-    { ReplacementCodeuiColor4ubVertex3fvSUN_names, ReplacementCodeuiColor4ubVertex3fvSUN_remap_index, -1 },
     { ReplacementCodeuiColor3fVertex3fSUN_names, ReplacementCodeuiColor3fVertex3fSUN_remap_index, -1 },
     { TexCoord4fVertex4fSUN_names, TexCoord4fVertex4fSUN_remap_index, -1 },
     { TexCoord2fColor3fVertex3fvSUN_names, TexCoord2fColor3fVertex3fvSUN_remap_index, -1 },
