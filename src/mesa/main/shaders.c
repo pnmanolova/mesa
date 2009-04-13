@@ -26,6 +26,7 @@
 #include "glheader.h"
 #include "context.h"
 #include "shaders.h"
+#include "shader/program.h"
 
 
 /**
@@ -726,3 +727,24 @@ _mesa_ValidateProgramARB(GLhandleARB program)
    ctx->Driver.ValidateProgram(ctx, program);
 }
 
+void GLAPIENTRY
+_mesa_ProgramParameteriARB(GLuint program, GLenum pname, GLint value)
+{
+   struct gl_geometry_program *gprog;
+   GET_CURRENT_CONTEXT(ctx);
+   ASSERT_OUTSIDE_BEGIN_END(ctx);
+
+   switch (pname) {
+   case GL_GEOMETRY_VERTICES_OUT_ARB:
+      if (!ctx->Extensions.ARB_geometry_shader4) {
+         _mesa_error(ctx, GL_INVALID_OPERATION, "glProgramParameteriARB");
+         return;
+      }
+      gprog = (struct gl_geometry_program *) _mesa_lookup_program(ctx, program);
+      gprog->GeometryVerticesOut = value;
+      break;
+   default:
+      _mesa_error(ctx, GL_INVALID_ENUM, "glProgramParameteriARB");
+      break;
+   }
+}

@@ -1922,6 +1922,8 @@ struct gl_vertex_program
 struct gl_geometry_program
 {
    struct gl_program Base;   /**< base class */
+
+   GLint GeometryVerticesOut;
 };
 
 

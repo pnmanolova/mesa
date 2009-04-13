@@ -894,5 +894,12 @@ _mesa_init_exec_table(struct _glapi_table *exec)
     */
    SET_RenderbufferStorageMultisample(exec, _mesa_RenderbufferStorageMultisample);
 #endif
+
+#if FEATURE_ARB_geometry_shader4
+   SET_ProgramParameteriARB(exec, _mesa_ProgramParameteriARB);
+   SET_FramebufferTextureARB(exec, _mesa_FramebufferTextureARB);
+   SET_FramebufferTextureLayerARB(exec, _mesa_FramebufferTextureLayerEXT);
+   SET_FramebufferTextureFaceARB(exec, _mesa_FramebufferTextureFaceARB);
+#endif
 }
 

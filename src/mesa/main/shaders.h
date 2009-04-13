@@ -232,5 +232,9 @@ extern void GLAPIENTRY
 _mesa_UniformMatrix4x3fv(GLint location, GLsizei count, GLboolean transpose,
                          const GLfloat *value);
 
+extern void GLAPIENTRY
+_mesa_ProgramParameteriARB(GLuint program, GLenum pname, GLint value);
+
+
 
 #endif /* SHADERS_H */

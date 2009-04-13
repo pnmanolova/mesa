@@ -50,6 +50,7 @@ static const struct {
    { OFF, "GL_ARB_fragment_program_shadow",    F(ARB_fragment_program_shadow) },
    { OFF, "GL_ARB_fragment_shader",            F(ARB_fragment_shader) },
    { OFF, "GL_ARB_framebuffer_object",         F(ARB_framebuffer_object) },
+   { OFF, "GL_ARB_geometry_shader4",           F(ARB_geometry_shader4) },
    { OFF, "GL_ARB_half_float_pixel",           F(ARB_half_float_pixel) },
    { OFF, "GL_ARB_imaging",                    F(ARB_imaging) },
    { ON,  "GL_ARB_multisample",                F(ARB_multisample) },
@@ -194,6 +195,9 @@ _mesa_enable_sw_extensions(GLcontext *ctx)
 #endif
 #if FEATURE_ARB_framebuffer_object
    ctx->Extensions.ARB_framebuffer_object = GL_TRUE;
+#endif
+#if FEATURE_ARB_geometry_shader4
+   ctx->Extensions.ARB_geometry_shader4 = GL_TRUE;
 #endif
    ctx->Extensions.ARB_half_float_pixel = GL_TRUE;
    ctx->Extensions.ARB_imaging = GL_TRUE;
