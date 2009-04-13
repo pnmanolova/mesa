@@ -32,6 +32,7 @@ varying vec4 gl_PositionIn[gl_VerticesIn];
 varying float gl_PointSizeIn[gl_VerticesIn];
 varying vec4 gl_ClipVertexIn[gl_VerticesIn];
 
+varying vec4 gl_Position;
 varying vec4 gl_FrontColor;
 varying vec4 gl_BackColor;
 varying vec4 gl_FrontSecondaryColor;
@@ -39,3 +40,10 @@ varying vec4 gl_BackSecondaryColor;
 varying vec4 gl_TexCoord[gl_VerticesIn];
 varying float gl_FogFragCoord;
 
+void EmitVertex()
+{
+}
+
+void EndPrimitive()
+{
+}

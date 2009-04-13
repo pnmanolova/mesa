@@ -391,6 +391,12 @@ compile_instruction(
       fullinst->Instruction.Opcode = TGSI_OPCODE_ELSE;
       fullinst->InstructionExtLabel.Label = inst->BranchTarget + preamble_size;
       break;
+   case OPCODE_EMIT_VERTEX:
+      fullinst->Instruction.Opcode = TGSI_OPCODE_EMIT;
+      break;
+   case OPCODE_END_PRIMITIVE:
+      fullinst->Instruction.Opcode = TGSI_OPCODE_ENDPRIM;
+      break;
    case OPCODE_ENDIF:
       fullinst->Instruction.Opcode = TGSI_OPCODE_ENDIF;
       break;

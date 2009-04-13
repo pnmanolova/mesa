@@ -544,6 +544,9 @@ static slang_asm_info AsmInfo[] = {
    { "float_noise3", IR_NOISE3, 1, 1},
    { "float_noise4", IR_NOISE4, 1, 1},
 
+   { "emit_vertex", IR_EMIT_VERTEX, 0, 0},
+   { "end_primitive", IR_END_PRIMITIVE, 0, 0},
+
    { NULL, IR_NOP, 0, 0 }
 };
 
@@ -1483,6 +1486,7 @@ static slang_asm_info *
 slang_find_asm_info(const char *name)
 {
    GLuint i;
+   fprintf(stderr, "FIND ASM INFO : '%s'\n", name);
    for (i = 0; AsmInfo[i].Name; i++) {
       if (_mesa_strcmp(AsmInfo[i].Name, name) == 0) {
          return AsmInfo + i;
@@ -3608,10 +3612,15 @@ is_store_writable(const slang_assemble_ctx *A, const slang_ir_storage *store)
    while (store->Parent)
       store = store->Parent;
 
+   fprintf(stderr, "AAAAAAAAAAAAAAA target = %d (%d, %d, %d)\n", A->program->Target,
+           GL_FRAGMENT_PROGRAM_ARB, GL_VERTEX_PROGRAM_ARB, MESA_GEOMETRY_PROGRAM);
+   fprintf(stderr, "\tvarying = %d, target geo = %d\n",
+           store->File == PROGRAM_VARYING, A->program->Target == MESA_GEOMETRY_PROGRAM);
    if (!(store->File == PROGRAM_OUTPUT ||
          store->File == PROGRAM_TEMPORARY ||
          (store->File == PROGRAM_VARYING &&
-          A->program->Target == GL_VERTEX_PROGRAM_ARB))) {
+          (A->program->Target == GL_VERTEX_PROGRAM_ARB ||
+           A->program->Target == MESA_GEOMETRY_PROGRAM)))) {
       return GL_FALSE;
    }
    else {
@@ -3704,7 +3713,8 @@ _slang_gen_assignment(slang_assemble_ctx * A, slang_operation *oper)
       /* check that lhs is writable */
       if (!is_store_writable(A, lhs->Store)) {
          slang_info_log_error(A->log,
-                              "illegal assignment to read-only l-value");
+                              "illegal assignment to read-only l-value '%s'",
+                              (char*)lhs->Var->a_name);
          return NULL;
       }
 
@@ -4333,6 +4343,8 @@ _slang_codegen_global_variable(slang_assemble_ctx *A, slang_variable *var,
    const GLint totalSize = _slang_array_size(size, arrayLen);
    GLint texIndex = sampler_to_texture_index(var->type.specifier.type);
 
+   fprintf(stderr, "11111111111111111 '%s'\n", varName);
+
    /* check for sampler2D arrays */
    if (texIndex == -1 && var->type.specifier._array)
       texIndex = sampler_to_texture_index(var->type.specifier._array->type);
@@ -4484,6 +4496,7 @@ _slang_codegen_global_variable(slang_assemble_ctx *A, slang_variable *var,
                                            totalSize, swizzle);
       }
       else {
+         fprintf(stderr, "XXXXXXXXXXXXX '%s'\n", varName);
          /* pre-defined varying, like gl_Color or gl_TexCoord */
          if (type == SLANG_UNIT_FRAGMENT_BUILTIN) {
             /* fragment program input */
@@ -4512,11 +4525,18 @@ _slang_codegen_global_variable(slang_assemble_ctx *A, slang_variable *var,
                /* geometry program output */
                index = _slang_output_index(varName, MESA_GEOMETRY_PROGRAM);
                swizzle = _slang_var_swizzle(size, 0);
+
+               assert(index >= 0);
+               assert(index < GEOM_RESULT_MAX);
+
+               store = _slang_new_ir_storage_swz(PROGRAM_OUTPUT, index,
+                                                 size, swizzle);
+            } else {
+               assert(index >= 0);
+               /* assert(index < GEOM_ATTRIB_MAX); */
+               store = _slang_new_ir_storage_swz(PROGRAM_INPUT, index,
+                                                 size, swizzle);
             }
-            assert(index >= 0);
-            assert(index < GEOM_RESULT_MAX);
-            store = _slang_new_ir_storage_swz(PROGRAM_INPUT, index,
-                                              size, swizzle);
          }
          if (dbg) printf("V/F ");
       }

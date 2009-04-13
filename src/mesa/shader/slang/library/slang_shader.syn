@@ -1332,7 +1332,7 @@ asm_arguments_1
 asm_argument
     var_with_field .or
     variable_identifier .or
-    floatconstant;
+    floatconstant .or .true;
 
 var_with_field
     variable_identifier .and dot .and field_selection .emit OP_FIELD;
