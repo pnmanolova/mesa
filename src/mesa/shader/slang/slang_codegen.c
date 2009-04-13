@@ -2378,7 +2378,7 @@ _slang_gen_while(slang_assemble_ctx * A, const slang_operation *oper)
     *    body code (child[1])
     */
    slang_ir_node *prevLoop, *loop, *breakIf, *body;
-   GLboolean isConst, constTrue;
+   GLboolean isConst, constTrue = GL_FALSE;
 
    /* type-check expression */
    if (!_slang_is_boolean(A, &oper->children[0])) {
@@ -4504,13 +4504,18 @@ _slang_codegen_global_variable(slang_assemble_ctx *A, slang_variable *var,
             store = _slang_new_ir_storage_swz(PROGRAM_OUTPUT, index,
                                               size, swizzle);
          } else {
-            /* geometry program output */
-            GLint index = _slang_output_index(varName, MESA_GEOMETRY_PROGRAM);
-            GLuint swizzle = _slang_var_swizzle(size, 0);
+            /* geometry program input */
+            GLuint swizzle;
+            GLint index = _slang_input_index(varName, MESA_GEOMETRY_PROGRAM,
+                                             &swizzle);
+            if (index < 0) {
+               /* geometry program output */
+               index = _slang_output_index(varName, MESA_GEOMETRY_PROGRAM);
+               swizzle = _slang_var_swizzle(size, 0);
+            }
             assert(index >= 0);
             assert(index < GEOM_RESULT_MAX);
-            assert(type == SLANG_UNIT_GEOMETRY_BUILTIN);
-            store = _slang_new_ir_storage_swz(PROGRAM_OUTPUT, index,
+            store = _slang_new_ir_storage_swz(PROGRAM_INPUT, index,
                                               size, swizzle);
          }
          if (dbg) printf("V/F ");
