@@ -487,6 +487,7 @@ typedef struct
 {
    GLboolean ARB_draw_buffers;
    GLboolean ARB_texture_rectangle;
+   GLboolean ARB_geometry_shader4;
 } pp_ext;
 
 
@@ -524,6 +525,8 @@ pp_ext_set(pp_ext *self, const char *name, GLboolean enable)
       self->ARB_draw_buffers = enable;
    else if (_mesa_strcmp (name, "GL_ARB_texture_rectangle") == 0)
       self->ARB_texture_rectangle = enable;
+   else if (_mesa_strcmp(name, "GL_ARB_geometry_shader4") == 0)
+      self->ARB_geometry_shader4 = enable;
    else
       return GL_FALSE;
    return GL_TRUE;
