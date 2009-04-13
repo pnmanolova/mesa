@@ -93,7 +93,7 @@ static void prepare_shaders()
       "}\n";
    static const char *geoShaderText =
       "#version 120\n"
-      "#extension GL_EXT_geometry_shader4 : enable\n"
+      "#extension GL_ARB_geometry_shader4 : enable\n"
       "void main()\n"
       "{\n"
       "  for(int i = 0; i < gl_VerticesIn; ++i)\n"
@@ -127,7 +127,7 @@ static void prepare_shaders()
    {
       int temp;
       glGetIntegerv(GL_MAX_GEOMETRY_OUTPUT_VERTICES_ARB,&temp);
-      glProgramParameteriEXT(program,GL_GEOMETRY_VERTICES_OUT_ARB,temp);
+      glProgramParameteriARB(program,GL_GEOMETRY_VERTICES_OUT_ARB,temp);
    }
 
    glLinkProgram(program);
