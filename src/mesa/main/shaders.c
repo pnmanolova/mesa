@@ -27,6 +27,7 @@
 #include "context.h"
 #include "shaders.h"
 #include "shader/program.h"
+#include "shader/shader_api.h"
 
 
 /**
@@ -731,6 +732,7 @@ void GLAPIENTRY
 _mesa_ProgramParameteriARB(GLuint program, GLenum pname, GLint value)
 {
    struct gl_geometry_program *gprog;
+   GLuint i;
    GET_CURRENT_CONTEXT(ctx);
    ASSERT_OUTSIDE_BEGIN_END(ctx);
 
@@ -740,8 +742,26 @@ _mesa_ProgramParameteriARB(GLuint program, GLenum pname, GLint value)
          _mesa_error(ctx, GL_INVALID_OPERATION, "glProgramParameteriARB");
          return;
       }
-      gprog = (struct gl_geometry_program *) _mesa_lookup_program(ctx, program);
-      gprog->GeometryVerticesOut = value;
+      {
+         struct gl_shader_program *shProg = _mesa_lookup_shader_program(ctx, program);
+         struct gl_shader *sh = NULL;
+
+         if (!shProg) {
+            _mesa_error(ctx, GL_INVALID_ENUM, "glProgramParameteriARB");
+            return;
+         }
+         for (i = 0; i < shProg->NumShaders; ++i) {
+            if (shProg->Shaders[i]->Type == GL_GEOMETRY_SHADER_ARB) {
+               sh = shProg->Shaders[i];
+            }
+         }
+         if (!sh || !sh->Program) {
+            _mesa_error(ctx, GL_INVALID_ENUM, "glProgramParameteriARB");
+            return;
+         }
+         gprog = (struct gl_geometry_program *) sh->Program;
+         gprog->GeometryVerticesOut = value;
+      }
       break;
    default:
       _mesa_error(ctx, GL_INVALID_ENUM, "glProgramParameteriARB");
