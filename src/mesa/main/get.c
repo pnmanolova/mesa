@@ -5487,6 +5487,30 @@ _mesa_GetIntegerv( GLenum pname, GLint *params )
          CHECK_EXT1(ARB_framebuffer_object, "GetIntegerv");
          params[0] = ctx->Const.MaxSamples;
          break;
+      case GL_MAX_GEOMETRY_TEXTURE_IMAGE_UNITS_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetIntegerv");
+         params[0] = ctx->Const.GeometryProgram.MaxGeometryTextureImageUnit;
+         break;
+      case GL_MAX_GEOMETRY_OUTPUT_VERTICES_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetIntegerv");
+         params[0] = ctx->Const.GeometryProgram.MaxGeometryOutputVertices;
+         break;
+      case GL_MAX_GEOMETRY_TOTAL_OUTPUT_COMPONENTS_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetIntegerv");
+         params[0] = ctx->Const.GeometryProgram.MaxGeometryTotalOutputComponents;
+         break;
+      case GL_MAX_GEOMETRY_UNIFORM_COMPONENTS_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetIntegerv");
+         params[0] = ctx->Const.GeometryProgram.MaxGeometryUniformComponents;
+         break;
+      case GL_MAX_GEOMETRY_VARYING_COMPONENTS_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetIntegerv");
+         params[0] = ctx->Const.GeometryProgram.MaxGeometryVaryingComponents;
+         break;
+      case GL_MAX_VERTEX_VARYING_COMPONENTS_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetIntegerv");
+         params[0] = ctx->Const.GeometryProgram.MaxVertexVaryingComponents;
+         break;
       default:
          _mesa_error(ctx, GL_INVALID_ENUM, "glGetIntegerv(pname=0x%x)", pname);
    }

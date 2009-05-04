@@ -1923,7 +1923,9 @@ struct gl_geometry_program
 {
    struct gl_program Base;   /**< base class */
 
-   GLint GeometryVerticesOut;
+   GLint VerticesOut;
+   GLint InputType;
+   GLint OutputType;
 };
 
 
@@ -2488,6 +2490,14 @@ struct gl_program_constants
    GLuint MaxNativeParameters;
    /* For shaders */
    GLuint MaxUniformComponents;
+#if FEATURE_ARB_geometry_shader4
+   GLuint MaxGeometryTextureImageUnit;
+   GLuint MaxGeometryVaryingComponents;
+   GLuint MaxVertexVaryingComponents;
+   GLuint MaxGeometryUniformComponents;
+   GLuint MaxGeometryOutputVertices;
+   GLuint MaxGeometryTotalOutputComponents;
+#endif
 };
 
 

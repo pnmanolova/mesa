@@ -303,6 +303,7 @@ enum pipe_transfer_usage {
 #define PIPE_CAP_TEXTURE_MIRROR_CLAMP    24
 #define PIPE_CAP_TEXTURE_MIRROR_REPEAT   25
 #define PIPE_CAP_MAX_VERTEX_TEXTURE_UNITS 26
+#define PIPE_CAP_GEOMETRY_SHADER4        27
 
 
 /**

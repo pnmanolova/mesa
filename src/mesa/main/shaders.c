@@ -728,40 +728,58 @@ _mesa_ValidateProgramARB(GLhandleARB program)
    ctx->Driver.ValidateProgram(ctx, program);
 }
 
+static struct gl_geometry_program *_mesa_geometryFromShader(GLuint program)
+{
+   GET_CURRENT_CONTEXT(ctx);
+   struct gl_shader_program *shProg = NULL;
+   struct gl_shader *sh = NULL;
+   GLuint i;
+
+   shProg = _mesa_lookup_shader_program(ctx, program);
+
+   if (!ctx->Extensions.ARB_geometry_shader4) {
+      _mesa_error(ctx, GL_INVALID_OPERATION, "glProgramParameteriARB");
+      return NULL;
+   }
+
+   if (!shProg) {
+      _mesa_error(ctx, GL_INVALID_ENUM, "glProgramParameteriARB");
+      return NULL;
+   }
+   for (i = 0; i < shProg->NumShaders; ++i) {
+      if (shProg->Shaders[i]->Type == GL_GEOMETRY_SHADER_ARB) {
+         sh = shProg->Shaders[i];
+      }
+   }
+   if (!sh || !sh->Program) {
+      _mesa_error(ctx, GL_INVALID_ENUM, "glProgramParameteriARB");
+      return NULL;
+   }
+   return (struct gl_geometry_program *) sh->Program;
+}
+
 void GLAPIENTRY
 _mesa_ProgramParameteriARB(GLuint program, GLenum pname, GLint value)
 {
    struct gl_geometry_program *gprog;
-   GLuint i;
    GET_CURRENT_CONTEXT(ctx);
    ASSERT_OUTSIDE_BEGIN_END(ctx);
 
    switch (pname) {
    case GL_GEOMETRY_VERTICES_OUT_ARB:
-      if (!ctx->Extensions.ARB_geometry_shader4) {
-         _mesa_error(ctx, GL_INVALID_OPERATION, "glProgramParameteriARB");
-         return;
-      }
-      {
-         struct gl_shader_program *shProg = _mesa_lookup_shader_program(ctx, program);
-         struct gl_shader *sh = NULL;
-
-         if (!shProg) {
-            _mesa_error(ctx, GL_INVALID_ENUM, "glProgramParameteriARB");
-            return;
-         }
-         for (i = 0; i < shProg->NumShaders; ++i) {
-            if (shProg->Shaders[i]->Type == GL_GEOMETRY_SHADER_ARB) {
-               sh = shProg->Shaders[i];
-            }
-         }
-         if (!sh || !sh->Program) {
-            _mesa_error(ctx, GL_INVALID_ENUM, "glProgramParameteriARB");
-            return;
-         }
-         gprog = (struct gl_geometry_program *) sh->Program;
-         gprog->GeometryVerticesOut = value;
-      }
+      gprog = _mesa_geometryFromShader(program);
+      if (gprog)
+         gprog->VerticesOut = value;
+      break;
+   case GL_GEOMETRY_INPUT_TYPE_ARB:
+      gprog = _mesa_geometryFromShader(program);
+      if (gprog)
+         gprog->InputType = value;
+      break;
+   case GL_GEOMETRY_OUTPUT_TYPE_ARB:
+      gprog = _mesa_geometryFromShader(program);
+      if (gprog)
+         gprog->OutputType = value;
       break;
    default:
       _mesa_error(ctx, GL_INVALID_ENUM, "glProgramParameteriARB");

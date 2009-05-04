@@ -233,6 +233,10 @@ void st_init_extensions(struct st_context *st)
       /*ctx->Extensions.ARB_shadow_ambient = GL_TRUE;*/
    }
 
+   if (screen->get_param(screen, PIPE_CAP_GEOMETRY_SHADER4)) {
+      ctx->Extensions.ARB_geometry_shader4 = GL_TRUE;
+   }
+
    /* GL_EXT_packed_depth_stencil requires both the ability to render to
     * a depth/stencil buffer and texture from depth/stencil source.
     */
