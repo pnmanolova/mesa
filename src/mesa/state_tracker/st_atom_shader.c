@@ -123,7 +123,8 @@ vp_out_to_fp_in(GLuint vertResult)
 static struct translated_vertex_program *
 find_translated_vp(struct st_context *st,
                    struct st_vertex_program *stvp,
-                   struct st_fragment_program *stfp)
+                   struct st_fragment_program *stfp,
+                   struct st_geometry_program *stgp)
 {
    static const GLuint UNUSED = ~0;
    struct translated_vertex_program *xvp;
@@ -321,6 +322,7 @@ update_linkage( struct st_context *st )
 {
    struct st_vertex_program *stvp;
    struct st_fragment_program *stfp;
+   struct st_geometry_program *stgp;
    struct translated_vertex_program *xvp;
 
    /* find active shader and params -- Should be covered by
@@ -334,10 +336,16 @@ update_linkage( struct st_context *st )
    stfp = st_fragment_program(st->ctx->FragmentProgram._Current);
    assert(stfp->Base.Base.Target == GL_FRAGMENT_PROGRAM_ARB);
 
-   xvp = find_translated_vp(st, stvp, stfp);
+   if (st->ctx->GeometryProgram._Current) {
+      stgp = st_geometry_program(st->ctx->GeometryProgram._Current);
+      assert(stgp->Base.Base.Target == MESA_GEOMETRY_PROGRAM);
+   }
+
+   xvp = find_translated_vp(st, stvp, stfp, stgp);
 
    st_reference_vertprog(st, &st->vp, stvp);
    st_reference_fragprog(st, &st->fp, stfp);
+   st_reference_geomprog(st, &st->gp, stgp);
 
    cso_set_vertex_shader_handle(st->cso_context, stvp->driver_shader);
 
@@ -349,6 +357,8 @@ update_linkage( struct st_context *st )
    else {
       cso_set_fragment_shader_handle(st->cso_context, stfp->driver_shader);
    }
+   if (stgp && stgp->driver_shader)
+      cso_set_geometry_shader_handle(st->cso_context, stgp->driver_shader);
 
    st->vertex_result_to_slot = xvp->output_to_slot;
 }
@@ -358,7 +368,7 @@ const struct st_tracked_state st_update_shader = {
    "st_update_shader",					/* name */
    {							/* dirty */
       0,						/* mesa */
-      ST_NEW_VERTEX_PROGRAM | ST_NEW_FRAGMENT_PROGRAM	/* st */
+      ST_NEW_VERTEX_PROGRAM | ST_NEW_FRAGMENT_PROGRAM | ST_NEW_GEOMETRY_PROGRAM	/* st */
    },
    update_linkage					/* update */
 };

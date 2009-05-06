@@ -45,6 +45,7 @@ struct pipe_context;
 struct draw_context;
 struct draw_stage;
 struct draw_vertex_shader;
+struct draw_geometry_shader;
 struct tgsi_sampler;
 
 
@@ -111,6 +112,17 @@ void draw_bind_vertex_shader(struct draw_context *draw,
 void draw_delete_vertex_shader(struct draw_context *draw,
                                struct draw_vertex_shader *dvs);
 
+
+/*
+ * Geometry shader functions
+ */
+struct draw_geometry_shader *
+draw_create_geometry_shader(struct draw_context *draw,
+                            const struct pipe_shader_state *shader);
+void draw_bind_geometry_shader(struct draw_context *draw,
+                               struct draw_geometry_shader *dvs);
+void draw_delete_geometry_shader(struct draw_context *draw,
+                                 struct draw_geometry_shader *dvs);
 
 
 /*

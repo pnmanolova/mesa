@@ -236,7 +236,8 @@ enum pipe_transfer_usage {
  */
 #define PIPE_SHADER_VERTEX   0
 #define PIPE_SHADER_FRAGMENT 1
-#define PIPE_SHADER_TYPES    2
+#define PIPE_SHADER_GEOMETRY 2
+#define PIPE_SHADER_TYPES    3
 
 
 /**

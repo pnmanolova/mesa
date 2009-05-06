@@ -78,7 +78,7 @@ struct st_fragment_program
 
 
 /**
- * Derived from Mesa gl_fragment_program:
+ * Derived from Mesa gl_vertex_program:
  */
 struct st_vertex_program
 {
@@ -120,7 +120,7 @@ struct st_geometry_program
    struct pipe_shader_state state;
    void *driver_shader;
 
-   /*struct draw_geometry_shader *draw_shader;*/
+   struct draw_geometry_shader *draw_shader;
 
    GLuint param_state;
 };
@@ -140,10 +140,26 @@ st_vertex_program( struct gl_vertex_program *vp )
 }
 
 
+static INLINE struct st_geometry_program *
+st_geometry_program( struct gl_geometry_program *vp )
+{
+   return (struct st_geometry_program *)vp;
+}
+
 static INLINE void
 st_reference_vertprog(struct st_context *st,
                       struct st_vertex_program **ptr,
                       struct st_vertex_program *prog)
+{
+   _mesa_reference_program(st->ctx,
+                           (struct gl_program **) ptr,
+                           (struct gl_program *) prog);
+}
+
+static INLINE void
+st_reference_geomprog(struct st_context *st,
+                      struct st_geometry_program **ptr,
+                      struct st_geometry_program *prog)
 {
    _mesa_reference_program(st->ctx,
                            (struct gl_program **) ptr,

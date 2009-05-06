@@ -113,6 +113,8 @@ static void check_program_state( struct st_context *st )
    if (ctx->FragmentProgram._Current != &st->fp->Base)
       st->dirty.st |= ST_NEW_FRAGMENT_PROGRAM;
 
+   if (ctx->GeometryProgram._Current != &st->gp->Base)
+      st->dirty.st |= ST_NEW_GEOMETRY_PROGRAM;
 }
 
 

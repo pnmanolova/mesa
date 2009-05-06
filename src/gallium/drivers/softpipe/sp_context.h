@@ -68,6 +68,7 @@ struct softpipe_context {
    const struct pipe_rasterizer_state *rasterizer;
    const struct sp_fragment_shader *fs;
    const struct sp_vertex_shader *vs;
+   const struct sp_geometry_shader *gs;
 
    /** Other rendering state */
    struct pipe_blend_color blend_color;
