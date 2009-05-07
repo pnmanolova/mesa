@@ -133,7 +133,7 @@ typedef struct slang_parse_ctx_
    int parsing_builtin;
    GLboolean global_scope;   /**< Is object being declared a global? */
    slang_atom_pool *atoms;
-   slang_unit_type type;     /**< Vertex vs. Fragment */
+   slang_unit_type type;     /**< Vertex/Fragment/Geometry */
    GLuint version;           /**< user-specified (or default) #version */
 } slang_parse_ctx;
 
@@ -2688,7 +2688,9 @@ compile_object(grammar * id, const char *source, slang_code_object * object,
                              SLANG_UNIT_VERTEX_BUILTIN, infolog, NULL,
                              &object->builtin[SLANG_BUILTIN_COMMON], NULL))
             return GL_FALSE;
-      } else if (type == SLANG_UNIT_GEOMETRY_SHADER) {
+      }
+#if FEATURE_ARB_geometry_shader4
+      else if (type == SLANG_UNIT_GEOMETRY_SHADER) {
          if (!compile_binary(slang_geometry_builtin_gc,
                              &object->builtin[SLANG_BUILTIN_TARGET],
                              base_version,
@@ -2696,6 +2698,7 @@ compile_object(grammar * id, const char *source, slang_code_object * object,
                              &object->builtin[SLANG_BUILTIN_COMMON], NULL))
             return GL_FALSE;
       }
+#endif
 
       /* disable language extensions */
 #if NEW_SLANG /* allow-built-ins */
@@ -2818,7 +2821,7 @@ _slang_compile(GLcontext *ctx, struct gl_shader *shader)
       /* and remove writes to varying vars in vertex programs */
       _mesa_remove_output_reads(shader->Program, PROGRAM_VARYING);
    }
-#if 0
+#if 1
    printf("Post-remove output reads:\n");
    _mesa_print_program(shader->Program);
 #endif

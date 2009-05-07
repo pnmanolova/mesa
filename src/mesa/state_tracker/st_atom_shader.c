@@ -322,7 +322,7 @@ update_linkage( struct st_context *st )
 {
    struct st_vertex_program *stvp;
    struct st_fragment_program *stfp;
-   struct st_geometry_program *stgp;
+   struct st_geometry_program *stgp = NULL;
    struct translated_vertex_program *xvp;
 
    /* find active shader and params -- Should be covered by

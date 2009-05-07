@@ -110,6 +110,15 @@ _mesa_reference_fragprog(GLcontext *ctx,
                            (struct gl_program *) prog);
 }
 
+static INLINE void
+_mesa_reference_geomprog(GLcontext *ctx,
+                         struct gl_geometry_program **ptr,
+                         struct gl_geometry_program *prog)
+{
+   _mesa_reference_program(ctx, (struct gl_program **) ptr,
+                           (struct gl_program *) prog);
+}
+
 extern struct gl_program *
 _mesa_clone_program(GLcontext *ctx, const struct gl_program *prog);
 

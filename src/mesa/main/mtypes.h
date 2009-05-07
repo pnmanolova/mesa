@@ -2226,6 +2226,9 @@ struct gl_shared_state
 #if FEATURE_ARB_fragment_program
    struct gl_fragment_program *DefaultFragmentProgram;
 #endif
+#if FEATURE_ARB_geometry_shader4
+   struct gl_geometry_program *DefaultGeometryProgram;
+#endif
    /*@}*/
 
 #if FEATURE_ATI_fragment_shader
