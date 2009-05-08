@@ -96,7 +96,6 @@ _mesa_init_program(GLcontext *ctx)
    /* right now by default we don't have a geometry program */
    _mesa_reference_geomprog(ctx, &ctx->GeometryProgram.Current,
                             NULL);
-   assert(ctx->GeometryProgram.Current);
    ctx->GeometryProgram.Cache = _mesa_new_program_cache();
 #endif
 

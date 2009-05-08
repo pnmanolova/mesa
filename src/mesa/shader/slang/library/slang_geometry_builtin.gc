@@ -42,8 +42,12 @@ varying float gl_FogFragCoord;
 
 void EmitVertex()
 {
+        float f;
+        __asm emit_vertex f;
 }
 
 void EndPrimitive()
 {
+        float f;
+        __asm end_primitive f;
 }

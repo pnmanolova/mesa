@@ -3612,10 +3612,6 @@ is_store_writable(const slang_assemble_ctx *A, const slang_ir_storage *store)
    while (store->Parent)
       store = store->Parent;
 
-   fprintf(stderr, "AAAAAAAAAAAAAAA target = %d (%d, %d, %d)\n", A->program->Target,
-           GL_FRAGMENT_PROGRAM_ARB, GL_VERTEX_PROGRAM_ARB, MESA_GEOMETRY_PROGRAM);
-   fprintf(stderr, "\tvarying = %d, target geo = %d\n",
-           store->File == PROGRAM_VARYING, A->program->Target == MESA_GEOMETRY_PROGRAM);
    if (!(store->File == PROGRAM_OUTPUT ||
          store->File == PROGRAM_TEMPORARY ||
          (store->File == PROGRAM_VARYING &&
@@ -4336,14 +4332,12 @@ _slang_codegen_global_variable(slang_assemble_ctx *A, slang_variable *var,
    const char *varName = (char *) var->a_name;
    GLboolean success = GL_TRUE;
    slang_ir_storage *store = NULL;
-   int dbg = 1;
+   int dbg = 0;
    const GLenum datatype = _slang_gltype_from_specifier(&var->type.specifier);
    const GLint size = _slang_sizeof_type_specifier(&var->type.specifier);
    const GLint arrayLen = _slang_array_length(var);
    const GLint totalSize = _slang_array_size(size, arrayLen);
    GLint texIndex = sampler_to_texture_index(var->type.specifier.type);
-
-   fprintf(stderr, "11111111111111111 '%s'\n", varName);
 
    /* check for sampler2D arrays */
    if (texIndex == -1 && var->type.specifier._array)
@@ -4496,7 +4490,6 @@ _slang_codegen_global_variable(slang_assemble_ctx *A, slang_variable *var,
                                            totalSize, swizzle);
       }
       else {
-         fprintf(stderr, "XXXXXXXXXXXXX '%s'\n", varName);
          /* pre-defined varying, like gl_Color or gl_TexCoord */
          if (type == SLANG_UNIT_FRAGMENT_BUILTIN) {
             /* fragment program input */
