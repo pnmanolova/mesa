@@ -649,7 +649,7 @@
 "asm_argument\n"
 " var_with_field .or\n"
 " variable_identifier .or\n"
-" floatconstant .or .true;\n"
+" floatconstant;\n"
 "var_with_field\n"
 " variable_identifier .and dot .and field_selection .emit OP_FIELD;\n"
 "translation_unit\n"
