@@ -495,6 +495,10 @@ init_program_limits(GLenum type, struct gl_program_constants *prog)
       prog->MaxAttribs = MAX_NV_FRAGMENT_PROGRAM_INPUTS;
       prog->MaxAddressRegs = MAX_FRAGMENT_PROGRAM_ADDRESS_REGS;
    } else {
+      prog->MaxParameters = MAX_NV_VERTEX_PROGRAM_PARAMS;
+      prog->MaxAttribs = MAX_NV_VERTEX_PROGRAM_INPUTS;
+      prog->MaxAddressRegs = MAX_VERTEX_PROGRAM_ADDRESS_REGS;
+
       prog->MaxGeometryTextureImageUnit = MAX_GEOMETRY_TEXTURE_IMAGE_UNITS;
       prog->MaxGeometryVaryingComponents = MAX_GEOMETRY_VARYING_COMPONENTS;
       prog->MaxVertexVaryingComponents = MAX_VERTEX_VARYING_COMPONENTS;
@@ -571,7 +575,7 @@ _mesa_init_constants(GLcontext *ctx)
    init_program_limits(GL_FRAGMENT_PROGRAM_ARB, &ctx->Const.FragmentProgram);
 #endif
 #if FEATURE_ARB_geometry_shader4
-   init_program_limits(MESA_GEOMETRY_PROGRAM, &ctx->Const.FragmentProgram);
+   init_program_limits(MESA_GEOMETRY_PROGRAM, &ctx->Const.GeometryProgram);
 #endif
    ctx->Const.MaxProgramMatrices = MAX_PROGRAM_MATRICES;
    ctx->Const.MaxProgramMatrixStackDepth = MAX_PROGRAM_MATRIX_STACK_DEPTH;

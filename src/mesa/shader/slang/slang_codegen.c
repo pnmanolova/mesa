@@ -544,8 +544,8 @@ static slang_asm_info AsmInfo[] = {
    { "float_noise3", IR_NOISE3, 1, 1},
    { "float_noise4", IR_NOISE4, 1, 1},
 
-   { "emit_vertex", IR_EMIT_VERTEX, 0, 1},
-   { "end_primitive", IR_END_PRIMITIVE, 0, 1},
+   { "emit_vertex", IR_EMIT_VERTEX, 0, 0},
+   { "end_primitive", IR_END_PRIMITIVE, 0, 0},
 
    { NULL, IR_NOP, 0, 0 }
 };
@@ -1486,7 +1486,7 @@ static slang_asm_info *
 slang_find_asm_info(const char *name)
 {
    GLuint i;
-   fprintf(stderr, "FIND ASM INFO : '%s'\n", name);
+
    for (i = 0; AsmInfo[i].Name; i++) {
       if (_mesa_strcmp(AsmInfo[i].Name, name) == 0) {
          return AsmInfo + i;

@@ -2361,6 +2361,11 @@ emit(slang_emit_info *emitInfo, slang_ir_node *n)
    case IR_NOP:
       return NULL;
 
+   case IR_EMIT_VERTEX:
+      return new_instruction(emitInfo, OPCODE_EMIT_VERTEX);
+   case IR_END_PRIMITIVE:
+      return new_instruction(emitInfo, OPCODE_END_PRIMITIVE);
+
    default:
       _mesa_problem(NULL, "Unexpected IR opcode in emit()\n");
    }

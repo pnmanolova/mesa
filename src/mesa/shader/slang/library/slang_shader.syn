@@ -1308,7 +1308,13 @@ jump_statement_5
  * normally slang disallows __asm statements
  */
 __asm_statement
+     asm_statemant_with_vars .or asm_statemant_void;
+
+asm_statemant_with_vars
     "__asm" .and space .and identifier .and space .and asm_arguments .and semicolon .emit OP_END;
+
+asm_statemant_void
+    "__asm" .and space .and identifier .and semicolon .emit OP_END;
 
 /*
  * <asm_arguments> ::= <asm_argument>
