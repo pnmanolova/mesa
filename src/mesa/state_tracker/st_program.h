@@ -111,11 +111,21 @@ struct st_geometry_program
    GLuint serialNo;
 
    /** maps a Mesa VERT_ATTRIB_x to a packed TGSI input index */
-   GLuint input_to_index[VERT_ATTRIB_MAX];
+   GLuint input_to_index[GEOM_ATTRIB_MAX];
    /** maps a TGSI input index back to a Mesa VERT_ATTRIB_x */
    GLuint index_to_input[PIPE_MAX_SHADER_INPUTS];
 
    GLuint num_inputs;
+
+   GLuint input_to_slot[GEOM_ATTRIB_MAX];  /**< Maps GEOM_ATTRIB_x to slot */
+   GLuint num_input_slots;
+
+   /** map FP input back to VP output */
+   GLuint input_map[PIPE_MAX_SHADER_INPUTS];
+
+   ubyte input_semantic_name[PIPE_MAX_SHADER_INPUTS];
+   ubyte input_semantic_index[PIPE_MAX_SHADER_INPUTS];
+
 
    struct pipe_shader_state state;
    void *driver_shader;
@@ -182,6 +192,10 @@ st_translate_fragment_program(struct st_context *st,
                               struct st_fragment_program *fp,
                               const GLuint inputMapping[]);
 
+extern void
+st_translate_geometry_program(struct st_context *st,
+                              struct st_geometry_program *fp,
+                              const GLuint inputMapping[]);
 
 extern void
 st_translate_vertex_program(struct st_context *st,

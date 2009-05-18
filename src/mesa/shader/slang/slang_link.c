@@ -60,6 +60,14 @@ fragment_program(struct gl_program *prog)
    return (struct gl_fragment_program *) prog;
 }
 
+static struct gl_geometry_program *
+geometry_program(struct gl_program *prog)
+{
+   assert(prog->Target == MESA_GEOMETRY_PROGRAM);
+   return (struct gl_geometry_program *)prog;
+}
+
+
 
 /**
  * Record a linking error.
@@ -100,7 +108,7 @@ static GLboolean
 link_varying_vars(GLcontext *ctx,
                   struct gl_shader_program *shProg, struct gl_program *prog)
 {
-   GLuint *map, i, firstVarying, newFile;
+   GLuint *map, i, firstSrcVarying, firstDstVarying, newSrcFile, newDstFile;
    GLbitfield *inOutFlags;
 
    map = (GLuint *) malloc(prog->Varying->NumParameters * sizeof(GLuint));
@@ -113,14 +121,21 @@ link_varying_vars(GLcontext *ctx,
     * Also, replace File=PROGRAM_VARYING with File=PROGRAM_INPUT/OUTPUT.
     */
    if (prog->Target == GL_VERTEX_PROGRAM_ARB) {
-      firstVarying = VERT_RESULT_VAR0;
-      newFile = PROGRAM_OUTPUT;
+      firstSrcVarying = firstDstVarying = VERT_RESULT_VAR0;
+      newSrcFile = newDstFile = PROGRAM_OUTPUT;
       inOutFlags = prog->OutputFlags;
+   }
+   else if (prog->Target == MESA_GEOMETRY_PROGRAM) {
+      firstSrcVarying = GEOM_ATTRIB_VAR0;
+      newSrcFile = PROGRAM_INPUT;
+      firstDstVarying = GEOM_RESULT_VAR0;
+      newDstFile = PROGRAM_OUTPUT;
+      inOutFlags = prog->InputFlags;
    }
    else {
       assert(prog->Target == GL_FRAGMENT_PROGRAM_ARB);
-      firstVarying = FRAG_ATTRIB_VAR0;
-      newFile = PROGRAM_INPUT;
+      firstSrcVarying = firstDstVarying = FRAG_ATTRIB_VAR0;
+      newSrcFile = newDstFile = PROGRAM_INPUT;
       inOutFlags = prog->InputFlags;
    }
 
@@ -168,7 +183,7 @@ link_varying_vars(GLcontext *ctx,
       {
          GLint sz = var->Size;
          while (sz > 0) {
-            inOutFlags[firstVarying + j] = var->Flags;
+            inOutFlags[firstDstVarying + j] = var->Flags;
             /*printf("Link varying from %d to %d\n", i, j);*/
             map[i++] = j++;
             sz -= 4;
@@ -186,14 +201,14 @@ link_varying_vars(GLcontext *ctx,
       GLuint j;
 
       if (inst->DstReg.File == PROGRAM_VARYING) {
-         inst->DstReg.File = newFile;
-         inst->DstReg.Index = map[ inst->DstReg.Index ] + firstVarying;
+         inst->DstReg.File = newDstFile;
+         inst->DstReg.Index = map[ inst->DstReg.Index ] + firstDstVarying;
       }
 
       for (j = 0; j < 3; j++) {
          if (inst->SrcReg[j].File == PROGRAM_VARYING) {
-            inst->SrcReg[j].File = newFile;
-            inst->SrcReg[j].Index = map[ inst->SrcReg[j].Index ] + firstVarying;
+            inst->SrcReg[j].File = newSrcFile;
+            inst->SrcReg[j].Index = map[ inst->SrcReg[j].Index ] + firstSrcVarying;
          }
       }
    }
@@ -662,6 +677,7 @@ _slang_link(GLcontext *ctx,
 {
    const struct gl_vertex_program *vertProg = NULL;
    const struct gl_fragment_program *fragProg = NULL;
+   const struct gl_geometry_program *geomProg = NULL;
    GLuint numSamplers = 0;
    GLuint i;
 
@@ -685,13 +701,16 @@ _slang_link(GLcontext *ctx,
     * Find the vertex and fragment shaders which define main()
     */
    {
-      struct gl_shader *vertShader, *fragShader;
+      struct gl_shader *vertShader, *fragShader, *geomShader;
       vertShader = get_main_shader(ctx, shProg, GL_VERTEX_SHADER);
+      geomShader = get_main_shader(ctx, shProg, GL_GEOMETRY_SHADER_ARB);
       fragShader = get_main_shader(ctx, shProg, GL_FRAGMENT_SHADER);
       if (vertShader)
          vertProg = vertex_program(vertShader->Program);
       if (fragShader)
          fragProg = fragment_program(fragShader->Program);
+      if (geomShader)
+         geomProg = geometry_program(geomShader->Program);
       if (!shProg->LinkStatus)
          return;
    }
@@ -722,6 +741,15 @@ _slang_link(GLcontext *ctx,
       ASSERT(shProg->VertexProgram->Base.RefCount == 1);
    }
 
+   _mesa_reference_geomprog(ctx, &shProg->GeometryProgram, NULL);
+   if (geomProg) {
+      struct gl_geometry_program *linked_gprog =
+         geometry_program(_mesa_clone_program(ctx, &geomProg->Base));
+      shProg->GeometryProgram = linked_gprog; /* refcount OK */
+      shProg->GeometryProgram->Base.Id = shProg->Name;
+      ASSERT(shProg->GeometryProgram->Base.RefCount == 1);
+   }
+
    _mesa_reference_fragprog(ctx, &shProg->FragmentProgram, NULL);
    if (fragProg) {
       struct gl_fragment_program *linked_fprog = 
@@ -737,6 +765,10 @@ _slang_link(GLcontext *ctx,
       if (!link_varying_vars(ctx, shProg, &shProg->VertexProgram->Base))
          return;
    }
+   if (shProg->GeometryProgram) {
+      if (!link_varying_vars(ctx, shProg, &shProg->GeometryProgram->Base))
+         return;
+   }
    if (shProg->FragmentProgram) {
       if (!link_varying_vars(ctx, shProg, &shProg->FragmentProgram->Base))
          return;
@@ -745,6 +777,12 @@ _slang_link(GLcontext *ctx,
    /* link uniform vars */
    if (shProg->VertexProgram) {
       if (!link_uniform_vars(ctx, shProg, &shProg->VertexProgram->Base,
+                             &numSamplers)) {
+         return;
+      }
+   }
+   if (shProg->GeometryProgram) {
+      if (!link_uniform_vars(ctx, shProg, &shProg->GeometryProgram->Base,
                              &numSamplers)) {
          return;
       }
@@ -775,6 +813,10 @@ _slang_link(GLcontext *ctx,
          return;
       }
    }
+   if (shProg->GeometryProgram) {
+      _slang_count_temporaries(&shProg->GeometryProgram->Base);
+      _slang_update_inputs_outputs(&shProg->GeometryProgram->Base);
+   }
    if (shProg->FragmentProgram) {
       _slang_count_temporaries(&shProg->FragmentProgram->Base);
       _slang_update_inputs_outputs(&shProg->FragmentProgram->Base);
@@ -792,7 +834,7 @@ _slang_link(GLcontext *ctx,
          link_error(shProg,
           "Fragment program using varying vars not written by vertex shader\n");
          return;
-      }         
+      }
    }
 
    /* check that gl_FragColor and gl_FragData are not both written to */
@@ -803,7 +845,7 @@ _slang_link(GLcontext *ctx,
          link_error(shProg, "Fragment program cannot write both gl_FragColor"
                     " and gl_FragData[].\n");
          return;
-      }         
+      }
    }
 
 
@@ -824,6 +866,25 @@ _slang_link(GLcontext *ctx,
          _mesa_print_program_parameters(ctx, &shProg->FragmentProgram->Base);
       }
    }
+
+   if (geomProg && shProg->GeometryProgram) {
+      /* Compute initial program's TexturesUsed info */
+      _mesa_update_shader_textures_used(&shProg->GeometryProgram->Base);
+
+      /* notify driver that a new fragment program has been compiled/linked */
+      ctx->Driver.ProgramStringNotify(ctx, MESA_GEOMETRY_PROGRAM,
+                                      &shProg->GeometryProgram->Base);
+      if (ctx->Shader.Flags & GLSL_DUMP) {
+         _mesa_printf("Mesa pre-link geometry program:\n");
+         _mesa_print_program(&geomProg->Base);
+         _mesa_print_program_parameters(ctx, &geomProg->Base);
+
+         _mesa_printf("Mesa post-link geometry program:\n");
+         _mesa_print_program(&shProg->GeometryProgram->Base);
+         _mesa_print_program_parameters(ctx, &shProg->GeometryProgram->Base);
+      }
+   }
+
 
    if (vertProg && shProg->VertexProgram) {
       /* Compute initial program's TexturesUsed info */

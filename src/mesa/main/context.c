@@ -372,6 +372,8 @@ dummy_enum_func(void)
    gl_texture_index ti;
    gl_vert_attrib va;
    gl_vert_result vr;
+   gl_geom_attrib ga;
+   gl_geom_result gr;
 
    (void) bi;
    (void) ci;
@@ -381,6 +383,8 @@ dummy_enum_func(void)
    (void) ti;
    (void) va;
    (void) vr;
+   (void) ga;
+   (void) gr;
 }
 
 

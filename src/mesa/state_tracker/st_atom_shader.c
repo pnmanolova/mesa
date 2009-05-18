@@ -129,6 +129,7 @@ find_translated_vp(struct st_context *st,
    static const GLuint UNUSED = ~0;
    struct translated_vertex_program *xvp;
    const GLbitfield fragInputsRead = stfp->Base.Base.InputsRead;
+   const GLbitfield geomInputsRead = stgp->Base.Base.InputsRead;
 
    /*
     * Translate fragment program if needed.
@@ -153,6 +154,25 @@ find_translated_vp(struct st_context *st,
       st_translate_fragment_program(st, stfp, stfp->input_to_slot);
    }
 
+   if (!stgp->state.tokens) {
+      GLuint inAttr, numIn = 0;
+
+      for (inAttr = 0; inAttr < GEOM_ATTRIB_MAX; inAttr++) {
+         if (geomInputsRead & (1 << inAttr)) {
+            stgp->input_to_slot[inAttr] = numIn;
+            numIn++;
+         }
+         else {
+            stgp->input_to_slot[inAttr] = UNUSED;
+         }
+      }
+
+      stgp->num_input_slots = numIn;
+
+      assert(stgp->Base.Base.NumInstructions > 1);
+
+      st_translate_geometry_program(st, stgp, stgp->input_to_slot);
+   }
 
    /* See if we've got a translated vertex program whose outputs match
     * the fragment program's inputs.

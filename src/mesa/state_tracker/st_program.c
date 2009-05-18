@@ -224,7 +224,6 @@ st_translate_vertex_program(struct st_context *st,
           * Use the generic semantic indexes from there, instead of
           * guessing below.
           */
-
          if (outputMapping) {
             slot = outputMapping[attr];
             assert(slot != ~0);
@@ -548,6 +547,223 @@ st_translate_fragment_program(struct st_context *st,
       tgsi_dump( fs.tokens, 0/*TGSI_DUMP_VERBOSE*/ );
 }
 
+void
+st_translate_geometry_program(struct st_context *st,
+                              struct st_geometry_program *stgp,
+                              const GLuint inputMapping[])
+{
+   struct pipe_context *pipe = st->pipe;
+   struct tgsi_token tokens[ST_MAX_SHADER_TOKENS];
+   GLuint *outputMapping;
+   GLuint defaultInputMapping[GEOM_ATTRIB_MAX];
+   GLuint defaultOutputMapping[GEOM_RESULT_MAX];
+   struct pipe_shader_state gs;
+   GLuint interpMode[16];  /* XXX size? */
+   GLuint attr;
+   const GLbitfield inputsRead = stgp->Base.Base.InputsRead;
+   GLuint vslot = 0;
+   GLuint num_generic = 0;
+   GLuint num_tokens;
+
+   uint gs_num_inputs = 0;
+
+   ubyte gs_output_semantic_name[PIPE_MAX_SHADER_OUTPUTS];
+   ubyte gs_output_semantic_index[PIPE_MAX_SHADER_OUTPUTS];
+   uint gs_num_outputs = 0;
+
+   GLbitfield input_flags[MAX_PROGRAM_INPUTS];
+   GLbitfield output_flags[MAX_PROGRAM_OUTPUTS];
+
+   GLint i;
+
+   memset(&gs, 0, sizeof(gs));
+   memset(input_flags, 0, sizeof(input_flags));
+   memset(output_flags, 0, sizeof(output_flags));
+
+   /* which vertex output goes to the first geometry input */
+   if (inputsRead & GEOM_BIT_VERTICES)
+      vslot = 0;
+   else
+      vslot = 1;
+
+   /*
+    * Convert Mesa program inputs to TGSI input register semantics.
+    */
+   for (attr = 0; attr < GEOM_ATTRIB_MAX; attr++) {
+      if (inputsRead & (1 << attr)) {
+         const GLuint slot = gs_num_inputs;
+
+         defaultInputMapping[attr] = slot;
+
+         stgp->input_map[slot] = vslot++;
+
+         gs_num_inputs++;
+
+         switch (attr) {
+         case GEOM_ATTRIB_POSITION:
+            stgp->input_semantic_name[slot] = TGSI_SEMANTIC_POSITION;
+            stgp->input_semantic_index[slot] = 0;
+            interpMode[slot] = TGSI_INTERPOLATE_LINEAR;
+            break;
+         case GEOM_ATTRIB_COLOR0:
+            stgp->input_semantic_name[slot] = TGSI_SEMANTIC_COLOR;
+            stgp->input_semantic_index[slot] = 0;
+            interpMode[slot] = TGSI_INTERPOLATE_LINEAR;
+            break;
+         case GEOM_ATTRIB_COLOR1:
+            stgp->input_semantic_name[slot] = TGSI_SEMANTIC_COLOR;
+            stgp->input_semantic_index[slot] = 1;
+            interpMode[slot] = TGSI_INTERPOLATE_LINEAR;
+            break;
+         case GEOM_ATTRIB_FOG_FRAG_COORD:
+            stgp->input_semantic_name[slot] = TGSI_SEMANTIC_FOG;
+            stgp->input_semantic_index[slot] = 0;
+            interpMode[slot] = TGSI_INTERPOLATE_PERSPECTIVE;
+            break;
+         case GEOM_ATTRIB_TEX_COORD:
+            stgp->input_semantic_name[slot] = TGSI_SEMANTIC_GENERIC;
+            stgp->input_semantic_index[slot] = num_generic++;
+            interpMode[slot] = TGSI_INTERPOLATE_PERSPECTIVE;
+            break;
+         case FRAG_ATTRIB_VAR0:
+            /* fall-through */
+         default:
+            stgp->input_semantic_name[slot] = TGSI_SEMANTIC_GENERIC;
+            stgp->input_semantic_index[slot] = num_generic++;
+            interpMode[slot] = TGSI_INTERPOLATE_PERSPECTIVE;
+         }
+
+         input_flags[slot] = stgp->Base.Base.InputFlags[attr];
+      }
+   }
+
+   /* initialize output semantics to defaults */
+   for (i = 0; i < PIPE_MAX_SHADER_OUTPUTS; i++) {
+      gs_output_semantic_name[i] = TGSI_SEMANTIC_GENERIC;
+      gs_output_semantic_index[i] = 0;
+      output_flags[i] = 0x0;
+   }
+
+   num_generic = 0;
+   /*
+    * Determine number of outputs, the (default) output register
+    * mapping and the semantic information for each output.
+    */
+   for (attr = 0; attr < VERT_RESULT_MAX; attr++) {
+      if (stgp->Base.Base.OutputsWritten & (1 << attr)) {
+         GLuint slot;
+
+         /* XXX
+          * Pass in the fragment program's input's semantic info.
+          * Use the generic semantic indexes from there, instead of
+          * guessing below.
+          */
+
+         slot = gs_num_outputs;
+         gs_num_outputs++;
+         defaultOutputMapping[attr] = slot;
+
+         switch (attr) {
+         case GEOM_RESULT_POS:
+            assert(slot == 0);
+            gs_output_semantic_name[slot] = TGSI_SEMANTIC_POSITION;
+            gs_output_semantic_index[slot] = 0;
+            break;
+         case GEOM_RESULT_COL0:
+            gs_output_semantic_name[slot] = TGSI_SEMANTIC_COLOR;
+            gs_output_semantic_index[slot] = 0;
+            break;
+         case GEOM_RESULT_COL1:
+            gs_output_semantic_name[slot] = TGSI_SEMANTIC_COLOR;
+            gs_output_semantic_index[slot] = 1;
+            break;
+         case GEOM_RESULT_SCOL0:
+            gs_output_semantic_name[slot] = TGSI_SEMANTIC_BCOLOR;
+            gs_output_semantic_index[slot] = 0;
+            break;
+         case GEOM_RESULT_SCOL1:
+            gs_output_semantic_name[slot] = TGSI_SEMANTIC_BCOLOR;
+            gs_output_semantic_index[slot] = 1;
+            break;
+         case GEOM_RESULT_FOGC:
+            gs_output_semantic_name[slot] = TGSI_SEMANTIC_FOG;
+            gs_output_semantic_index[slot] = 0;
+            break;
+         case GEOM_RESULT_PSIZ:
+            gs_output_semantic_name[slot] = TGSI_SEMANTIC_PSIZE;
+            gs_output_semantic_index[slot] = 0;
+            break;
+         case GEOM_RESULT_TEX0:
+         case GEOM_RESULT_TEX1:
+         case GEOM_RESULT_TEX2:
+         case GEOM_RESULT_TEX3:
+         case GEOM_RESULT_TEX4:
+         case GEOM_RESULT_TEX5:
+         case GEOM_RESULT_TEX6:
+         case GEOM_RESULT_TEX7:
+            /* fall-through */
+         case VERT_RESULT_VAR0:
+            /* fall-through */
+         default:
+            /* use default semantic info */
+            gs_output_semantic_name[slot] = TGSI_SEMANTIC_GENERIC;
+            gs_output_semantic_index[slot] = num_generic++;
+         }
+
+         output_flags[slot] = stgp->Base.Base.OutputFlags[attr];
+      }
+   }
+
+   assert(gs_output_semantic_name[0] == TGSI_SEMANTIC_POSITION);
+
+   outputMapping = defaultOutputMapping;
+
+   /* free old shader state, if any */
+   if (stgp->state.tokens) {
+      _mesa_free((void *) stgp->state.tokens);
+      stgp->state.tokens = NULL;
+   }
+   if (stgp->driver_shader) {
+      cso_delete_vertex_shader(st->cso_context, stgp->driver_shader);
+      stgp->driver_shader = NULL;
+   }
+
+   /* XXX: fix static allocation of tokens:
+    */
+   num_tokens = st_translate_mesa_program(st->ctx,
+                                          TGSI_PROCESSOR_VERTEX,
+                                          &stgp->Base.Base,
+                                          /* inputs */
+                                          gs_num_inputs,
+                                          stgp->input_to_index,
+                                          stgp->input_semantic_name,
+                                          stgp->input_semantic_index,
+                                          NULL,
+                                          input_flags,
+                                          /* outputs */
+                                          gs_num_outputs,
+                                          outputMapping,
+                                          gs_output_semantic_name,
+                                          gs_output_semantic_index,
+                                          output_flags,
+                                          /* tokenized result */
+                                          tokens, ST_MAX_SHADER_TOKENS);
+
+   assert(num_tokens < ST_MAX_SHADER_TOKENS);
+
+   gs.tokens = (struct tgsi_token *)
+               mem_dup(tokens, num_tokens * sizeof(tokens[0]));
+
+   stgp->num_inputs = gs_num_inputs;
+   stgp->state = gs; /* struct copy */
+   stgp->driver_shader = pipe->create_gs_state(pipe, &gs);
+
+   if (0)
+      _mesa_print_program(&stgp->Base.Base);
+
+   if (TGSI_DEBUG)
+      tgsi_dump(gs.tokens, 0);
+}
 
 /**
  * Debug- print current shader text

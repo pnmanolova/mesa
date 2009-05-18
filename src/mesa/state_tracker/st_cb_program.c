@@ -278,6 +278,26 @@ static void st_program_string_notify( GLcontext *ctx,
       if (st->vp == stvp)
 	 st->dirty.st |= ST_NEW_VERTEX_PROGRAM;
    }
+   else if (target == MESA_GEOMETRY_PROGRAM) {
+      struct st_geometry_program *stgp = (struct st_geometry_program *) prog;
+
+      stgp->serialNo++;
+
+      if (stgp->driver_shader) {
+         cso_delete_vertex_shader(st->cso_context, stgp->driver_shader);
+         stgp->driver_shader = NULL;
+      }
+
+      if (stgp->state.tokens) {
+         _mesa_free((void *) stgp->state.tokens);
+         stgp->state.tokens = NULL;
+      }
+
+      stgp->param_state = stgp->Base.Base.Parameters->StateFlags;
+
+      if (st->gp == stgp)
+	 st->dirty.st |= ST_NEW_GEOMETRY_PROGRAM;
+   }
 }
 
 
