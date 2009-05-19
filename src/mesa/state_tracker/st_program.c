@@ -649,7 +649,7 @@ st_translate_geometry_program(struct st_context *st,
     * Determine number of outputs, the (default) output register
     * mapping and the semantic information for each output.
     */
-   for (attr = 0; attr < VERT_RESULT_MAX; attr++) {
+   for (attr = 0; attr < GEOM_RESULT_MAX; attr++) {
       if (stgp->Base.Base.OutputsWritten & (1 << attr)) {
          GLuint slot;
 

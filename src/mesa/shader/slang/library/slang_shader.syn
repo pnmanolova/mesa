@@ -137,6 +137,7 @@
 .emtcode TYPE_QUALIFIER_UNIFORM                     4
 .emtcode TYPE_QUALIFIER_FIXEDOUTPUT                 5
 .emtcode TYPE_QUALIFIER_FIXEDINPUT                  6
+.emtcode TYPE_QUALIFIER_VARYING_IN                  7
 
 /* invariant qualifier */
 .emtcode TYPE_VARIANT                               90
@@ -957,6 +958,8 @@ centroid_qualifier
  * <type_qualifier> ::= "const"
  *                    | "attribute" // Vertex only.
  *                    | "varying"
+ *                    | "varying out"
+ *                    | "varying in"
  *                    | "uniform"
  *                    | "__fixed_output"
  *                    | "__fixed_input"
@@ -968,6 +971,8 @@ type_qualifier
     "const" .emit TYPE_QUALIFIER_CONST .or
     .if (shader_type == 2) "attribute" .emit TYPE_QUALIFIER_ATTRIBUTE .or
     "varying" .emit TYPE_QUALIFIER_VARYING .or
+    "varying out" .emit TYPE_QUALIFIER_VARYING .or
+    "varying in" .emit TYPE_QUALIFIER_VARYING_IN .or
     "uniform" .emit TYPE_QUALIFIER_UNIFORM .or
     .if (parsing_builtin != 0) "__fixed_output" .emit TYPE_QUALIFIER_FIXEDOUTPUT .or
     .if (parsing_builtin != 0) "__fixed_input" .emit TYPE_QUALIFIER_FIXEDINPUT;

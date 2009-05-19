@@ -562,6 +562,7 @@ parse_type_centroid(slang_parse_ctx * C, slang_type_centroid *centroid)
 #define TYPE_QUALIFIER_UNIFORM 4
 #define TYPE_QUALIFIER_FIXEDOUTPUT 5
 #define TYPE_QUALIFIER_FIXEDINPUT 6
+#define TYPE_QUALIFIER_VARYING_IN 7
 
 static int
 parse_type_qualifier(slang_parse_ctx * C, slang_type_qualifier * qual)
@@ -578,6 +579,7 @@ parse_type_qualifier(slang_parse_ctx * C, slang_type_qualifier * qual)
       *qual = SLANG_QUAL_ATTRIBUTE;
       break;
    case TYPE_QUALIFIER_VARYING:
+   case TYPE_QUALIFIER_VARYING_IN:
       *qual = SLANG_QUAL_VARYING;
       break;
    case TYPE_QUALIFIER_UNIFORM:
