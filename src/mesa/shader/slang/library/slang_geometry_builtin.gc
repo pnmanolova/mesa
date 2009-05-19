@@ -22,6 +22,12 @@
 
 const int _mesa_VerticesInMax = 6;
 
+__fixed_input int gl_VerticesIn;
+__fixed_input int gl_PrimitiveIDIn;
+__fixed_output int gl_PrimitiveID;
+__fixed_output int gl_Layer;
+
+
 varying in vec4 gl_FrontColorIn[_mesa_VerticesInMax];
 varying in vec4 gl_BackColorIn[_mesa_VerticesInMax];
 varying in vec4 gl_FrontSecondaryColorIn[_mesa_VerticesInMax];
@@ -37,7 +43,7 @@ varying out vec4 gl_FrontColor;
 varying out vec4 gl_BackColor;
 varying out vec4 gl_FrontSecondaryColor;
 varying out vec4 gl_BackSecondaryColor;
-varying out vec4 gl_TexCoord[_mesa_VerticesInMax];
+varying out vec4 gl_TexCoord[gl_MaxTextureCoords];
 varying out float gl_FogFragCoord;
 
 void EmitVertex()
