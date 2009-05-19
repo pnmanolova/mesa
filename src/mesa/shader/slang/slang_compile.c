@@ -562,7 +562,6 @@ parse_type_centroid(slang_parse_ctx * C, slang_type_centroid *centroid)
 #define TYPE_QUALIFIER_UNIFORM 4
 #define TYPE_QUALIFIER_FIXEDOUTPUT 5
 #define TYPE_QUALIFIER_FIXEDINPUT 6
-#define TYPE_QUALIFIER_VARYING_IN 7
 
 static int
 parse_type_qualifier(slang_parse_ctx * C, slang_type_qualifier * qual)
@@ -579,7 +578,6 @@ parse_type_qualifier(slang_parse_ctx * C, slang_type_qualifier * qual)
       *qual = SLANG_QUAL_ATTRIBUTE;
       break;
    case TYPE_QUALIFIER_VARYING:
-   case TYPE_QUALIFIER_VARYING_IN:
       *qual = SLANG_QUAL_VARYING;
       break;
    case TYPE_QUALIFIER_UNIFORM:
@@ -823,6 +821,41 @@ parse_type_precision(slang_parse_ctx *C,
    }
 }
 
+
+/* parameter qualifier */
+#define PARAM_QUALIFIER_IN 0
+#define PARAM_QUALIFIER_OUT 1
+#define PARAM_QUALIFIER_INOUT 2
+#define PARAM_QUALIFIER_NONE 3
+static int
+parse_varying_qualifier(slang_parse_ctx * C, slang_fully_specified_type *type)
+{
+   int param_qual = *C->I++;
+
+   if (type->qualifier != SLANG_QUAL_VARYING &&
+       param_qual != PARAM_QUALIFIER_NONE) {
+      slang_info_log_error(C->L, "Invalid type qualifier.");
+      RETURN0;
+   }
+   switch (param_qual) {
+   case PARAM_QUALIFIER_IN:
+   case PARAM_QUALIFIER_NONE:
+      type->varying_kind = SLANG_VARYING_IN;
+      break;
+   case PARAM_QUALIFIER_OUT:
+      type->varying_kind = SLANG_VARYING_OUT;
+      break;
+   case PARAM_QUALIFIER_INOUT:
+      slang_info_log_error(C->L, "Invalid type qualifier.");
+      RETURN0;
+      break;
+   default:
+      RETURN0;
+   }
+   return 1;
+}
+
+
 static int
 parse_fully_specified_type(slang_parse_ctx * C, slang_output_ctx * O,
                            slang_fully_specified_type * type)
@@ -834,6 +867,9 @@ parse_fully_specified_type(slang_parse_ctx * C, slang_output_ctx * O,
       RETURN0;
 
    if (!parse_type_qualifier(C, &type->qualifier))
+      RETURN0;
+
+   if (!parse_varying_qualifier(C, type))
       RETURN0;
 
    if (!parse_type_precision(C, &type->precision))
@@ -1552,11 +1588,6 @@ parse_expression(slang_parse_ctx * C, slang_output_ctx * O,
    return 1;
 }
 
-/* parameter qualifier */
-#define PARAM_QUALIFIER_IN 0
-#define PARAM_QUALIFIER_OUT 1
-#define PARAM_QUALIFIER_INOUT 2
-
 /* function parameter array presence */
 #define PARAMETER_ARRAY_NOT_PRESENT 0
 #define PARAMETER_ARRAY_PRESENT 1
@@ -1597,6 +1628,9 @@ parse_parameter_declaration(slang_parse_ctx * C, slang_output_ctx * O,
          slang_info_log_error(C->L, "Invalid type qualifier.");
          RETURN0;
       }
+      break;
+   case PARAM_QUALIFIER_NONE:
+      /* like IN but doesn't throw error */
       break;
    default:
       RETURN0;
@@ -1985,6 +2019,7 @@ parse_init_declarator(slang_parse_ctx * C, slang_output_ctx * O,
    var->type.precision = type->precision;
    var->type.variant = type->variant;
    var->type.array_len = type->array_len;
+   var->type.varying_kind = type->varying_kind;
    var->a_name = a_name;
    if (var->a_name == SLANG_ATOM_NULL)
       RETURN0;

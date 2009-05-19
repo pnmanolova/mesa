@@ -137,7 +137,6 @@
 .emtcode TYPE_QUALIFIER_UNIFORM                     4
 .emtcode TYPE_QUALIFIER_FIXEDOUTPUT                 5
 .emtcode TYPE_QUALIFIER_FIXEDINPUT                  6
-.emtcode TYPE_QUALIFIER_VARYING_IN                  7
 
 /* invariant qualifier */
 .emtcode TYPE_VARIANT                               90
@@ -262,6 +261,7 @@
 .emtcode PARAM_QUALIFIER_IN                         0
 .emtcode PARAM_QUALIFIER_OUT                        1
 .emtcode PARAM_QUALIFIER_INOUT                      2
+.emtcode PARAM_QUALIFIER_NONE                       3
 
 /* function parameter */
 .emtcode PARAMETER_NONE                             0
@@ -845,7 +845,7 @@ parameter_declaration_rest
  *                         | ""
  */
 parameter_qualifier
-    parameter_qualifier_1 .or .true .emit PARAM_QUALIFIER_IN;
+    parameter_qualifier_1 .or .true .emit PARAM_QUALIFIER_NONE;
 parameter_qualifier_1
     parameter_qualifier_2 .and space;
 parameter_qualifier_2
@@ -919,14 +919,14 @@ single_declaration_6
     constant_expression .emit VARIABLE_ARRAY_EXPLICIT .or .true .emit VARIABLE_ARRAY_UNKNOWN;
 
 /*
- * <fully_specified_type> ::= <opt_invariant> <opt_centroid> <opt_qualifer> <opt_precision> <type_specifier>
+ * <fully_specified_type> ::= <opt_invariant> <opt_centroid> <opt_qualifer> <opt_param_qualifier> <opt_precision> <type_specifier>
  *
- * Example: "invariant varying highp vec3"
+ * Example: "invariant varying in highp vec3"
  */
 fully_specified_type_space
-    fully_specified_type_optinvariant .and fully_specified_type_optcentroid .and fully_specified_type_optqual .and fully_specified_type_optprec .and type_specifier_space;
+    fully_specified_type_optinvariant .and fully_specified_type_optcentroid .and fully_specified_type_optqual .and parameter_qualifier .and fully_specified_type_optprec .and type_specifier_space;
 fully_specified_type_nospace
-    fully_specified_type_optinvariant .and fully_specified_type_optcentroid .and fully_specified_type_optqual .and fully_specified_type_optprec .and type_specifier_nospace;
+    fully_specified_type_optinvariant .and fully_specified_type_optcentroid .and fully_specified_type_optqual .and parameter_qualifier .and fully_specified_type_optprec .and type_specifier_nospace;
 fully_specified_type_optinvariant
     fully_specified_type_invariant .or .true .emit TYPE_VARIANT;
 fully_specified_type_invariant
@@ -958,8 +958,6 @@ centroid_qualifier
  * <type_qualifier> ::= "const"
  *                    | "attribute" // Vertex only.
  *                    | "varying"
- *                    | "varying out"
- *                    | "varying in"
  *                    | "uniform"
  *                    | "__fixed_output"
  *                    | "__fixed_input"
@@ -971,8 +969,6 @@ type_qualifier
     "const" .emit TYPE_QUALIFIER_CONST .or
     .if (shader_type == 2) "attribute" .emit TYPE_QUALIFIER_ATTRIBUTE .or
     "varying" .emit TYPE_QUALIFIER_VARYING .or
-    "varying out" .emit TYPE_QUALIFIER_VARYING .or
-    "varying in" .emit TYPE_QUALIFIER_VARYING_IN .or
     "uniform" .emit TYPE_QUALIFIER_UNIFORM .or
     .if (parsing_builtin != 0) "__fixed_output" .emit TYPE_QUALIFIER_FIXEDOUTPUT .or
     .if (parsing_builtin != 0) "__fixed_input" .emit TYPE_QUALIFIER_FIXEDINPUT;

@@ -81,6 +81,12 @@ typedef enum slang_type_qualifier_
    SLANG_QUAL_FIXEDINPUT        /* internal */
 } slang_type_qualifier;
 
+typedef enum slang_varying_kind_
+{
+   SLANG_VARYING_IN,
+   SLANG_VARYING_OUT,
+} slang_varying_kind;
+
 
 typedef enum slang_type_precision_
 {
@@ -182,6 +188,7 @@ typedef struct slang_fully_specified_type_
    slang_type_variant variant;
    slang_type_centroid centroid;
    GLint array_len;           /**< -1 if not an array type */
+   slang_varying_kind varying_kind;
 } slang_fully_specified_type;
 
 extern int

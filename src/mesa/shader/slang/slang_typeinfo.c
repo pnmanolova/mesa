@@ -259,6 +259,7 @@ slang_fully_specified_type_copy(slang_fully_specified_type * x,
    z.variant = y->variant;
    z.centroid = y->centroid;
    z.array_len = y->array_len;
+   z.varying_kind = y->varying_kind;
    if (!slang_type_specifier_copy(&z.specifier, &y->specifier)) {
       slang_fully_specified_type_destruct(&z);
       return 0;
