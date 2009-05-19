@@ -4565,9 +4565,15 @@ _slang_codegen_global_variable(slang_assemble_ctx *A, slang_variable *var,
    }
    else if (var->type.qualifier == SLANG_QUAL_FIXEDINPUT) {
       GLuint swizzle = SWIZZLE_XYZW; /* silence compiler warning */
-      GLint index = _slang_input_index(varName, GL_FRAGMENT_PROGRAM_ARB,
-                                       &swizzle);
-      store = _slang_new_ir_storage_swz(PROGRAM_INPUT, index, size, swizzle);
+      if (type == SLANG_UNIT_FRAGMENT_BUILTIN) {
+         GLint index = _slang_input_index(varName, GL_FRAGMENT_PROGRAM_ARB,
+                                          &swizzle);
+         store = _slang_new_ir_storage_swz(PROGRAM_INPUT, index, size, swizzle);
+      } else if (type == SLANG_UNIT_GEOMETRY_BUILTIN) {
+         GLint index = _slang_input_index(varName, MESA_GEOMETRY_PROGRAM,
+                                          &swizzle);
+         store = _slang_new_ir_storage_swz(PROGRAM_INPUT, index, size, swizzle);
+      }
       if (dbg) printf("INPUT ");
    }
    else if (var->type.qualifier == SLANG_QUAL_FIXEDOUTPUT) {
