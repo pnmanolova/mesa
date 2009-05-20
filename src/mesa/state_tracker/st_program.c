@@ -52,7 +52,7 @@
 #define ST_MAX_SHADER_TOKENS 4096
 
 
-#define TGSI_DEBUG 0
+#define TGSI_DEBUG 1
 
 
 /** XXX we should use the version of this from u_memory.h but including
@@ -731,7 +731,7 @@ st_translate_geometry_program(struct st_context *st,
    /* XXX: fix static allocation of tokens:
     */
    num_tokens = st_translate_mesa_program(st->ctx,
-                                          TGSI_PROCESSOR_VERTEX,
+                                          TGSI_PROCESSOR_GEOMETRY,
                                           &stgp->Base.Base,
                                           /* inputs */
                                           gs_num_inputs,
