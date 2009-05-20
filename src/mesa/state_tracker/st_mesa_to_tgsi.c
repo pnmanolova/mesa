@@ -905,7 +905,8 @@ st_translate_mesa_program(
    GLint wposTemp = -1, winHeightConst = -1;
 
    assert(procType == TGSI_PROCESSOR_FRAGMENT ||
-          procType == TGSI_PROCESSOR_VERTEX);
+          procType == TGSI_PROCESSOR_VERTEX ||
+          procType == TGSI_PROCESSOR_GEOMETRY);
 
    find_temporaries(program, tempsUsed);
 
@@ -953,7 +954,7 @@ st_translate_mesa_program(
       }
    }
    else {
-      /* vertex prog */
+      /* vertex/geometry prog */
       /* XXX: this could probaby be merged with the clause above.
        * the only difference is the semantic tags.
        */
@@ -1003,7 +1004,7 @@ st_translate_mesa_program(
       }
    }
    else {
-      /* vertex prog */
+      /* vertex/geometry prog */
       for (i = 0; i < numOutputs; i++) {
          struct tgsi_full_declaration fulldecl;
          fulldecl = make_output_decl(i,
