@@ -359,6 +359,8 @@ _slang_input_index(const char *name, GLenum target, GLuint *swizzleOut)
       { NULL, 0, SWIZZLE_NOOP }
    };
    static const struct input_info geoInputs[] = {
+      { "gl_VerticesIn", GEOM_ATTRIB_VERTICES, SWIZZLE_NOOP },
+      { "gl_PrimitiveIDIn", GEOM_ATTRIB_PRIMITIVE_ID, SWIZZLE_NOOP },
       { "gl_FrontColorIn", GEOM_ATTRIB_COLOR0, SWIZZLE_NOOP },
       { "gl_BackColorIn", GEOM_ATTRIB_COLOR1, SWIZZLE_NOOP },
       { "gl_FrontSecondaryColorIn", GEOM_ATTRIB_SECONDARY_COLOR0, SWIZZLE_NOOP },
@@ -4568,12 +4570,9 @@ _slang_codegen_global_variable(slang_assemble_ctx *A, slang_variable *var,
                                           &swizzle);
          store = _slang_new_ir_storage_swz(PROGRAM_INPUT, index, size, swizzle);
       } else if (type == SLANG_UNIT_GEOMETRY_BUILTIN) {
-         const GLfloat value = 0;
-         GLint index;
-
-         index = _mesa_add_named_constant(prog->Parameters, varName,
-                                          &value, size);
-         store = _slang_new_ir_storage_swz(PROGRAM_CONSTANT, index, size, swizzle);
+         GLint index = _slang_input_index(varName, MESA_GEOMETRY_PROGRAM,
+                                          &swizzle);
+         store = _slang_new_ir_storage_swz(PROGRAM_INPUT, index, size, swizzle);
       }
       if (dbg) printf("INPUT ");
    }
