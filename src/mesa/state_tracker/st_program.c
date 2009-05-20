@@ -702,7 +702,7 @@ st_translate_geometry_program(struct st_context *st,
          case GEOM_RESULT_TEX6:
          case GEOM_RESULT_TEX7:
             /* fall-through */
-         case VERT_RESULT_VAR0:
+         case GEOM_RESULT_VAR0:
             /* fall-through */
          default:
             /* use default semantic info */
@@ -724,7 +724,7 @@ st_translate_geometry_program(struct st_context *st,
       stgp->state.shader.tokens = NULL;
    }
    if (stgp->driver_shader) {
-      cso_delete_vertex_shader(st->cso_context, stgp->driver_shader);
+      cso_delete_geometry_shader(st->cso_context, stgp->driver_shader);
       stgp->driver_shader = NULL;
    }
 
