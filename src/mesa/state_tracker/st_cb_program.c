@@ -201,9 +201,9 @@ st_delete_program(GLcontext *ctx, struct gl_program *prog)
             stgp->driver_shader = NULL;
          }
 
-         if (stgp->state.tokens) {
-            FREE((void *)stgp->state.tokens);
-            stgp->state.tokens = NULL;
+         if (stgp->state.shader.tokens) {
+            FREE((void *)stgp->state.shader.tokens);
+            stgp->state.shader.tokens = NULL;
          }
       }
       break;
@@ -288,9 +288,9 @@ static void st_program_string_notify( GLcontext *ctx,
          stgp->driver_shader = NULL;
       }
 
-      if (stgp->state.tokens) {
-         _mesa_free((void *) stgp->state.tokens);
-         stgp->state.tokens = NULL;
+      if (stgp->state.shader.tokens) {
+         _mesa_free((void *) stgp->state.shader.tokens);
+         stgp->state.shader.tokens = NULL;
       }
 
       stgp->param_state = stgp->Base.Base.Parameters->StateFlags;

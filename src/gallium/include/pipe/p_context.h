@@ -147,7 +147,7 @@ struct pipe_context {
    void   (*delete_vs_state)(struct pipe_context *, void *);
 
    void * (*create_gs_state)(struct pipe_context *,
-                             const struct pipe_shader_state *);
+                             const struct pipe_geometry_shader_state *);
    void   (*bind_gs_state)(struct pipe_context *, void *);
    void   (*delete_gs_state)(struct pipe_context *, void *);
 

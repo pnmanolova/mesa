@@ -814,6 +814,17 @@ _slang_link(GLcontext *ctx,
       }
    }
    if (shProg->GeometryProgram) {
+      if (!shProg->VertexProgram) {
+         link_error(shProg,
+                    "Geometry shader without a vertex shader is illegal!\n");
+         return;
+      }
+      if (shProg->GeometryProgram->VerticesOut == 0) {
+         link_error(shProg,
+                    "GEOMETRY_VERTICES_OUT is zero\n");
+         return;
+      }
+
       _slang_count_temporaries(&shProg->GeometryProgram->Base);
       _slang_update_inputs_outputs(&shProg->GeometryProgram->Base);
    }

@@ -154,7 +154,7 @@ find_translated_vp(struct st_context *st,
       st_translate_fragment_program(st, stfp, stfp->input_to_slot);
    }
 
-   if (!stgp->state.tokens) {
+   if (!stgp->state.shader.tokens) {
       GLuint inAttr, numIn = 0;
 
       for (inAttr = 0; inAttr < GEOM_ATTRIB_MAX; inAttr++) {

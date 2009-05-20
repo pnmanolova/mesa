@@ -243,17 +243,19 @@ enum pipe_transfer_usage {
 /**
  * Primitive types:
  */
-#define PIPE_PRIM_POINTS          0
-#define PIPE_PRIM_LINES           1
-#define PIPE_PRIM_LINE_LOOP       2
-#define PIPE_PRIM_LINE_STRIP      3
-#define PIPE_PRIM_TRIANGLES       4
-#define PIPE_PRIM_TRIANGLE_STRIP  5
-#define PIPE_PRIM_TRIANGLE_FAN    6
-#define PIPE_PRIM_QUADS           7
-#define PIPE_PRIM_QUAD_STRIP      8
-#define PIPE_PRIM_POLYGON         9
-#define PIPE_PRIM_MAX             10
+#define PIPE_PRIM_POINTS               0
+#define PIPE_PRIM_LINES                1
+#define PIPE_PRIM_LINE_LOOP            2
+#define PIPE_PRIM_LINE_STRIP           3
+#define PIPE_PRIM_TRIANGLES            4
+#define PIPE_PRIM_TRIANGLE_STRIP       5
+#define PIPE_PRIM_TRIANGLE_FAN         6
+#define PIPE_PRIM_QUADS                7
+#define PIPE_PRIM_QUAD_STRIP           8
+#define PIPE_PRIM_POLYGON              9
+#define PIPE_PRIM_LINES_ADJACENCY     10
+#define PIPE_PRIM_TRIANGLES_ADJACENCY 11
+#define PIPE_PRIM_MAX                 12
 
 
 /**

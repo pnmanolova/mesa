@@ -557,7 +557,7 @@ st_translate_geometry_program(struct st_context *st,
    GLuint *outputMapping;
    GLuint defaultInputMapping[GEOM_ATTRIB_MAX];
    GLuint defaultOutputMapping[GEOM_RESULT_MAX];
-   struct pipe_shader_state gs;
+   struct pipe_geometry_shader_state gs;
    GLuint interpMode[16];  /* XXX size? */
    GLuint attr;
    const GLbitfield inputsRead = stgp->Base.Base.InputsRead;
@@ -719,9 +719,9 @@ st_translate_geometry_program(struct st_context *st,
    outputMapping = defaultOutputMapping;
 
    /* free old shader state, if any */
-   if (stgp->state.tokens) {
-      _mesa_free((void *) stgp->state.tokens);
-      stgp->state.tokens = NULL;
+   if (stgp->state.shader.tokens) {
+      _mesa_free((void *) stgp->state.shader.tokens);
+      stgp->state.shader.tokens = NULL;
    }
    if (stgp->driver_shader) {
       cso_delete_vertex_shader(st->cso_context, stgp->driver_shader);
@@ -751,8 +751,11 @@ st_translate_geometry_program(struct st_context *st,
 
    assert(num_tokens < ST_MAX_SHADER_TOKENS);
 
-   gs.tokens = (struct tgsi_token *)
-               mem_dup(tokens, num_tokens * sizeof(tokens[0]));
+   gs.shader.tokens = (struct tgsi_token *)
+                      mem_dup(tokens, num_tokens * sizeof(tokens[0]));
+   gs.vertices_out = stgp->Base.VerticesOut;
+   gs.input_type = stgp->Base.InputType;
+   gs.output_type = stgp->Base.OutputType;
 
    stgp->num_inputs = gs_num_inputs;
    stgp->state = gs; /* struct copy */
@@ -762,7 +765,7 @@ st_translate_geometry_program(struct st_context *st,
       _mesa_print_program(&stgp->Base.Base);
 
    if (TGSI_DEBUG)
-      tgsi_dump(gs.tokens, 0);
+      tgsi_dump(gs.shader.tokens, 0);
 }
 
 /**

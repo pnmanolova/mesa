@@ -172,6 +172,13 @@ struct pipe_shader_state
 {
    const struct tgsi_token *tokens;
 };
+struct pipe_geometry_shader_state
+{
+   struct pipe_shader_state shader;
+   unsigned vertices_out : 16;
+   unsigned input_type   : 8;
+   unsigned output_type  : 8;
+};
 
 
 struct pipe_depth_state 

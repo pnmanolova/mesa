@@ -127,7 +127,7 @@ struct st_geometry_program
    ubyte input_semantic_index[PIPE_MAX_SHADER_INPUTS];
 
 
-   struct pipe_shader_state state;
+   struct pipe_geometry_shader_state state;
    void *driver_shader;
 
    struct draw_geometry_shader *draw_shader;
