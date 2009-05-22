@@ -170,7 +170,7 @@ softpipe_set_constant_buffer(struct pipe_context *pipe,
 
 void *
 softpipe_create_gs_state(struct pipe_context *pipe,
-                         const struct pipe_shader_state *templ)
+                         const struct pipe_geometry_shader_state *templ)
 {
    struct softpipe_context *softpipe = softpipe_context(pipe);
    struct sp_geometry_shader *state;
@@ -181,8 +181,8 @@ softpipe_create_gs_state(struct pipe_context *pipe,
 
    /* copy shader tokens, the ones passed in will go away.
     */
-   state->shader.tokens = tgsi_dup_tokens(templ->tokens);
-   if (state->shader.tokens == NULL)
+   state->shader.shader.tokens = tgsi_dup_tokens(templ->shader.tokens);
+   if (state->shader.shader.tokens == NULL)
       goto fail;
 
    state->draw_data = draw_create_geometry_shader(softpipe->draw, templ);
@@ -193,7 +193,7 @@ softpipe_create_gs_state(struct pipe_context *pipe,
 
 fail:
    if (state) {
-      FREE( (void *)state->shader.tokens );
+      FREE( (void *)state->shader.shader.tokens );
       FREE( state->draw_data );
       FREE( state );
    }

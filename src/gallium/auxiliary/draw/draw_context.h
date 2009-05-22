@@ -118,7 +118,7 @@ void draw_delete_vertex_shader(struct draw_context *draw,
  */
 struct draw_geometry_shader *
 draw_create_geometry_shader(struct draw_context *draw,
-                            const struct pipe_shader_state *shader);
+                            const struct pipe_geometry_shader_state *shader);
 void draw_bind_geometry_shader(struct draw_context *draw,
                                struct draw_geometry_shader *dvs);
 void draw_delete_geometry_shader(struct draw_context *draw,

@@ -92,7 +92,7 @@ struct sp_vertex_shader {
 
 /** Subclass of pipe_shader_state */
 struct sp_geometry_shader {
-   struct pipe_shader_state shader;
+   struct pipe_geometry_shader_state shader;
    struct draw_geometry_shader *draw_data;
 };
 
@@ -145,7 +145,7 @@ void *softpipe_create_vs_state(struct pipe_context *,
 void softpipe_bind_vs_state(struct pipe_context *, void *);
 void softpipe_delete_vs_state(struct pipe_context *, void *);
 void *softpipe_create_gs_state(struct pipe_context *,
-                               const struct pipe_shader_state *);
+                               const struct pipe_geometry_shader_state *);
 void softpipe_bind_gs_state(struct pipe_context *, void *);
 void softpipe_delete_gs_state(struct pipe_context *, void *);
 

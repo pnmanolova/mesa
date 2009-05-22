@@ -36,7 +36,7 @@
 
 struct draw_geometry_shader *
 draw_create_geometry_shader(struct draw_context *draw,
-                            const struct pipe_shader_state *shader)
+                            const struct pipe_geometry_shader_state *shader)
 {
    struct draw_geometry_shader *gs;
 
