@@ -16,6 +16,7 @@ C_SOURCES = \
 	tgsi_sse2.c \
 	tgsi_text.c \
 	tgsi_transform.c \
-	tgsi_util.c
+	tgsi_util.c \
+        tgsi_exec_aos.c
 
 include ../../Makefile.template
