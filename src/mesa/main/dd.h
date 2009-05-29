@@ -915,6 +915,8 @@ struct dd_function_table {
                          GLboolean transpose, const GLfloat *values);
    void (*UseProgram)(GLcontext *ctx, GLuint program);
    void (*ValidateProgram)(GLcontext *ctx, GLuint program);
+   void (*ProgramParameteri)(GLcontext *ctx, GLuint program,
+                             GLenum pname, GLint value);
    /* XXX many more to come */
    /*@}*/
 
