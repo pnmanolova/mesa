@@ -1108,17 +1108,17 @@ _mesa_program_parameteri(GLcontext *ctx, GLuint program,
 
    switch (pname) {
    case GL_GEOMETRY_VERTICES_OUT_ARB:
-      gprog = _mesa_geometryFromShader(program);
+      gprog = _mesa_geometry_from_shader(program);
       if (gprog)
          gprog->VerticesOut = value;
       break;
    case GL_GEOMETRY_INPUT_TYPE_ARB:
-      gprog = _mesa_geometryFromShader(program);
+      gprog = _mesa_geometry_from_shader(program);
       if (gprog)
          gprog->InputType = value;
       break;
    case GL_GEOMETRY_OUTPUT_TYPE_ARB:
-      gprog = _mesa_geometryFromShader(program);
+      gprog = _mesa_geometry_from_shader(program);
       if (gprog)
          gprog->OutputType = value;
       break;
