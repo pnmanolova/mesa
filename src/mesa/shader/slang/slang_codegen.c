@@ -851,7 +851,7 @@ _slang_is_noop(const slang_operation *oper)
 /**
  * Recursively search tree for a node of the given type.
  */
-#if 0
+#if 1
 static slang_operation *
 _slang_find_node_type(slang_operation *oper, slang_operation_type type)
 {

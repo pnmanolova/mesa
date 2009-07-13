@@ -1001,6 +1001,22 @@ StateVars = [
 	( "GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS_ARB", GLint,
 	  ["MAX_COMBINED_TEXTURE_IMAGE_UNITS"], "", ["ARB_vertex_shader"] ),
 
+        # GL_ARB_geometry_shader4
+	( "GL_MAX_GEOMETRY_TEXTURE_IMAGE_UNITS_ARB", GLint,
+	  ["ctx->Const.GeometryProgram.MaxGeometryTextureImageUnit"], "",
+	  ["ARB_geometry_shader4"] ),
+	( "GL_MAX_GEOMETRY_OUTPUT_VERTICES_ARB", GLint,
+	  ["ctx->Const.GeometryProgram.MaxGeometryOutputVertices"], "", ["ARB_geometry_shader4"] ),
+	( "GL_MAX_GEOMETRY_TOTAL_OUTPUT_COMPONENTS_ARB", GLint,
+	  ["ctx->Const.GeometryProgram.MaxGeometryTotalOutputComponents"], "", ["ARB_geometry_shader4"] ),
+	( "GL_MAX_GEOMETRY_UNIFORM_COMPONENTS_ARB", GLint,
+	  ["ctx->Const.GeometryProgram.MaxGeometryUniformComponents"], "", ["ARB_geometry_shader4"] ),
+	( "GL_MAX_GEOMETRY_VARYING_COMPONENTS_ARB", GLint,
+	  ["ctx->Const.GeometryProgram.MaxGeometryVaryingComponents"], "", ["ARB_geometry_shader4"] ),
+	( "GL_MAX_VERTEX_VARYING_COMPONENTS_ARB", GLint,
+	  ["ctx->Const.GeometryProgram.MaxVertexVaryingComponents"], "", ["ARB_geometry_shader4"] ),
+
+
 	# GL_ARB_shader_objects
 	# Actually, this token isn't part of GL_ARB_shader_objects, but is
 	# close enough for now.

@@ -1867,6 +1867,30 @@ _mesa_GetBooleanv( GLenum pname, GLboolean *params )
          CHECK_EXT1(ARB_vertex_shader, "GetBooleanv");
          params[0] = INT_TO_BOOLEAN(MAX_COMBINED_TEXTURE_IMAGE_UNITS);
          break;
+      case GL_MAX_GEOMETRY_TEXTURE_IMAGE_UNITS_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetBooleanv");
+         params[0] = INT_TO_BOOLEAN(ctx->Const.GeometryProgram.MaxGeometryTextureImageUnit);
+         break;
+      case GL_MAX_GEOMETRY_OUTPUT_VERTICES_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetBooleanv");
+         params[0] = INT_TO_BOOLEAN(ctx->Const.GeometryProgram.MaxGeometryOutputVertices);
+         break;
+      case GL_MAX_GEOMETRY_TOTAL_OUTPUT_COMPONENTS_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetBooleanv");
+         params[0] = INT_TO_BOOLEAN(ctx->Const.GeometryProgram.MaxGeometryTotalOutputComponents);
+         break;
+      case GL_MAX_GEOMETRY_UNIFORM_COMPONENTS_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetBooleanv");
+         params[0] = INT_TO_BOOLEAN(ctx->Const.GeometryProgram.MaxGeometryUniformComponents);
+         break;
+      case GL_MAX_GEOMETRY_VARYING_COMPONENTS_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetBooleanv");
+         params[0] = INT_TO_BOOLEAN(ctx->Const.GeometryProgram.MaxGeometryVaryingComponents);
+         break;
+      case GL_MAX_VERTEX_VARYING_COMPONENTS_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetBooleanv");
+         params[0] = INT_TO_BOOLEAN(ctx->Const.GeometryProgram.MaxVertexVaryingComponents);
+         break;
       case GL_CURRENT_PROGRAM:
          CHECK_EXT1(ARB_shader_objects, "GetBooleanv");
          params[0] = INT_TO_BOOLEAN(ctx->Shader.CurrentProgram ? ctx->Shader.CurrentProgram->Name : 0);
@@ -3688,6 +3712,30 @@ _mesa_GetFloatv( GLenum pname, GLfloat *params )
       case GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS_ARB:
          CHECK_EXT1(ARB_vertex_shader, "GetFloatv");
          params[0] = (GLfloat)(MAX_COMBINED_TEXTURE_IMAGE_UNITS);
+         break;
+      case GL_MAX_GEOMETRY_TEXTURE_IMAGE_UNITS_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetFloatv");
+         params[0] = (GLfloat)(ctx->Const.GeometryProgram.MaxGeometryTextureImageUnit);
+         break;
+      case GL_MAX_GEOMETRY_OUTPUT_VERTICES_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetFloatv");
+         params[0] = (GLfloat)(ctx->Const.GeometryProgram.MaxGeometryOutputVertices);
+         break;
+      case GL_MAX_GEOMETRY_TOTAL_OUTPUT_COMPONENTS_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetFloatv");
+         params[0] = (GLfloat)(ctx->Const.GeometryProgram.MaxGeometryTotalOutputComponents);
+         break;
+      case GL_MAX_GEOMETRY_UNIFORM_COMPONENTS_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetFloatv");
+         params[0] = (GLfloat)(ctx->Const.GeometryProgram.MaxGeometryUniformComponents);
+         break;
+      case GL_MAX_GEOMETRY_VARYING_COMPONENTS_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetFloatv");
+         params[0] = (GLfloat)(ctx->Const.GeometryProgram.MaxGeometryVaryingComponents);
+         break;
+      case GL_MAX_VERTEX_VARYING_COMPONENTS_ARB:
+         CHECK_EXT1(ARB_geometry_shader4, "GetFloatv");
+         params[0] = (GLfloat)(ctx->Const.GeometryProgram.MaxVertexVaryingComponents);
          break;
       case GL_CURRENT_PROGRAM:
          CHECK_EXT1(ARB_shader_objects, "GetFloatv");
@@ -5511,15 +5559,6 @@ _mesa_GetIntegerv( GLenum pname, GLint *params )
          CHECK_EXT1(ARB_vertex_shader, "GetIntegerv");
          params[0] = MAX_COMBINED_TEXTURE_IMAGE_UNITS;
          break;
-      case GL_CURRENT_PROGRAM:
-         CHECK_EXT1(ARB_shader_objects, "GetIntegerv");
-         params[0] = ctx->Shader.CurrentProgram ? ctx->Shader.CurrentProgram->Name : 0;
-         break;
-      case GL_MAX_SAMPLES:
-         CHECK_EXT1(ARB_framebuffer_object, "GetIntegerv");
-         params[0] = ctx->Const.MaxSamples;
-         break;
-<<<<<<< HEAD:src/mesa/main/get.c
       case GL_MAX_GEOMETRY_TEXTURE_IMAGE_UNITS_ARB:
          CHECK_EXT1(ARB_geometry_shader4, "GetIntegerv");
          params[0] = ctx->Const.GeometryProgram.MaxGeometryTextureImageUnit;
@@ -5543,11 +5582,18 @@ _mesa_GetIntegerv( GLenum pname, GLint *params )
       case GL_MAX_VERTEX_VARYING_COMPONENTS_ARB:
          CHECK_EXT1(ARB_geometry_shader4, "GetIntegerv");
          params[0] = ctx->Const.GeometryProgram.MaxVertexVaryingComponents;
-=======
+         break;
+      case GL_CURRENT_PROGRAM:
+         CHECK_EXT1(ARB_shader_objects, "GetIntegerv");
+         params[0] = ctx->Shader.CurrentProgram ? ctx->Shader.CurrentProgram->Name : 0;
+         break;
+      case GL_MAX_SAMPLES:
+         CHECK_EXT1(ARB_framebuffer_object, "GetIntegerv");
+         params[0] = ctx->Const.MaxSamples;
+         break;
       case GL_VERTEX_ARRAY_BINDING_APPLE:
          CHECK_EXT1(APPLE_vertex_array_object, "GetIntegerv");
          params[0] = ctx->Array.ArrayObj->Name;
->>>>>>> origin/master:src/mesa/main/get.c
          break;
       default:
          _mesa_error(ctx, GL_INVALID_ENUM, "glGetIntegerv(pname=0x%x)", pname);
