@@ -1,8 +1,9 @@
 /*
  * Mesa 3-D graphics library
- * Version:  7.3
+ * Version:  7.6
  *
  * Copyright (C) 1999-2008  Brian Paul   All Rights Reserved.
+ * Copyright (C) 2009  VMware, Inc.  All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -44,6 +45,7 @@ static const struct {
    const char *name;
    int flag_offset;
 } default_extensions[] = {
+   { OFF, "GL_ARB_copy_buffer",                F(ARB_copy_buffer) },
    { OFF, "GL_ARB_depth_texture",              F(ARB_depth_texture) },
    { ON,  "GL_ARB_draw_buffers",               F(ARB_draw_buffers) },
    { OFF, "GL_ARB_fragment_program",           F(ARB_fragment_program) },
@@ -53,6 +55,7 @@ static const struct {
    { OFF, "GL_ARB_geometry_shader4",           F(ARB_geometry_shader4) },
    { OFF, "GL_ARB_half_float_pixel",           F(ARB_half_float_pixel) },
    { OFF, "GL_ARB_imaging",                    F(ARB_imaging) },
+   { OFF, "GL_ARB_map_buffer_range",           F(ARB_map_buffer_range) },
    { ON,  "GL_ARB_multisample",                F(ARB_multisample) },
    { OFF, "GL_ARB_multitexture",               F(ARB_multitexture) },
    { OFF, "GL_ARB_occlusion_query",            F(ARB_occlusion_query) },
@@ -76,6 +79,7 @@ static const struct {
    { OFF, "GL_ARB_texture_non_power_of_two",   F(ARB_texture_non_power_of_two)},
    { OFF, "GL_ARB_texture_rectangle",          F(NV_texture_rectangle) },
    { ON,  "GL_ARB_transpose_matrix",           F(ARB_transpose_matrix) },
+   { OFF, "GL_ARB_vertex_array_object",        F(ARB_vertex_array_object) },
    { ON,  "GL_ARB_vertex_buffer_object",       F(ARB_vertex_buffer_object) },
    { OFF, "GL_ARB_vertex_program",             F(ARB_vertex_program) },
    { OFF, "GL_ARB_vertex_shader",              F(ARB_vertex_shader) },
@@ -107,6 +111,7 @@ static const struct {
    { OFF, "GL_EXT_pixel_buffer_object",        F(EXT_pixel_buffer_object) },
    { OFF, "GL_EXT_point_parameters",           F(EXT_point_parameters) },
    { ON,  "GL_EXT_polygon_offset",             F(EXT_polygon_offset) },
+   { OFF, "GL_EXT_provoking_vertex",           F(EXT_provoking_vertex) },
    { ON,  "GL_EXT_rescale_normal",             F(EXT_rescale_normal) },
    { OFF, "GL_EXT_secondary_color",            F(EXT_secondary_color) },
    { ON,  "GL_EXT_separate_specular_color",    F(EXT_separate_specular_color) },
@@ -184,6 +189,7 @@ static const struct {
 void
 _mesa_enable_sw_extensions(GLcontext *ctx)
 {
+   ctx->Extensions.ARB_copy_buffer = GL_TRUE;
    ctx->Extensions.ARB_depth_texture = GL_TRUE;
    /*ctx->Extensions.ARB_draw_buffers = GL_TRUE;*/
 #if FEATURE_ARB_fragment_program
@@ -201,6 +207,7 @@ _mesa_enable_sw_extensions(GLcontext *ctx)
 #endif
    ctx->Extensions.ARB_half_float_pixel = GL_TRUE;
    ctx->Extensions.ARB_imaging = GL_TRUE;
+   ctx->Extensions.ARB_map_buffer_range = GL_TRUE;
    ctx->Extensions.ARB_multitexture = GL_TRUE;
 #if FEATURE_ARB_occlusion_query
    ctx->Extensions.ARB_occlusion_query = GL_TRUE;
@@ -225,6 +232,7 @@ _mesa_enable_sw_extensions(GLcontext *ctx)
    /*ctx->Extensions.ARB_texture_float = GL_TRUE;*/
    ctx->Extensions.ARB_texture_mirrored_repeat = GL_TRUE;
    ctx->Extensions.ARB_texture_non_power_of_two = GL_TRUE;
+   ctx->Extensions.ARB_vertex_array_object = GL_TRUE;
 #if FEATURE_ARB_vertex_program
    ctx->Extensions.ARB_vertex_program = GL_TRUE;
 #endif
@@ -265,6 +273,7 @@ _mesa_enable_sw_extensions(GLcontext *ctx)
    ctx->Extensions.EXT_pixel_buffer_object = GL_TRUE;
 #endif
    ctx->Extensions.EXT_point_parameters = GL_TRUE;
+   ctx->Extensions.EXT_provoking_vertex = GL_TRUE;
    ctx->Extensions.EXT_shadow_funcs = GL_TRUE;
    ctx->Extensions.EXT_secondary_color = GL_TRUE;
    ctx->Extensions.EXT_shared_texture_palette = GL_TRUE;
@@ -444,8 +453,9 @@ _mesa_enable_2_1_extensions(GLcontext *ctx)
 
 /**
  * Either enable or disable the named extension.
+ * \return GL_TRUE for success, GL_FALSE if invalid extension name
  */
-static void
+static GLboolean
 set_extension( GLcontext *ctx, const char *name, GLboolean state )
 {
    GLboolean *base = (GLboolean *) &ctx->Extensions;
@@ -454,7 +464,7 @@ set_extension( GLcontext *ctx, const char *name, GLboolean state )
    if (ctx->Extensions.String) {
       /* The string was already queried - can't change it now! */
       _mesa_problem(ctx, "Trying to enable/disable extension after glGetString(GL_EXTENSIONS): %s", name);
-      return;
+      return GL_FALSE;
    }
 
    for (i = 0 ; i < Elements(default_extensions) ; i++) {
@@ -463,10 +473,10 @@ set_extension( GLcontext *ctx, const char *name, GLboolean state )
             GLboolean *enabled = base + default_extensions[i].flag_offset;
             *enabled = state;
          }
-         return;
+         return GL_TRUE;
       }
    }
-   _mesa_problem(ctx, "Trying to enable unknown extension: %s", name);
+   return GL_FALSE;
 }
 
 
@@ -477,7 +487,8 @@ set_extension( GLcontext *ctx, const char *name, GLboolean state )
 void
 _mesa_enable_extension( GLcontext *ctx, const char *name )
 {
-   set_extension(ctx, name, GL_TRUE);
+   if (!set_extension(ctx, name, GL_TRUE))
+      _mesa_problem(ctx, "Trying to enable unknown extension: %s", name);
 }
 
 
@@ -488,7 +499,8 @@ _mesa_enable_extension( GLcontext *ctx, const char *name )
 void
 _mesa_disable_extension( GLcontext *ctx, const char *name )
 {
-   set_extension(ctx, name, GL_FALSE);
+   if (!set_extension(ctx, name, GL_FALSE))
+      _mesa_problem(ctx, "Trying to disable unknown extension: %s", name);
 }
 
 
@@ -509,6 +521,80 @@ _mesa_extension_is_enabled( GLcontext *ctx, const char *name )
       }
    }
    return GL_FALSE;
+}
+
+
+/**
+ * Append string 'b' onto string 'a'.  Free 'a' and return new string.
+ */
+static char *
+append(const char *a, const char *b)
+{
+   const GLuint aLen = a ? _mesa_strlen(a) : 0;
+   const GLuint bLen = b ? _mesa_strlen(b) : 0;
+   char *s = _mesa_calloc(aLen + bLen + 1);
+   if (s) {
+      if (a)
+         _mesa_memcpy(s, a, aLen);
+      if (b)
+         _mesa_memcpy(s + aLen, b, bLen);
+      s[aLen + bLen] = '\0';
+   }
+   if (a)
+      _mesa_free((void *) a);
+   return s;
+}
+
+
+/**
+ * Check the MESA_EXTENSION_OVERRIDE env var.
+ * For extension names that are recognized, turn them on.  For extension
+ * names that are recognized and prefixed with '-', turn them off.
+ * Return a string of the unknown/leftover names.
+ */
+static const char *
+get_extension_override( GLcontext *ctx )
+{
+   const char *envExt = _mesa_getenv("MESA_EXTENSION_OVERRIDE");
+   char *extraExt = NULL;
+   char ext[1000];
+   GLuint extLen = 0;
+   GLuint i;
+   GLboolean disableExt = GL_FALSE;
+
+   if (!envExt)
+      return NULL;
+
+   for (i = 0; ; i++) {
+      if (envExt[i] == '\0' || envExt[i] == ' ') {
+         /* terminate/process 'ext' if extLen > 0 */
+         if (extLen > 0) {
+            assert(extLen < sizeof(ext));
+            /* enable extension named by 'ext' */
+            ext[extLen] = 0;
+            if (!set_extension(ctx, ext, !disableExt)) {
+               /* unknown extension name, append it to extraExt */
+               if (extraExt) {
+                  extraExt = append(extraExt, " ");
+               }
+               extraExt = append(extraExt, ext);
+            }
+            extLen = 0;
+            disableExt = GL_FALSE;
+         }
+         if (envExt[i] == '\0')
+            break;
+      }
+      else if (envExt[i] == '-') {
+         disableExt = GL_TRUE;
+      }
+      else {
+         /* accumulate this non-space character */
+         ext[extLen++] = envExt[i];
+      }
+   }
+
+   return extraExt;
 }
 
 
@@ -540,8 +626,9 @@ GLubyte *
 _mesa_make_extension_string( GLcontext *ctx )
 {
    const GLboolean *base = (const GLboolean *) &ctx->Extensions;
+   const char *extraExt = get_extension_override(ctx);
    GLuint extStrLen = 0;
-   GLubyte *s;
+   char *s;
    GLuint i;
 
    /* first, compute length of the extension string */
@@ -551,7 +638,14 @@ _mesa_make_extension_string( GLcontext *ctx )
          extStrLen += (GLuint)_mesa_strlen(default_extensions[i].name) + 1;
       }
    }
-   s = (GLubyte *) _mesa_malloc(extStrLen);
+
+   if (extraExt)
+      extStrLen += _mesa_strlen(extraExt) + 1; /* +1 for space */
+
+   /* allocate the extension string */
+   s = (char *) _mesa_malloc(extStrLen);
+   if (!s)
+      return NULL;
 
    /* second, build the extension string */
    extStrLen = 0;
@@ -561,13 +655,18 @@ _mesa_make_extension_string( GLcontext *ctx )
          GLuint len = (GLuint)_mesa_strlen(default_extensions[i].name);
          _mesa_memcpy(s + extStrLen, default_extensions[i].name, len);
          extStrLen += len;
-         s[extStrLen] = (GLubyte) ' ';
+         s[extStrLen] = ' ';
          extStrLen++;
       }
    }
    ASSERT(extStrLen > 0);
 
-   s[extStrLen - 1] = 0;
+   s[extStrLen - 1] = 0; /* -1 to overwrite trailing the ' ' */
 
-   return s;
+   if (extraExt) {
+      s = append(s, " ");
+      s = append(s, extraExt);
+   }
+
+   return (GLubyte *) s;
 }

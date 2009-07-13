@@ -75,6 +75,16 @@ compute_max_element(struct gl_client_array *array)
 {
    assert(array->Enabled);
    if (array->BufferObj->Name) {
+      GLsizeiptrARB offset = (GLsizeiptrARB) array->Ptr;
+      GLsizeiptrARB obj_size = (GLsizeiptrARB) array->BufferObj->Size;
+
+      if (offset < obj_size) {
+	 array->_MaxElement = (obj_size - offset +
+			       array->StrideB -
+			       array->_ElementSize) / array->StrideB;
+      } else {
+	 array->_MaxElement = 0;
+      }
       /* Compute the max element we can access in the VBO without going
        * out of bounds.
        */
@@ -194,7 +204,7 @@ update_arrays( GLcontext *ctx )
 
    /* 16..31 */
    if (ctx->VertexProgram._Current) {
-      for (i = VERT_ATTRIB_GENERIC0; i < VERT_ATTRIB_MAX; i++) {
+      for (i = 0; i < Elements(arrayObj->VertexAttrib); i++) {
          if (arrayObj->VertexAttrib[i].Enabled) {
             min = update_min(min, &arrayObj->VertexAttrib[i]);
          }
@@ -206,7 +216,7 @@ update_arrays( GLcontext *ctx )
    }
 
    /* _MaxElement is one past the last legal array element */
-   ctx->Array._MaxElement = min;
+   arrayObj->_MaxElement = min;
 }
 
 

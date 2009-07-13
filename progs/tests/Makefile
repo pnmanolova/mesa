@@ -17,6 +17,7 @@ SOURCES = \
 	arbfptest1.c \
 	arbfptexture.c \
 	arbfptrig.c \
+	arbgpuprog.c \
 	arbnpot.c \
 	arbnpot-mipmap.c \
 	arbvptest1.c \
@@ -48,7 +49,8 @@ SOURCES = \
 	fptest1.c \
 	fptexture.c \
 	getprocaddress.c \
-	glutfx \
+	getteximage.c \
+	glutfx.c \
 	interleave.c \
 	invert.c \
 	jkrahntest.c \
@@ -59,17 +61,22 @@ SOURCES = \
 	minmag.c \
 	mipgen.c \
 	mipmap_comp.c \
+	mipmap_comp_tests.c \
 	mipmap_limits.c \
 	mipmap_view.c \
 	multipal.c \
 	no_s3tc.c \
 	packedpixels.c \
 	pbo.c \
+	persp_hint.c \
+	prim.c \
 	prog_parameter.c \
 	quads.c \
 	random.c \
 	readrate.c \
 	rubberband.c \
+	scissor.c \
+	scissor-viewport.c \
 	seccolor.c \
 	shader_api.c \
 	sharedtex.c \
@@ -81,6 +88,7 @@ SOURCES = \
 	subtexrate.c \
 	tex1d.c \
 	texcompress2.c \
+	texcompsub.c \
 	texdown \
 	texfilt.c \
 	texline.c \

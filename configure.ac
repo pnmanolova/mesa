@@ -29,6 +29,11 @@ AC_CHECK_PROGS([MAKE], [gmake make])
 AC_PATH_PROG([MKDEP], [makedepend])
 AC_PATH_PROG([SED], [sed])
 
+dnl Our fallback install-sh is a symlink to minstall. Use the existing
+dnl configuration in that case.
+AC_PROG_INSTALL
+test "x$INSTALL" = "x$ac_install_sh" && INSTALL='$(MINSTALL)'
+
 dnl We need a POSIX shell for parts of the build. Assume we have one
 dnl in most cases.
 case "$host_os" in
@@ -222,6 +227,8 @@ else
     case "$host_os" in
     darwin* )
         LIB_EXTENSION='dylib' ;;
+    cygwin* )
+        LIB_EXTENSION='dll' ;;
     * )
         LIB_EXTENSION='so' ;;
     esac
@@ -409,8 +416,8 @@ WINDOW_SYSTEM=""
 GALLIUM_DIRS="auxiliary drivers state_trackers"
 GALLIUM_WINSYS_DIRS=""
 GALLIUM_WINSYS_DRM_DIRS=""
-GALLIUM_AUXILIARY_DIRS="draw translate cso_cache pipebuffer tgsi sct rtasm util indices"
-GALLIUM_DRIVERS_DIRS="softpipe failover trace"
+GALLIUM_AUXILIARY_DIRS="rbug draw translate cso_cache pipebuffer tgsi sct rtasm util indices"
+GALLIUM_DRIVERS_DIRS="softpipe failover trace identity"
 GALLIUM_STATE_TRACKERS_DIRS=""
 
 case "$mesa_driver" in
@@ -438,6 +445,8 @@ AC_SUBST([GALLIUM_WINSYS_DRM_DIRS])
 AC_SUBST([GALLIUM_DRIVERS_DIRS])
 AC_SUBST([GALLIUM_AUXILIARY_DIRS])
 AC_SUBST([GALLIUM_STATE_TRACKERS_DIRS])
+AC_SUBST([RADEON_CFLAGS])
+AC_SUBST([RADEON_LDFLAGS])
 
 dnl
 dnl User supplied program configuration
@@ -565,6 +574,13 @@ dri)
     GL_PC_REQ_PRIV="libdrm >= $LIBDRM_REQUIRED dri2proto >= $DRI2PROTO_REQUIRED"
     DRI_PC_REQ_PRIV="libdrm >= $LIBDRM_REQUIRED"
 
+    PKG_CHECK_MODULES([LIBDRM_RADEON], [libdrm_radeon], HAVE_LIBDRM_RADEON=yes, HAVE_LIBDRM_RADEON=no)
+
+    if test "$HAVE_LIBDRM_RADEON" = yes; then
+	RADEON_CFLAGS="-DHAVE_LIBDRM_RADEON=1 $LIBDRM_RADEON_CFLAGS"
+	RADEON_LDFLAGS=$LIBDRM_RADEON_LIBS
+    fi
+
     # find the DRI deps for libGL
     if test "$x11_pkgconfig" = yes; then
         # add xcb modules if necessary
@@ -640,7 +656,7 @@ dnl Which drivers to build - default is chosen by platform
 AC_ARG_WITH([dri-drivers],
     [AS_HELP_STRING([--with-dri-drivers@<:@=DIRS...@:>@],
         [comma delimited DRI drivers list, e.g.
-        "swrast,i965,radeon,nouveau" @<:@default=auto@:>@])],
+        "swrast,i965,radeon" @<:@default=auto@:>@])],
     [with_dri_drivers="$withval"],
     [with_dri_drivers=yes])
 if test "x$with_dri_drivers" = x; then
@@ -826,12 +842,12 @@ case "$mesa_driver" in
 osmesa)
     # only link libraries with osmesa if shared
     if test "$enable_static" = no; then
-        OSMESA_LIB_DEPS="-lm -lpthread $SELINUX_LIBS"
+        OSMESA_LIB_DEPS="-lm -lpthread $SELINUX_LIBS $DLOPEN_LIBS"
     else
         OSMESA_LIB_DEPS=""
     fi
     OSMESA_MESA_DEPS=""
-    OSMESA_PC_LIB_PRIV="-lm -lpthread $SELINUX_LIBS"
+    OSMESA_PC_LIB_PRIV="-lm -lpthread $SELINUX_LIBS $DLOPEN_LIBS"
     ;;
 *)
     # Link OSMesa to libGL otherwise
@@ -845,9 +861,6 @@ osmesa)
     OSMESA_PC_REQ="gl"
     ;;
 esac
-if test "$enable_static" = no; then
-    OSMESA_LIB_DEPS="$OSMESA_LIB_DEPS"
-fi
 OSMESA_PC_LIB_PRIV="$OSMESA_PC_LIB_PRIV"
 AC_SUBST([OSMESA_LIB_DEPS])
 AC_SUBST([OSMESA_MESA_DEPS])
@@ -1076,6 +1089,9 @@ if test "x$APP_LIB_DEPS" = x; then
     solaris*)
         APP_LIB_DEPS="-lX11 -lsocket -lnsl -lm"
         ;;
+    cygwin*)
+        APP_LIB_DEPS="-lX11"
+        ;;
     *)
         APP_LIB_DEPS="-lm"
         ;;
@@ -1179,7 +1195,7 @@ AC_ARG_ENABLE([gallium-nouveau],
     [enable_gallium_nouveau=no])
 if test "x$enable_gallium_nouveau" = xyes; then
     GALLIUM_WINSYS_DRM_DIRS="$GALLIUM_WINSYS_DRM_DIRS nouveau"
-    GALLIUM_DRIVERS_DIRS="$GALLIUM_DRIVERS_DIRS nv04 nv10 nv20 nv30 nv40 nv50"
+    GALLIUM_DRIVERS_DIRS="$GALLIUM_DRIVERS_DIRS nouveau nv04 nv10 nv20 nv30 nv40 nv50"
 fi
 
 

@@ -53,6 +53,7 @@
 #include "intel_clear.h"
 #include "intel_fbo.h"
 #include "intel_pixel.h"
+#include "intel_regions.h"
 
 #define FILE_DEBUG_FLAG DEBUG_BLIT
 
@@ -133,7 +134,6 @@ intel_clear_tris(GLcontext *ctx, GLbitfield mask)
 		    BUFFER_BIT_STENCIL)) == 0);
 
    _mesa_PushAttrib(GL_COLOR_BUFFER_BIT |
-		    GL_CURRENT_BIT |
 		    GL_DEPTH_BUFFER_BIT |
 		    GL_ENABLE_BIT |
 		    GL_POLYGON_BIT |
@@ -264,7 +264,7 @@ intel_clear_tris(GLcontext *ctx, GLbitfield mask)
 	 _mesa_Disable(GL_STENCIL_TEST);
       }
 
-      CALL_DrawArrays(ctx->Exec, (GL_TRIANGLE_FAN, 0, 4));
+      _mesa_DrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
       mask &= ~this_mask;
    }
@@ -312,7 +312,6 @@ static const char *buffer_names[] = {
 static void
 intelClear(GLcontext *ctx, GLbitfield mask)
 {
-   struct intel_context *intel = intel_context(ctx);
    const GLuint colorMask = *((GLuint *) & ctx->Color.ColorMask);
    GLbitfield tri_mask = 0;
    GLbitfield blit_mask = 0;
@@ -340,7 +339,7 @@ intelClear(GLcontext *ctx, GLbitfield mask)
          = intel_get_rb_region(fb, BUFFER_STENCIL);
       if (stencilRegion) {
          /* have hw stencil */
-         if (IS_965(intel->intelScreen->deviceID) ||
+         if (stencilRegion->tiling == I915_TILING_Y ||
 	     (ctx->Stencil.WriteMask[0] & 0xff) != 0xff) {
 	    /* We have to use the 3D engine if we're clearing a partial mask
 	     * of the stencil buffer, or if we're on a 965 which has a tiled
@@ -357,9 +356,10 @@ intelClear(GLcontext *ctx, GLbitfield mask)
 
    /* HW depth */
    if (mask & BUFFER_BIT_DEPTH) {
+      const struct intel_region *irb = intel_get_rb_region(fb, BUFFER_DEPTH);
+
       /* clear depth with whatever method is used for stencil (see above) */
-      if (IS_965(intel->intelScreen->deviceID) ||
-	  tri_mask & BUFFER_BIT_STENCIL)
+      if (irb->tiling == I915_TILING_Y || tri_mask & BUFFER_BIT_STENCIL)
          tri_mask |= BUFFER_BIT_DEPTH;
       else
          blit_mask |= BUFFER_BIT_DEPTH;

@@ -38,6 +38,7 @@
 
 
 static boolean trace = FALSE;
+static boolean rbug = FALSE;
 
 static const char *
 trace_screen_get_name(struct pipe_screen *_screen)
@@ -826,18 +827,37 @@ trace_screen_destroy(struct pipe_screen *_screen)
    trace_dump_call_end();
    trace_dump_trace_end();
 
+   if (tr_scr->rbug)
+      trace_rbug_stop(tr_scr->rbug);
+
    screen->destroy(screen);
 
    FREE(tr_scr);
 }
 
-
 boolean
 trace_enabled(void)
 {
+   static boolean firstrun = TRUE;
+
+   if (!firstrun)
+      return trace;
+   firstrun = FALSE;
+
+   trace_dump_init();
+
+   if(trace_dump_trace_begin()) {
+      trace_dumping_start();
+      trace = TRUE;
+   }
+
+   if (debug_get_bool_option("GALLIUM_RBUG", FALSE)) {
+      trace = TRUE;
+      rbug = TRUE;
+   }
+
    return trace;
 }
-
 
 struct pipe_screen *
 trace_screen_create(struct pipe_screen *screen)
@@ -848,14 +868,7 @@ trace_screen_create(struct pipe_screen *screen)
    if(!screen)
       goto error1;
 
-   trace_dump_init();
-
-   if(trace_dump_trace_begin()) {
-      trace_dumping_start();
-      trace = TRUE;
-   }
-
-   if (!trace)
+   if (!trace_enabled())
       goto error1;
 
    trace_dump_call_begin("", "pipe_screen_create");
@@ -914,6 +927,9 @@ trace_screen_create(struct pipe_screen *screen)
 
    trace_dump_ret(ptr, screen);
    trace_dump_call_end();
+
+   if (rbug)
+      tr_scr->rbug = trace_rbug_start(tr_scr);
 
    return &tr_scr->base;
 

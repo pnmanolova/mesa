@@ -56,6 +56,36 @@ void r300_emit_blend_color_state(struct r300_context* r300,
     }
 }
 
+void r300_emit_clip_state(struct r300_context* r300,
+                          struct pipe_clip_state* clip)
+{
+    int i;
+    struct r300_screen* r300screen = r300_screen(r300->context.screen);
+    CS_LOCALS(r300);
+
+    if (r300screen->caps->has_tcl) {
+        BEGIN_CS(5 + (6 * 4));
+        OUT_CS_REG(R300_VAP_PVS_VECTOR_INDX_REG,
+                (r300screen->caps->is_r500 ?
+                 R500_PVS_UCP_START : R300_PVS_UCP_START));
+        OUT_CS_ONE_REG(R300_VAP_PVS_UPLOAD_DATA, 6 * 4);
+        for (i = 0; i < 6; i++) {
+            OUT_CS_32F(clip->ucp[i][0]);
+            OUT_CS_32F(clip->ucp[i][1]);
+            OUT_CS_32F(clip->ucp[i][2]);
+            OUT_CS_32F(clip->ucp[i][3]);
+        }
+        OUT_CS_REG(R300_VAP_CLIP_CNTL, ((1 << clip->nr) - 1) |
+                R300_PS_UCP_MODE_CLIP_AS_TRIFAN);
+        END_CS;
+    } else {
+        BEGIN_CS(2);
+        OUT_CS_REG(R300_VAP_CLIP_CNTL, R300_CLIP_DISABLE);
+        END_CS;
+    }
+
+}
+
 void r300_emit_dsa_state(struct r300_context* r300,
                            struct r300_dsa_state* dsa)
 {
@@ -80,7 +110,7 @@ void r300_emit_dsa_state(struct r300_context* r300,
 }
 
 void r300_emit_fragment_shader(struct r300_context* r300,
-                               struct r300_fragment_shader* fs)
+                               struct r3xx_fragment_shader* fs)
 {
     int i;
     CS_LOCALS(r300);
@@ -112,7 +142,7 @@ void r300_emit_fragment_shader(struct r300_context* r300,
 }
 
 void r500_emit_fragment_shader(struct r300_context* r300,
-                               struct r500_fragment_shader* fs)
+                               struct r5xx_fragment_shader* fs)
 {
     int i;
     struct r300_constant_buffer* constants =
@@ -259,18 +289,6 @@ void r300_emit_rs_block_state(struct r300_context* r300,
     END_CS;
 }
 
-void r300_emit_sampler(struct r300_context* r300,
-                       struct r300_sampler_state* sampler, unsigned offset)
-{
-    CS_LOCALS(r300);
-
-    BEGIN_CS(6);
-    OUT_CS_REG(R300_TX_FILTER0_0 + (offset * 4), sampler->filter0);
-    OUT_CS_REG(R300_TX_FILTER1_0 + (offset * 4), sampler->filter1);
-    OUT_CS_REG(R300_TX_BORDER_COLOR_0 + (offset * 4), sampler->border_color);
-    END_CS;
-}
-
 void r300_emit_scissor_state(struct r300_context* r300,
                              struct r300_scissor_state* scissor)
 {
@@ -284,11 +302,17 @@ void r300_emit_scissor_state(struct r300_context* r300,
 }
 
 void r300_emit_texture(struct r300_context* r300,
-                       struct r300_texture* tex, unsigned offset)
+                       struct r300_sampler_state* sampler,
+                       struct r300_texture* tex,
+                       unsigned offset)
 {
     CS_LOCALS(r300);
 
-    BEGIN_CS(10);
+    BEGIN_CS(16);
+    OUT_CS_REG(R300_TX_FILTER0_0 + (offset * 4), sampler->filter0);
+    OUT_CS_REG(R300_TX_FILTER1_0 + (offset * 4), sampler->filter1);
+    OUT_CS_REG(R300_TX_BORDER_COLOR_0 + (offset * 4), sampler->border_color);
+
     OUT_CS_REG(R300_TX_FORMAT0_0 + (offset * 4), tex->state.format0);
     OUT_CS_REG(R300_TX_FORMAT1_0 + (offset * 4), tex->state.format1);
     OUT_CS_REG(R300_TX_FORMAT2_0 + (offset * 4), tex->state.format2);
@@ -372,17 +396,22 @@ void r300_emit_vertex_shader(struct r300_context* r300,
     }
 
     if (constants->count) {
-        BEGIN_CS(16 + (vs->instruction_count * 4) + (constants->count * 4));
+        BEGIN_CS(14 + (vs->instruction_count * 4) + (constants->count * 4));
     } else {
-        BEGIN_CS(13 + (vs->instruction_count * 4) + (constants->count * 4));
+        BEGIN_CS(11 + (vs->instruction_count * 4));
     }
 
-    OUT_CS_REG(R300_VAP_PVS_CODE_CNTL_0, R300_PVS_FIRST_INST(0) |
+    /* R300_VAP_PVS_CODE_CNTL_0
+     * R300_VAP_PVS_CONST_CNTL
+     * R300_VAP_PVS_CODE_CNTL_1
+     * See the r5xx docs for instructions on how to use these.
+     * XXX these could be optimized to select better values... */
+    OUT_CS_REG_SEQ(R300_VAP_PVS_CODE_CNTL_0, 3);
+    OUT_CS(R300_PVS_FIRST_INST(0) |
+            R300_PVS_XYZW_VALID_INST(vs->instruction_count - 1) |
             R300_PVS_LAST_INST(vs->instruction_count - 1));
-    OUT_CS_REG(R300_VAP_PVS_CODE_CNTL_1, vs->instruction_count - 1);
-
-    /* XXX */
-    OUT_CS_REG(R300_VAP_PVS_CONST_CNTL, 0x0);
+    OUT_CS(R300_PVS_MAX_CONST_ADDR(constants->count - 1));
+    OUT_CS(vs->instruction_count - 1);
 
     OUT_CS_REG(R300_VAP_PVS_VECTOR_INDX_REG, 0);
     OUT_CS_ONE_REG(R300_VAP_PVS_UPLOAD_DATA, vs->instruction_count * 4);
@@ -412,7 +441,6 @@ void r300_emit_vertex_shader(struct r300_context* r300,
             R300_PVS_VF_MAX_VTX_NUM(12));
     OUT_CS_REG(R300_VAP_PVS_STATE_FLUSH_REG, 0x0);
     END_CS;
-
 }
 
 void r300_emit_viewport_state(struct r300_context* r300,
@@ -452,8 +480,8 @@ void r300_emit_dirty_state(struct r300_context* r300)
 {
     struct r300_screen* r300screen = r300_screen(r300->context.screen);
     struct r300_texture* tex;
-    int i;
-    int dirty_tex = 0;
+    int i, dirty_tex = 0;
+    boolean invalid = FALSE;
 
     if (!(r300->dirty_state)) {
         return;
@@ -462,38 +490,55 @@ void r300_emit_dirty_state(struct r300_context* r300)
     r300_update_derived_state(r300);
 
     /* XXX check size */
+validate:
     /* Color buffers... */
     for (i = 0; i < r300->framebuffer_state.nr_cbufs; i++) {
         tex = (struct r300_texture*)r300->framebuffer_state.cbufs[i]->texture;
         assert(tex && tex->buffer && "cbuf is marked, but NULL!");
-        r300->winsys->add_buffer(r300->winsys, tex->buffer,
-                0, RADEON_GEM_DOMAIN_VRAM);
+        if (!r300->winsys->add_buffer(r300->winsys, tex->buffer,
+                    0, RADEON_GEM_DOMAIN_VRAM)) {
+            r300->context.flush(&r300->context, 0, NULL);
+            goto validate;
+        }
     }
     /* ...depth buffer... */
     if (r300->framebuffer_state.zsbuf) {
         tex = (struct r300_texture*)r300->framebuffer_state.zsbuf->texture;
         assert(tex && tex->buffer && "zsbuf is marked, but NULL!");
-        r300->winsys->add_buffer(r300->winsys, tex->buffer,
-                0, RADEON_GEM_DOMAIN_VRAM);
+        if (!r300->winsys->add_buffer(r300->winsys, tex->buffer,
+                    0, RADEON_GEM_DOMAIN_VRAM)) {
+            r300->context.flush(&r300->context, 0, NULL);
+            goto validate;
+        }
     }
     /* ...textures... */
     for (i = 0; i < r300->texture_count; i++) {
         tex = r300->textures[i];
         assert(tex && tex->buffer && "texture is marked, but NULL!");
-        r300->winsys->add_buffer(r300->winsys, tex->buffer,
-                RADEON_GEM_DOMAIN_GTT | RADEON_GEM_DOMAIN_VRAM, 0);
+        if (!r300->winsys->add_buffer(r300->winsys, tex->buffer,
+                    RADEON_GEM_DOMAIN_GTT | RADEON_GEM_DOMAIN_VRAM, 0)) {
+            r300->context.flush(&r300->context, 0, NULL);
+            goto validate;
+        }
     }
     /* ...and vertex buffer. */
     if (r300->vbo) {
-        r300->winsys->add_buffer(r300->winsys, r300->vbo,
-                RADEON_GEM_DOMAIN_GTT, 0);
+        if (!r300->winsys->add_buffer(r300->winsys, r300->vbo,
+                    RADEON_GEM_DOMAIN_GTT, 0)) {
+            r300->context.flush(&r300->context, 0, NULL);
+            goto validate;
+        }
     } else {
         debug_printf("No VBO while emitting dirty state!\n");
     }
-
     if (r300->winsys->validate(r300->winsys)) {
-        /* XXX */
         r300->context.flush(&r300->context, 0, NULL);
+        if (invalid) {
+            /* Well, hell. */
+            exit(1);
+        }
+        invalid = TRUE;
+        goto validate;
     }
 
     if (r300->dirty_state & R300_NEW_BLEND) {
@@ -506,6 +551,11 @@ void r300_emit_dirty_state(struct r300_context* r300)
         r300->dirty_state &= ~R300_NEW_BLEND_COLOR;
     }
 
+    if (r300->dirty_state & R300_NEW_CLIP) {
+        r300_emit_clip_state(r300, &r300->clip_state);
+        r300->dirty_state &= ~R300_NEW_CLIP;
+    }
+
     if (r300->dirty_state & R300_NEW_DSA) {
         r300_emit_dsa_state(r300, r300->dsa_state);
         r300->dirty_state &= ~R300_NEW_DSA;
@@ -514,10 +564,10 @@ void r300_emit_dirty_state(struct r300_context* r300)
     if (r300->dirty_state & R300_NEW_FRAGMENT_SHADER) {
         if (r300screen->caps->is_r500) {
             r500_emit_fragment_shader(r300,
-                (struct r500_fragment_shader*)r300->fs);
+                (struct r5xx_fragment_shader*)r300->fs);
         } else {
             r300_emit_fragment_shader(r300,
-                (struct r300_fragment_shader*)r300->fs);
+                (struct r3xx_fragment_shader*)r300->fs);
         }
         r300->dirty_state &= ~R300_NEW_FRAGMENT_SHADER;
     }
@@ -537,29 +587,27 @@ void r300_emit_dirty_state(struct r300_context* r300)
         r300->dirty_state &= ~R300_NEW_RS_BLOCK;
     }
 
-    if (r300->dirty_state & R300_ANY_NEW_SAMPLERS) {
-        for (i = 0; i < r300->sampler_count; i++) {
-            if (r300->dirty_state & (R300_NEW_SAMPLER << i)) {
-                r300_emit_sampler(r300, r300->sampler_states[i], i);
-                r300->dirty_state &= ~(R300_NEW_SAMPLER << i);
-                dirty_tex++;
-            }
-        }
-    }
-
     if (r300->dirty_state & R300_NEW_SCISSOR) {
         r300_emit_scissor_state(r300, r300->scissor_state);
         r300->dirty_state &= ~R300_NEW_SCISSOR;
     }
 
-    if (r300->dirty_state & R300_ANY_NEW_TEXTURES) {
-        for (i = 0; i < r300->texture_count; i++) {
-            if (r300->dirty_state & (R300_NEW_TEXTURE << i)) {
-                r300_emit_texture(r300, r300->textures[i], i);
-                r300->dirty_state &= ~(R300_NEW_TEXTURE << i);
+    /* Samplers and textures are tracked separately but emitted together. */
+    if (r300->dirty_state &
+            (R300_ANY_NEW_SAMPLERS | R300_ANY_NEW_TEXTURES)) {
+        for (i = 0; i < MIN2(r300->sampler_count, r300->texture_count); i++) {
+            if (r300->dirty_state &
+                    ((R300_NEW_SAMPLER << i) | (R300_NEW_TEXTURE << i))) {
+                r300_emit_texture(r300,
+                        r300->sampler_states[i],
+                        r300->textures[i],
+                        i);
+                r300->dirty_state &=
+                    ~((R300_NEW_SAMPLER << i) | (R300_NEW_TEXTURE << i));
                 dirty_tex++;
             }
         }
+        r300->dirty_state &= ~(R300_ANY_NEW_SAMPLERS | R300_ANY_NEW_TEXTURES);
     }
 
     if (r300->dirty_state & R300_NEW_VIEWPORT) {
@@ -575,6 +623,15 @@ void r300_emit_dirty_state(struct r300_context* r300)
         r300_emit_vertex_format_state(r300);
         r300->dirty_state &= ~R300_NEW_VERTEX_FORMAT;
     }
+
+    if (r300->dirty_state & R300_NEW_VERTEX_SHADER) {
+        r300_emit_vertex_shader(r300, r300->vs);
+        r300->dirty_state &= ~R300_NEW_VERTEX_SHADER;
+    }
+
+    /* XXX
+    assert(r300->dirty_state == 0);
+    */
 
     /* Finally, emit the VBO. */
     r300_emit_vertex_buffer(r300);

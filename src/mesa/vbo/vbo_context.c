@@ -153,7 +153,8 @@ static void init_mat_currval(GLcontext *ctx)
       cl->Stride = 0;
       cl->StrideB = 0;
       cl->Enabled = 1;
-      cl->BufferObj = ctx->Shared->NullBufferObj;
+      _mesa_reference_buffer_object(ctx, &cl->BufferObj,
+                                    ctx->Shared->NullBufferObj);
    }
 }
 
@@ -214,7 +215,7 @@ GLboolean _vbo_CreateContext( GLcontext *ctx )
       for (i = 0; i < 4; i++)
 	 vbo->map_vp_none[28+i] = i;	
       
-      for (i = 0; i < VERT_ATTRIB_MAX; i++)
+      for (i = 0; i < Elements(vbo->map_vp_arb); i++)
 	 vbo->map_vp_arb[i] = i;
    }
 

@@ -459,7 +459,7 @@ _mesa_init_current(GLcontext *ctx)
    GLuint i;
 
    /* Init all to (0,0,0,1) */
-   for (i = 0; i < VERT_ATTRIB_MAX; i++) {
+   for (i = 0; i < Elements(ctx->Current.Attrib); i++) {
       ASSIGN_4V( ctx->Current.Attrib[i], 0.0, 0.0, 0.0, 1.0 );
    }
 
@@ -609,6 +609,9 @@ _mesa_init_constants(GLcontext *ctx)
 
    /* GL_ATI_envmap_bumpmap */
    ctx->Const.SupportedBumpUnits = SUPPORTED_ATI_BUMP_UNITS;
+
+   /* GL_EXT_provoking_vertex */
+   ctx->Const.QuadsFollowProvokingVertexConvention = GL_TRUE;
 
    /* sanity checks */
    ASSERT(ctx->Const.MaxTextureUnits == MIN2(ctx->Const.MaxTextureImageUnits,
@@ -1026,8 +1029,19 @@ _mesa_free_context_data( GLcontext *ctx )
 #if FEATURE_ARB_occlusion_query
    _mesa_free_query_data(ctx);
 #endif
+   _mesa_free_varray_data(ctx);
 
    _mesa_delete_array_object(ctx, ctx->Array.DefaultArrayObj);
+
+#if FEATURE_ARB_pixel_buffer_object
+   _mesa_reference_buffer_object(ctx, &ctx->Pack.BufferObj, NULL);
+   _mesa_reference_buffer_object(ctx, &ctx->Unpack.BufferObj, NULL);
+#endif
+
+#if FEATURE_ARB_vertex_buffer_object
+   _mesa_reference_buffer_object(ctx, &ctx->Array.ArrayBufferObj, NULL);
+   _mesa_reference_buffer_object(ctx, &ctx->Array.ElementArrayBufferObj, NULL);
+#endif
 
    /* free dispatch tables */
    _mesa_free(ctx->Exec);
@@ -1264,6 +1278,24 @@ initialize_framebuffer_size(GLcontext *ctx, GLframebuffer *fb)
 
 
 /**
+ * Check if the viewport/scissor size has not yet been initialized.
+ * Initialize the size if the given width and height are non-zero.
+ */
+void
+_mesa_check_init_viewport(GLcontext *ctx, GLuint width, GLuint height)
+{
+   if (!ctx->ViewportInitialized && width > 0 && height > 0) {
+      /* Note: set flag here, before calling _mesa_set_viewport(), to prevent
+       * potential infinite recursion.
+       */
+      ctx->ViewportInitialized = GL_TRUE;
+      _mesa_set_viewport(ctx, 0, 0, width, height);
+      _mesa_set_scissor(ctx, 0, 0, width, height);
+   }
+}
+
+
+/**
  * Bind the given context to the given drawBuffer and readBuffer and
  * make it the current context for the calling thread.
  * We'll render into the drawBuffer and read pixels from the
@@ -1277,7 +1309,7 @@ initialize_framebuffer_size(GLcontext *ctx, GLframebuffer *fb)
  * \param drawBuffer  the drawing framebuffer
  * \param readBuffer  the reading framebuffer
  */
-void
+GLboolean
 _mesa_make_current( GLcontext *newCtx, GLframebuffer *drawBuffer,
                     GLframebuffer *readBuffer )
 {
@@ -1290,14 +1322,14 @@ _mesa_make_current( GLcontext *newCtx, GLframebuffer *drawBuffer,
       if (!check_compatible(newCtx, drawBuffer)) {
          _mesa_warning(newCtx,
               "MakeCurrent: incompatible visuals for context and drawbuffer");
-         return;
+         return GL_FALSE;
       }
    }
    if (newCtx && readBuffer && newCtx->WinSysReadBuffer != readBuffer) {
       if (!check_compatible(newCtx, readBuffer)) {
          _mesa_warning(newCtx,
               "MakeCurrent: incompatible visuals for context and readbuffer");
-         return;
+         return GL_FALSE;
       }
    }
 
@@ -1380,28 +1412,29 @@ _mesa_make_current( GLcontext *newCtx, GLframebuffer *drawBuffer,
          ASSERT(drawBuffer->Height > 0);
 #endif
 
-         if (newCtx->FirstTimeCurrent) {
-            /* set initial viewport and scissor size now */
-            _mesa_set_viewport(newCtx, 0, 0,
-                               drawBuffer->Width, drawBuffer->Height);
-	    _mesa_set_scissor(newCtx, 0, 0,
-			      drawBuffer->Width, drawBuffer->Height );
-            check_context_limits(newCtx);
+         if (drawBuffer) {
+            _mesa_check_init_viewport(newCtx,
+                                      drawBuffer->Width, drawBuffer->Height);
          }
       }
 
-      /* We can use this to help debug user's problems.  Tell them to set
-       * the MESA_INFO env variable before running their app.  Then the
-       * first time each context is made current we'll print some useful
-       * information.
-       */
       if (newCtx->FirstTimeCurrent) {
+         check_context_limits(newCtx);
+
+         /* We can use this to help debug user's problems.  Tell them to set
+          * the MESA_INFO env variable before running their app.  Then the
+          * first time each context is made current we'll print some useful
+          * information.
+          */
 	 if (_mesa_getenv("MESA_INFO")) {
 	    _mesa_print_info();
 	 }
+
 	 newCtx->FirstTimeCurrent = GL_FALSE;
       }
    }
+   
+   return GL_TRUE;
 }
 
 

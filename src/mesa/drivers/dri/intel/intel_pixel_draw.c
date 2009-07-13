@@ -96,7 +96,7 @@ intel_texture_drawpixels(GLcontext * ctx,
    /* We don't have a way to generate fragments with stencil values which
     * will set the resulting stencil value.
     */
-   if (format == GL_STENCIL_INDEX)
+   if (format == GL_STENCIL_INDEX || format == GL_DEPTH_STENCIL)
       return GL_FALSE;
 
    /* Check that we can load in a texture this big. */
@@ -116,6 +116,14 @@ intel_texture_drawpixels(GLcontext * ctx,
       if (INTEL_DEBUG & DEBUG_FALLBACKS)
 	 fprintf(stderr,
 		 "glDrawPixels() fallback: format == GL_DEPTH_COMPONENT\n");
+      return GL_FALSE;
+   }
+
+   if (!ctx->Extensions.ARB_texture_non_power_of_two &&
+       (!is_power_of_two(width) || !is_power_of_two(height))) {
+      if (INTEL_DEBUG & DEBUG_FALLBACKS)
+	 fprintf(stderr,
+		 "glDrawPixels() fallback: NPOT texture\n");
       return GL_FALSE;
    }
 
@@ -172,7 +180,7 @@ intel_texture_drawpixels(GLcontext * ctx,
    _mesa_Enable(GL_VERTEX_ARRAY);
    intel_meta_set_default_texrect(intel);
 
-   CALL_DrawArrays(ctx->Exec, (GL_TRIANGLE_FAN, 0, 4));
+   _mesa_DrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
    intel_meta_restore_texcoords(intel);
    intel_meta_restore_transform(intel);
@@ -203,8 +211,9 @@ intel_stencil_drawpixels(GLcontext * ctx,
    struct gl_renderbuffer *rb;
    struct gl_pixelstore_attrib old_unpack;
    GLstencil *stencil_pixels;
-   int row;
+   int row, y1, y2;
    GLint old_active_texture;
+   GLboolean rendering_to_fbo = ctx->DrawBuffer->Name != 0;
 
    if (format != GL_STENCIL_INDEX)
       return GL_FALSE;
@@ -259,6 +268,14 @@ intel_stencil_drawpixels(GLcontext * ctx,
 	 fprintf(stderr, "glDrawPixels(STENCIL_INDEX) fallback: "
 		 "bitmap too large (%dx%d)\n",
 		 width, height);
+      return GL_FALSE;
+   }
+
+   if (!ctx->Extensions.ARB_texture_non_power_of_two &&
+       (!is_power_of_two(width) || !is_power_of_two(height))) {
+      if (INTEL_DEBUG & DEBUG_FALLBACKS)
+	 fprintf(stderr,
+		 "glDrawPixels(GL_STENCIL_INDEX) fallback: NPOT texture\n");
       return GL_FALSE;
    }
 
@@ -332,20 +349,31 @@ intel_stencil_drawpixels(GLcontext * ctx,
    _mesa_free(stencil_pixels);
 
    intel_meta_set_passthrough_transform(intel);
+
+   /* Since we're rendering to the framebuffer as if it was an FBO,
+    * if it's the window system we have to flip the coordinates.
+    */
+   if (rendering_to_fbo) {
+      y1 = y;
+      y2 = y + height * ctx->Pixel.ZoomY;
+   } else {
+      y1 = irb->Base.Height - (y + height * ctx->Pixel.ZoomY);
+      y2 = irb->Base.Height - y;
+   }
    vertices[0][0] = x;
-   vertices[0][1] = y;
+   vertices[0][1] = y1;
    vertices[1][0] = x + width * ctx->Pixel.ZoomX;
-   vertices[1][1] = y;
+   vertices[1][1] = y1;
    vertices[2][0] = x + width * ctx->Pixel.ZoomX;
-   vertices[2][1] = y + height * ctx->Pixel.ZoomY;
+   vertices[2][1] = y2;
    vertices[3][0] = x;
-   vertices[3][1] = y + height * ctx->Pixel.ZoomY;
+   vertices[3][1] = y2;
 
    _mesa_VertexPointer(2, GL_FLOAT, 2 * sizeof(GLfloat), &vertices);
    _mesa_Enable(GL_VERTEX_ARRAY);
    intel_meta_set_default_texrect(intel);
 
-   CALL_DrawArrays(ctx->Exec, (GL_TRIANGLE_FAN, 0, 4));
+   _mesa_DrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
    intel_meta_restore_texcoords(intel);
    intel_meta_restore_transform(intel);

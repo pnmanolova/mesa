@@ -111,6 +111,7 @@ intel_bufferobj_free(GLcontext * ctx, struct gl_buffer_object *obj)
    if (obj->Pointer)
       intel_bufferobj_unmap(ctx, 0, obj);
 
+   _mesa_free(intel_obj->sys_buffer);
    if (intel_obj->region) {
       intel_bufferobj_release_region(intel, intel_obj);
    }
@@ -151,7 +152,23 @@ intel_bufferobj_data(GLcontext * ctx,
       dri_bo_unreference(intel_obj->buffer);
       intel_obj->buffer = NULL;
    }
+   _mesa_free(intel_obj->sys_buffer);
+   intel_obj->sys_buffer = NULL;
+
    if (size != 0) {
+#ifdef I915
+      /* On pre-965, stick VBOs in system memory, as we're always doing swtnl
+       * with their contents anyway.
+       */
+      if (target == GL_ARRAY_BUFFER || target == GL_ELEMENT_ARRAY_BUFFER) {
+	 intel_obj->sys_buffer = _mesa_malloc(size);
+	 if (intel_obj->sys_buffer != NULL) {
+	    if (data != NULL)
+	       memcpy(intel_obj->sys_buffer, data, size);
+	    return;
+	 }
+      }
+#endif
       intel_bufferobj_alloc_buffer(intel, intel_obj);
 
       if (data != NULL)
@@ -181,7 +198,10 @@ intel_bufferobj_subdata(GLcontext * ctx,
    if (intel_obj->region)
       intel_bufferobj_cow(intel, intel_obj);
 
-   dri_bo_subdata(intel_obj->buffer, offset, size, data);
+   if (intel_obj->sys_buffer)
+      memcpy((char *)intel_obj->sys_buffer + offset, data, size);
+   else
+      dri_bo_subdata(intel_obj->buffer, offset, size, data);
 }
 
 
@@ -218,6 +238,14 @@ intel_bufferobj_map(GLcontext * ctx,
 
    assert(intel_obj);
 
+   if (intel_obj->sys_buffer) {
+      obj->Pointer = intel_obj->sys_buffer;
+      return obj->Pointer;
+   }
+
+   if (!read_only)
+      intelFlush(ctx);
+
    if (intel_obj->region)
       intel_bufferobj_cow(intel, intel_obj);
 
@@ -249,7 +277,10 @@ intel_bufferobj_unmap(GLcontext * ctx,
    struct intel_buffer_object *intel_obj = intel_buffer_object(obj);
 
    assert(intel_obj);
-   if (intel_obj->buffer != NULL) {
+   if (intel_obj->sys_buffer != NULL) {
+      assert(obj->Pointer);
+      obj->Pointer = NULL;
+   } else if (intel_obj->buffer != NULL) {
       assert(obj->Pointer);
       if (intel_obj->mapped_gtt) {
 	 drm_intel_gem_bo_unmap_gtt(intel_obj->buffer);
@@ -274,19 +305,34 @@ intel_bufferobj_buffer(struct intel_context *intel,
       }
    }
 
+   if (intel_obj->buffer == NULL) {
+      void *sys_buffer = intel_obj->sys_buffer;
+
+      /* only one of buffer and sys_buffer could be non-NULL */
+      intel_bufferobj_alloc_buffer(intel, intel_obj);
+      intel_obj->sys_buffer = NULL;
+
+      intel_bufferobj_subdata(&intel->ctx,
+			      GL_ARRAY_BUFFER_ARB,
+			      0,
+			      intel_obj->Base.Size,
+			      sys_buffer,
+			      &intel_obj->Base);
+      _mesa_free(sys_buffer);
+      intel_obj->sys_buffer = NULL;
+   }
+
    return intel_obj->buffer;
 }
 
 void
-intel_bufferobj_init(struct intel_context *intel)
+intelInitBufferObjectFuncs(struct dd_function_table *functions)
 {
-   GLcontext *ctx = &intel->ctx;
-
-   ctx->Driver.NewBufferObject = intel_bufferobj_alloc;
-   ctx->Driver.DeleteBuffer = intel_bufferobj_free;
-   ctx->Driver.BufferData = intel_bufferobj_data;
-   ctx->Driver.BufferSubData = intel_bufferobj_subdata;
-   ctx->Driver.GetBufferSubData = intel_bufferobj_get_subdata;
-   ctx->Driver.MapBuffer = intel_bufferobj_map;
-   ctx->Driver.UnmapBuffer = intel_bufferobj_unmap;
+   functions->NewBufferObject = intel_bufferobj_alloc;
+   functions->DeleteBuffer = intel_bufferobj_free;
+   functions->BufferData = intel_bufferobj_data;
+   functions->BufferSubData = intel_bufferobj_subdata;
+   functions->GetBufferSubData = intel_bufferobj_get_subdata;
+   functions->MapBuffer = intel_bufferobj_map;
+   functions->UnmapBuffer = intel_bufferobj_unmap;
 }

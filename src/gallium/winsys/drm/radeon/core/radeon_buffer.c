@@ -93,6 +93,29 @@ static struct pipe_buffer *radeon_buffer_user_create(struct pipe_winsys *ws,
     return &radeon_buffer->base;
 }
 
+static struct pipe_buffer *radeon_surface_buffer_create(struct pipe_winsys *ws,
+                                                        unsigned width,
+                                                        unsigned height,
+                                                        enum pipe_format format,
+                                                        unsigned usage,
+                                                        unsigned *stride)
+{
+    struct pipe_format_block block;
+    unsigned nblocksx, nblocksy, size;
+
+    pf_get_block(format, &block);
+
+    nblocksx = pf_get_nblocksx(&block, width);
+    nblocksy = pf_get_nblocksy(&block, height);
+
+    /* Radeons enjoy things in multiples of 32. */
+    /* XXX this can be 32 when POT */
+    *stride = (nblocksx * block.size + 63) & ~63;
+    size = *stride * nblocksy;
+
+    return radeon_buffer_create(ws, 64, usage, size);
+}
+
 static void radeon_buffer_del(struct pipe_buffer *buffer)
 {
     struct radeon_pipe_buffer *radeon_buffer =
@@ -117,6 +140,8 @@ static void *radeon_buffer_map(struct pipe_winsys *ws,
     if (flags & PIPE_BUFFER_USAGE_CPU_WRITE) {
         write = 1;
     }
+
+    radeon_bo_wait(radeon_buffer->bo);
 
     if (radeon_bo_map(radeon_buffer->bo, write))
         return NULL;
@@ -175,15 +200,17 @@ struct radeon_winsys* radeon_pipe_winsys(int fd)
         return NULL;
     }
 
+    radeon_ws->priv->fd = fd;
     radeon_ws->priv->bom = radeon_bo_manager_gem_ctor(fd);
 
     radeon_ws->base.flush_frontbuffer = radeon_flush_frontbuffer;
 
     radeon_ws->base.buffer_create = radeon_buffer_create;
-    radeon_ws->base.buffer_destroy = radeon_buffer_del;
     radeon_ws->base.user_buffer_create = radeon_buffer_user_create;
+    radeon_ws->base.surface_buffer_create = radeon_surface_buffer_create;
     radeon_ws->base.buffer_map = radeon_buffer_map;
     radeon_ws->base.buffer_unmap = radeon_buffer_unmap;
+    radeon_ws->base.buffer_destroy = radeon_buffer_del;
 
     radeon_ws->base.fence_reference = radeon_fence_reference;
     radeon_ws->base.fence_signalled = radeon_fence_signalled;

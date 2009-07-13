@@ -131,6 +131,9 @@ _mesa_copy_context(const GLcontext *src, GLcontext *dst, GLuint mask);
 
 
 extern void
+_mesa_check_init_viewport(GLcontext *ctx, GLuint width, GLuint height);
+
+extern GLboolean
 _mesa_make_current( GLcontext *ctx, GLframebuffer *drawBuffer,
                     GLframebuffer *readBuffer );
 

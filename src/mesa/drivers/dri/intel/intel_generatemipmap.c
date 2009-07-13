@@ -84,7 +84,7 @@ intel_generate_mipmap_level(GLcontext *ctx, GLuint tex_name,
    /* Choose to render to the color attachment. */
    _mesa_DrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 
-   status = glCheckFramebufferStatusEXT (GL_FRAMEBUFFER_EXT);
+   status = _mesa_CheckFramebufferStatusEXT (GL_FRAMEBUFFER_EXT);
    if (status != GL_FRAMEBUFFER_COMPLETE_EXT)
       return GL_FALSE;
 
@@ -106,7 +106,7 @@ intel_generate_mipmap_level(GLcontext *ctx, GLuint tex_name,
    _mesa_Enable(GL_VERTEX_ARRAY);
    intel_meta_set_default_texrect(intel);
 
-   CALL_DrawArrays(ctx->Exec, (GL_TRIANGLE_FAN, 0, 4));
+   _mesa_DrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
    intel_meta_restore_texcoords(intel);
    intel_meta_restore_transform(intel);

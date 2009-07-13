@@ -111,12 +111,18 @@ debug_backtrace(void)
 GLubyte *
 intel_region_map(struct intel_context *intel, struct intel_region *region)
 {
+   intelFlush(&intel->ctx);
+
    _DBG("%s %p\n", __FUNCTION__, region);
    if (!region->map_refcount++) {
       if (region->pbo)
          intel_region_cow(intel, region);
 
-      dri_bo_map(region->buffer, GL_TRUE);
+      if (region->tiling != I915_TILING_NONE &&
+	  intel->intelScreen->kernel_exec_fencing)
+	 drm_intel_gem_bo_map_gtt(region->buffer);
+      else
+	 dri_bo_map(region->buffer, GL_TRUE);
       region->map = region->buffer->virtual;
    }
 
@@ -128,7 +134,11 @@ intel_region_unmap(struct intel_context *intel, struct intel_region *region)
 {
    _DBG("%s %p\n", __FUNCTION__, region);
    if (!--region->map_refcount) {
-      dri_bo_unmap(region->buffer);
+      if (region->tiling != I915_TILING_NONE &&
+	  intel->intelScreen->kernel_exec_fencing)
+	 drm_intel_gem_bo_unmap_gtt(region->buffer);
+      else
+	 dri_bo_unmap(region->buffer);
       region->map = NULL;
    }
 }
@@ -164,10 +174,12 @@ intel_region_alloc_internal(struct intel_context *intel,
 
 struct intel_region *
 intel_region_alloc(struct intel_context *intel,
+		   uint32_t tiling,
                    GLuint cpp, GLuint width, GLuint height, GLuint pitch,
 		   GLboolean expect_accelerated_upload)
 {
    dri_bo *buffer;
+   struct intel_region *region;
 
    if (expect_accelerated_upload) {
       buffer = drm_intel_bo_alloc_for_render(intel->bufmgr, "region",
@@ -177,7 +189,16 @@ intel_region_alloc(struct intel_context *intel,
 				  pitch * cpp * height, 64);
    }
 
-   return intel_region_alloc_internal(intel, cpp, width, height, pitch, buffer);
+   region = intel_region_alloc_internal(intel, cpp, width, height,
+					pitch, buffer);
+
+   if (tiling != I915_TILING_NONE) {
+      assert(((pitch * cpp) & 127) == 0);
+      drm_intel_bo_set_tiling(buffer, &tiling, pitch * cpp);
+      drm_intel_bo_get_tiling(buffer, &region->tiling, &region->bit_6_swizzle);
+   }
+
+   return region;
 }
 
 struct intel_region *
@@ -306,8 +327,6 @@ intel_region_data(struct intel_context *intel,
                   const void *src, GLuint src_pitch,
                   GLuint srcx, GLuint srcy, GLuint width, GLuint height)
 {
-   GLboolean locked = GL_FALSE;
-
    _DBG("%s\n", __FUNCTION__);
 
    if (intel == NULL)
@@ -321,39 +340,33 @@ intel_region_data(struct intel_context *intel,
          intel_region_cow(intel, dst);
    }
 
-   if (!intel->locked) {
-      LOCK_HARDWARE(intel);
-      locked = GL_TRUE;
-   }
-
+   LOCK_HARDWARE(intel);
    _mesa_copy_rect(intel_region_map(intel, dst) + dst_offset,
                    dst->cpp,
                    dst->pitch,
                    dstx, dsty, width, height, src, src_pitch, srcx, srcy);
 
    intel_region_unmap(intel, dst);
-
-   if (locked)
-      UNLOCK_HARDWARE(intel);
-
+   UNLOCK_HARDWARE(intel);
 }
 
 /* Copy rectangular sub-regions. Need better logic about when to
  * push buffers into AGP - will currently do so whenever possible.
  */
-void
+GLboolean
 intel_region_copy(struct intel_context *intel,
                   struct intel_region *dst,
                   GLuint dst_offset,
                   GLuint dstx, GLuint dsty,
                   struct intel_region *src,
                   GLuint src_offset,
-                  GLuint srcx, GLuint srcy, GLuint width, GLuint height)
+                  GLuint srcx, GLuint srcy, GLuint width, GLuint height,
+		  GLenum logicop)
 {
    _DBG("%s\n", __FUNCTION__);
 
    if (intel == NULL)
-      return;
+      return GL_FALSE;
 
    if (dst->pbo) {
       if (dstx == 0 &&
@@ -365,41 +378,12 @@ intel_region_copy(struct intel_context *intel,
 
    assert(src->cpp == dst->cpp);
 
-   intelEmitCopyBlit(intel,
-                     dst->cpp,
-                     src->pitch, src->buffer, src_offset, src->tiling,
-                     dst->pitch, dst->buffer, dst_offset, dst->tiling,
-                     srcx, srcy, dstx, dsty, width, height,
-		     GL_COPY);
-}
-
-/* Fill a rectangular sub-region.  Need better logic about when to
- * push buffers into AGP - will currently do so whenever possible.
- */
-void
-intel_region_fill(struct intel_context *intel,
-                  struct intel_region *dst,
-                  GLuint dst_offset,
-                  GLuint dstx, GLuint dsty,
-                  GLuint width, GLuint height, GLuint color)
-{
-   _DBG("%s\n", __FUNCTION__);
-
-   if (intel == NULL)
-      return;   
-
-   if (dst->pbo) {
-      if (dstx == 0 &&
-          dsty == 0 && width == dst->pitch && height == dst->height)
-         intel_region_release_pbo(intel, dst);
-      else
-         intel_region_cow(intel, dst);
-   }
-
-   intelEmitFillBlit(intel,
-                     dst->cpp,
-                     dst->pitch, dst->buffer, dst_offset, dst->tiling,
-                     dstx, dsty, width, height, color);
+   return intelEmitCopyBlit(intel,
+			    dst->cpp,
+			    src->pitch, src->buffer, src_offset, src->tiling,
+			    dst->pitch, dst->buffer, dst_offset, dst->tiling,
+			    srcx, srcy, dstx, dsty, width, height,
+			    logicop);
 }
 
 /* Attach to a pbo, discarding our data.  Effectively zero-copy upload
@@ -410,6 +394,8 @@ intel_region_attach_pbo(struct intel_context *intel,
                         struct intel_region *region,
                         struct intel_buffer_object *pbo)
 {
+   dri_bo *buffer;
+
    if (region->pbo == pbo)
       return;
 
@@ -430,10 +416,13 @@ intel_region_attach_pbo(struct intel_context *intel,
       region->buffer = NULL;
    }
 
+   /* make sure pbo has a buffer of its own */
+   buffer = intel_bufferobj_buffer(intel, pbo, INTEL_WRITE_FULL);
+
    region->pbo = pbo;
    region->pbo->region = region;
-   dri_bo_reference(pbo->buffer);
-   region->buffer = pbo->buffer;
+   dri_bo_reference(buffer);
+   region->buffer = buffer;
 }
 
 
@@ -463,10 +452,6 @@ void
 intel_region_cow(struct intel_context *intel, struct intel_region *region)
 {
    struct intel_buffer_object *pbo = region->pbo;
-   GLboolean was_locked = intel->locked;
-
-   if (intel == NULL)
-      return;
 
    intel_region_release_pbo(intel, region);
 
@@ -477,20 +462,15 @@ intel_region_cow(struct intel_context *intel, struct intel_region *region)
    /* Now blit from the texture buffer to the new buffer: 
     */
 
-   was_locked = intel->locked;
-   if (!was_locked)
-      LOCK_HARDWARE(intel);
-
-   intelEmitCopyBlit(intel,
-		     region->cpp,
-		     region->pitch, region->buffer, 0, region->tiling,
-		     region->pitch, pbo->buffer, 0, region->tiling,
-		     0, 0, 0, 0,
-		     region->pitch, region->height,
-		     GL_COPY);
-
-   if (!was_locked)
-      UNLOCK_HARDWARE(intel);
+   LOCK_HARDWARE(intel);
+   assert(intelEmitCopyBlit(intel,
+			    region->cpp,
+			    region->pitch, pbo->buffer, 0, region->tiling,
+			    region->pitch, region->buffer, 0, region->tiling,
+			    0, 0, 0, 0,
+			    region->pitch, region->height,
+			    GL_COPY));
+   UNLOCK_HARDWARE(intel);
 }
 
 dri_bo *
