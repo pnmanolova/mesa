@@ -32,6 +32,7 @@
 #include "draw_private.h"
 
 
+#define MAX_TGSI_PRIMITIVES 4
 
 struct draw_context;
 
@@ -41,9 +42,10 @@ struct draw_context;
 struct draw_geometry_shader {
    struct draw_context *draw;
 
-   /* This member will disappear shortly:
-    */
-   struct pipe_shader_state state;
+   struct tgsi_exec_machine *machine;
+
+   /* This member will disappear shortly:*/
+   struct pipe_geometry_shader_state state;
 
    struct tgsi_shader_info info;
    unsigned position_output;
@@ -51,10 +53,20 @@ struct draw_geometry_shader {
    /* Extracted from shader:
     */
    const float (*immediates)[4];
-
-
-   void (*delete)( struct draw_geometry_shader * );
 };
+
+void draw_geometry_shader_run(struct draw_geometry_shader *shader,
+                              const float (*input)[4],
+                              float (*output)[4],
+                              const float (*constants)[4],
+                              unsigned count,
+                              unsigned input_stride,
+                              unsigned output_stride);
+
+void draw_geometry_shader_prepare(struct draw_geometry_shader *shader,
+                                  struct draw_context *draw);
+
+void draw_geometry_shader_delete(struct draw_geometry_shader *shader);
 
 
 #endif

@@ -253,9 +253,11 @@ enum pipe_transfer_usage {
 #define PIPE_PRIM_QUADS                7
 #define PIPE_PRIM_QUAD_STRIP           8
 #define PIPE_PRIM_POLYGON              9
-#define PIPE_PRIM_LINES_ADJACENCY     10
-#define PIPE_PRIM_TRIANGLES_ADJACENCY 11
-#define PIPE_PRIM_MAX                 12
+#define PIPE_PRIM_LINES_ADJACENCY          10
+#define PIPE_PRIM_LINE_STRIP_ADJACENCY    11
+#define PIPE_PRIM_TRIANGLES_ADJACENCY      12
+#define PIPE_PRIM_TRIANGLE_STRIP_ADJACENCY 13
+#define PIPE_PRIM_MAX                      14
 
 
 /**

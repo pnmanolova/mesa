@@ -30,29 +30,191 @@
 #include "draw_private.h"
 #include "draw_context.h"
 
+#include "tgsi/tgsi_parse.h"
+#include "pipe/p_shader_tokens.h"
+
 #include "util/u_math.h"
 #include "util/u_memory.h"
 
 
 struct draw_geometry_shader *
 draw_create_geometry_shader(struct draw_context *draw,
-                            const struct pipe_geometry_shader_state *shader)
+                            const struct pipe_geometry_shader_state *state)
 {
    struct draw_geometry_shader *gs;
 
    gs = CALLOC_STRUCT(draw_geometry_shader);
 
+   if (!gs)
+      return NULL;
+
+   gs->state = *state;
+   gs->state.shader.tokens = tgsi_dup_tokens(state->shader.tokens);
+   if (!gs->state.shader.tokens) {
+      FREE(gs);
+      return NULL;
+   }
+
+   tgsi_scan_shader(state->shader.tokens, &gs->info);
+
+   gs->machine = &draw->gs.machine;
+
    return gs;
 }
 
 void draw_bind_geometry_shader(struct draw_context *draw,
-                               struct draw_geometry_shader *dvs)
+                               struct draw_geometry_shader *dgs)
 {
+   draw_do_flush(draw, DRAW_FLUSH_STATE_CHANGE);
 
+   if (dgs) {
+      draw->gs.geometry_shader = dgs;
+      draw->gs.num_gs_outputs = dgs->info.num_outputs;
+      draw->gs.position_output = dgs->position_output;
+      draw_geometry_shader_prepare(dgs, draw);
+   }
+   else {
+      draw->gs.geometry_shader = NULL;
+      draw->gs.num_gs_outputs = 0;
+   }
 }
 
 void draw_delete_geometry_shader(struct draw_context *draw,
                                  struct draw_geometry_shader *dvs)
 {
    FREE(dvs);
+}
+
+static INLINE int num_vertices_for_prim(int prim)
+{
+   switch(prim) {
+   case PIPE_PRIM_POINTS:
+      return 1;
+   case PIPE_PRIM_LINES:
+      return 2;
+   case PIPE_PRIM_LINE_LOOP:
+      return 2;
+   case PIPE_PRIM_LINE_STRIP:
+      return 2;
+   case PIPE_PRIM_TRIANGLES:
+      return 3;
+   case PIPE_PRIM_TRIANGLE_STRIP:
+      return 3;
+   case PIPE_PRIM_TRIANGLE_FAN:
+      return 3;
+   case PIPE_PRIM_LINES_ADJACENCY:
+   case PIPE_PRIM_LINE_STRIP_ADJACENCY:
+      return 4;
+   case PIPE_PRIM_TRIANGLES_ADJACENCY:
+   case PIPE_PRIM_TRIANGLE_STRIP_ADJACENCY:
+      return 6;
+   default:
+      assert(!"Bad geometry shader input");
+      return 0;
+   }
+}
+
+void draw_geometry_shader_run(struct draw_geometry_shader *shader,
+                              const float (*input)[4],
+                              float (*output)[4],
+                              const float (*constants)[4],
+                              unsigned count,
+                              unsigned input_stride,
+                              unsigned output_stride)
+{
+   struct tgsi_exec_machine *machine = shader->machine;
+   unsigned int i, j, k;
+   unsigned slot;
+   int num_vertices = num_vertices_for_prim(shader->state.input_type);
+
+   machine->Consts = constants;
+
+   for (i = 0; i < count; i += MAX_TGSI_PRIMITIVES) {
+      unsigned int max_primitives = MIN2(MAX_TGSI_PRIMITIVES, count - i);
+
+      /* Swizzle inputs.
+       */
+      for (k = 0; k < max_primitives; ++k) {
+         for (j = 0; j < num_vertices; j++) {
+            int idx = (k * num_vertices + j) * shader->info.num_inputs;
+#if 0
+            debug_printf("%d) Input vert:\n", i + j);
+            for (slot = 0; slot < shader->info.num_inputs; slot++) {
+               debug_printf("\t%d: %f %f %f %f\n", slot,
+                            input[idx + slot][0],
+                            input[idx + slot][1],
+                            input[idx + slot][2],
+                            input[idx + slot][3]);
+            }
+#endif
+
+            for (slot = 0; slot < shader->info.num_inputs; slot++) {
+#if 0
+               assert(!util_is_inf_or_nan(input[idx + slot][0]));
+               assert(!util_is_inf_or_nan(input[idx + slot][1]));
+               assert(!util_is_inf_or_nan(input[idx + slot][2]));
+               assert(!util_is_inf_or_nan(input[idx + slot][3]));
+#endif
+               machine->Inputs[idx + slot].xyzw[0].f[j] = input[idx + slot][0];
+               machine->Inputs[idx + slot].xyzw[1].f[j] = input[idx + slot][1];
+               machine->Inputs[idx + slot].xyzw[2].f[j] = input[idx + slot][2];
+               machine->Inputs[idx + slot].xyzw[3].f[j] = input[idx + slot][3];
+            }
+
+            input = (const float (*)[4])((const char *)input + input_stride);
+         }
+      }
+
+      tgsi_set_exec_mask(machine,
+                         1,
+                         max_primitives > 1,
+                         max_primitives > 2,
+                         max_primitives > 3);
+
+      /* run interpreter */
+      tgsi_exec_machine_run(machine);
+
+      /* Unswizzle all output results.
+       */
+      for (j = 0; j < num_vertices; j++) {
+         for (slot = 0; slot < shader->info.num_outputs; slot++) {
+            output[slot][0] = machine->Outputs[slot].xyzw[0].f[j];
+            output[slot][1] = machine->Outputs[slot].xyzw[1].f[j];
+            output[slot][2] = machine->Outputs[slot].xyzw[2].f[j];
+            output[slot][3] = machine->Outputs[slot].xyzw[3].f[j];
+
+         }
+
+#if 0
+	 debug_printf("%d) Post xform vert:\n", i + j);
+	 for (slot = 0; slot < shader->info.num_outputs; slot++) {
+	    debug_printf("\t%d: %f %f %f %f\n", slot,
+			 output[slot][0],
+			 output[slot][1],
+			 output[slot][2],
+			 output[slot][3]);
+            assert(!util_is_inf_or_nan(output[slot][0]));
+         }
+#endif
+
+	 output = (float (*)[4])((char *)output + output_stride);
+      }
+   }
+}
+
+void draw_geometry_shader_delete(struct draw_geometry_shader *shader)
+{
+   FREE((void*) shader->state.shader.tokens);
+   FREE(shader);
+}
+
+void draw_geometry_shader_prepare(struct draw_geometry_shader *shader,
+                                  struct draw_context *draw)
+{
+    if (shader->machine->Tokens != shader->state.shader.tokens) {
+       tgsi_exec_machine_bind_shader(shader->machine,
+                                     shader->state.shader.tokens,
+                                     draw->gs.num_samplers,
+                                     draw->gs.samplers);
+    }
 }

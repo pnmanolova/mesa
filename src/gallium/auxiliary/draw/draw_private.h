@@ -211,6 +211,23 @@ struct draw_context
       struct translate_cache *emit_cache;
    } vs;
 
+   struct {
+      struct draw_geometry_shader *geometry_shader;
+      uint num_gs_outputs;  /**< convenience, from geometry_shader */
+      uint position_output;
+
+      /** TGSI program interpreter runtime state */
+      struct tgsi_exec_machine machine;
+
+      uint num_samplers;
+      struct tgsi_sampler **samplers;
+
+      const float (*aligned_constants)[4];
+
+      const float (*aligned_constant_storage)[4];
+      unsigned const_storage_size;
+   } gs;
+
    /* Clip derived state:
     */
    float plane[12][4];
