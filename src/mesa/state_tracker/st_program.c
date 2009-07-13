@@ -593,7 +593,7 @@ st_translate_geometry_program(struct st_context *st,
                               const GLuint inputMapping[])
 {
    struct pipe_context *pipe = st->pipe;
-   struct tgsi_token tokens[ST_MAX_SHADER_TOKENS];
+   struct tgsi_token *tokens;
    GLuint *outputMapping;
    GLuint defaultInputMapping[GEOM_ATTRIB_MAX];
    GLuint defaultOutputMapping[GEOM_RESULT_MAX];
@@ -615,6 +615,13 @@ st_translate_geometry_program(struct st_context *st,
    GLbitfield output_flags[MAX_PROGRAM_OUTPUTS];
 
    GLint i;
+
+   tokens =  (struct tgsi_token *)MALLOC(ST_MAX_SHADER_TOKENS * sizeof *tokens);
+   if(!tokens) {
+      /* FIXME: propagate error to the caller */
+      assert(0);
+      return;
+   }
 
    memset(&gs, 0, sizeof(gs));
    memset(input_flags, 0, sizeof(input_flags));
@@ -792,7 +799,9 @@ st_translate_geometry_program(struct st_context *st,
    assert(num_tokens < ST_MAX_SHADER_TOKENS);
 
    gs.shader.tokens = (struct tgsi_token *)
-                      mem_dup(tokens, num_tokens * sizeof(tokens[0]));
+                      _mesa_realloc(tokens,
+                                    ST_MAX_SHADER_TOKENS * sizeof *tokens,
+                                    num_tokens * sizeof *tokens);
    gs.vertices_out = stgp->Base.VerticesOut;
    gs.input_type = stgp->Base.InputType;
    gs.output_type = stgp->Base.OutputType;
