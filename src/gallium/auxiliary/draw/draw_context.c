@@ -67,6 +67,9 @@ struct draw_context *draw_create( void )
    if (!draw_vs_init( draw ))
       goto fail;
 
+   if (!draw_gs_init( draw ))
+      goto fail;
+
    return draw;
 
 fail:

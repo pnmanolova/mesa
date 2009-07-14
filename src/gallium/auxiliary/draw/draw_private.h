@@ -262,6 +262,11 @@ void draw_vs_set_constants( struct draw_context *,
 
 
 
+/*******************************************************************************
+ * Geometry shading (was passthrough) code:
+ */
+boolean draw_gs_init( struct draw_context *draw );
+
 
 /*******************************************************************************
  * Vertex processing (was passthrough) code:

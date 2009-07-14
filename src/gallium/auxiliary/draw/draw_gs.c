@@ -36,6 +36,26 @@
 #include "util/u_math.h"
 #include "util/u_memory.h"
 
+#define MAX_PRIM_VERTICES 6
+
+boolean
+draw_gs_init( struct draw_context *draw )
+{
+   tgsi_exec_machine_init(&draw->gs.machine);
+
+   draw->gs.machine.Inputs = align_malloc(MAX_PRIM_VERTICES *
+                                          PIPE_MAX_ATTRIBS * sizeof(struct tgsi_exec_vector), 16);
+   if (!draw->gs.machine.Inputs)
+      return FALSE;
+
+   draw->gs.machine.Outputs = align_malloc(MAX_PRIM_VERTICES *
+                                           PIPE_MAX_ATTRIBS * sizeof(struct tgsi_exec_vector), 16);
+   if (!draw->gs.machine.Outputs)
+      return FALSE;
+
+   return TRUE;
+}
+
 
 struct draw_geometry_shader *
 draw_create_geometry_shader(struct draw_context *draw,
