@@ -151,20 +151,19 @@ void draw_geometry_shader_run(struct draw_geometry_shader *shader,
    struct tgsi_exec_machine *machine = shader->machine;
    unsigned int i, j, k;
    unsigned slot;
-   int num_vertices = num_vertices_for_prim(shader->state.input_type);
+   unsigned num_vertices = num_vertices_for_prim(shader->state.input_type);
+   unsigned num_primitives = count/num_vertices;
 
    machine->Consts = constants;
 
-   for (i = 0; i < count; i += MAX_TGSI_PRIMITIVES) {
-      unsigned int max_primitives = MIN2(MAX_TGSI_PRIMITIVES, count - i);
+   for (i = 0; i < num_primitives; i += MAX_TGSI_PRIMITIVES) {
+      unsigned int max_primitives = MIN2(MAX_TGSI_PRIMITIVES, num_primitives - i);
 
-      /* Swizzle inputs.
-       */
       for (k = 0; k < max_primitives; ++k) {
          for (j = 0; j < num_vertices; j++) {
             int idx = (k * num_vertices + j) * shader->info.num_inputs;
-#if 0
-            debug_printf("%d) Input vert:\n", i + j);
+#if 1
+            debug_printf("%d) Prim, %d) Input vert:\n", i, idx);
             for (slot = 0; slot < shader->info.num_inputs; slot++) {
                debug_printf("\t%d: %f %f %f %f\n", slot,
                             input[idx + slot][0],
