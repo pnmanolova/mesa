@@ -110,7 +110,9 @@ static const char *semantic_names[] =
    "PSIZE",
    "GENERIC",
    "NORMAL",
-   "FACE"
+   "FACE",
+   "VERTICES_IN",
+   "PRIM_ID"
 };
 
 static const char *immediate_type_names[] =

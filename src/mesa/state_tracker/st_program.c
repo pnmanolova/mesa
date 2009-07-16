@@ -647,6 +647,16 @@ st_translate_geometry_program(struct st_context *st,
          gs_num_inputs++;
 
          switch (attr) {
+         case GEOM_ATTRIB_VERTICES:
+            stgp->input_semantic_name[slot] = TGSI_SEMANTIC_VERTICES;
+            stgp->input_semantic_index[slot] = 0;
+            interpMode[slot] = TGSI_INTERPOLATE_CONSTANT;
+            break;
+         case GEOM_ATTRIB_PRIMITIVE_ID:
+            stgp->input_semantic_name[slot] = TGSI_SEMANTIC_PRIMID;
+            stgp->input_semantic_index[slot] = 0;
+            interpMode[slot] = TGSI_INTERPOLATE_CONSTANT;
+            break;
          case GEOM_ATTRIB_POSITION:
             stgp->input_semantic_name[slot] = TGSI_SEMANTIC_POSITION;
             stgp->input_semantic_index[slot] = 0;
@@ -672,7 +682,7 @@ st_translate_geometry_program(struct st_context *st,
             stgp->input_semantic_index[slot] = num_generic++;
             interpMode[slot] = TGSI_INTERPOLATE_PERSPECTIVE;
             break;
-         case FRAG_ATTRIB_VAR0:
+         case GEOM_ATTRIB_VAR0:
             /* fall-through */
          default:
             stgp->input_semantic_name[slot] = TGSI_SEMANTIC_GENERIC;

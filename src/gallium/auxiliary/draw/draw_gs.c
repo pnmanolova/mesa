@@ -161,7 +161,7 @@ void draw_geometry_shader_run(struct draw_geometry_shader *shader,
 
       for (k = 0; k < max_primitives; ++k) {
          for (j = 0; j < num_vertices; j++) {
-            int idx = (k * num_vertices + j) * shader->info.num_inputs;
+            int idx = ((i + k) * num_vertices + j) * shader->info.num_inputs;
 #if 1
             debug_printf("%d) Prim, %d) Input vert:\n", i, idx);
             for (slot = 0; slot < shader->info.num_inputs; slot++) {

@@ -124,15 +124,17 @@ struct tgsi_declaration_range
    unsigned Last    : 16; /**< UINT */
 };
 
-#define TGSI_SEMANTIC_POSITION 0
-#define TGSI_SEMANTIC_COLOR    1
-#define TGSI_SEMANTIC_BCOLOR   2 /**< back-face color */
-#define TGSI_SEMANTIC_FOG      3
-#define TGSI_SEMANTIC_PSIZE    4
-#define TGSI_SEMANTIC_GENERIC  5
-#define TGSI_SEMANTIC_NORMAL   6
-#define TGSI_SEMANTIC_FACE     7
-#define TGSI_SEMANTIC_COUNT    8 /**< number of semantic values */
+#define TGSI_SEMANTIC_POSITION  0
+#define TGSI_SEMANTIC_COLOR     1
+#define TGSI_SEMANTIC_BCOLOR    2 /**< back-face color */
+#define TGSI_SEMANTIC_FOG       3
+#define TGSI_SEMANTIC_PSIZE     4
+#define TGSI_SEMANTIC_GENERIC   5
+#define TGSI_SEMANTIC_NORMAL    6
+#define TGSI_SEMANTIC_FACE      7
+#define TGSI_SEMANTIC_VERTICES  8
+#define TGSI_SEMANTIC_PRIMID    9
+#define TGSI_SEMANTIC_COUNT    10 /**< number of semantic values */
 
 struct tgsi_declaration_semantic
 {
