@@ -986,8 +986,26 @@ st_translate_mesa_program(
                                            maxTokens - ti );
       }
    }
+   else if (procType == TGSI_PROCESSOR_GEOMETRY) {
+      /* XXX: this could probaby be merged with the clause above.
+       * the only difference is the interpMode .
+       */
+      for (i = 0; i < numInputs; i++) {
+         struct tgsi_full_declaration fulldecl;
+         fulldecl = make_input_decl(i,
+                                    GL_FALSE, 0,
+                                    TGSI_WRITEMASK_XYZW,
+                                    GL_TRUE, inputSemanticName[i],
+                                    inputSemanticIndex[i],
+                                    inputFlags[i]);
+         ti += tgsi_build_full_declaration(&fulldecl,
+                                           &tokens[ti],
+                                           header,
+                                           maxTokens - ti );
+      }
+   }
    else {
-      /* vertex/geometry prog */
+      /* vertex prog */
       /* XXX: this could probaby be merged with the clause above.
        * the only difference is the semantic tags.
        */
