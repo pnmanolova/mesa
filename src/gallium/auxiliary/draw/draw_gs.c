@@ -144,37 +144,44 @@ static void draw_fetch_geometry_input(struct draw_geometry_shader *shader,
                                       int start_primitive,
                                       int num_primitives,
                                       const float (*input)[4],
-                                      unsigned input_stride)
+                                      unsigned input_stride,
+                                      unsigned inputs_from_vs)
 {
    struct tgsi_exec_machine *machine = shader->machine;
-   unsigned slot, k, j;
+   unsigned slot, vs_slot, k, j;
    unsigned num_vertices = num_vertices_for_prim(shader->state.input_type);
 
    for (k = 0; k < num_primitives; ++k) {
       for (j = 0; j < num_vertices; j++) {
-         int idx = ((start_primitive + k) * num_vertices + j) * shader->info.num_inputs;
-#if 1
+         int idx = ((start_primitive + k) * num_vertices + j) * inputs_from_vs;
          debug_printf("%d) Prim, %d) Input vert:\n", start_primitive, idx);
-         for (slot = 0; slot < shader->info.num_inputs; slot++) {
-            debug_printf("\t%d: %f %f %f %f\n", slot,
-                         input[idx + slot][0],
-                         input[idx + slot][1],
-                         input[idx + slot][2],
-                         input[idx + slot][3]);
-         }
+
+         for (slot = 0, vs_slot = 0; slot < shader->info.num_inputs; slot++) {
+            if (shader->info.input_semantic_name[slot] == TGSI_SEMANTIC_VERTICES) {
+               machine->Inputs[idx + slot].xyzw[0].f[j] = (float)num_vertices;
+               machine->Inputs[idx + slot].xyzw[1].f[j] = (float)num_vertices;
+               machine->Inputs[idx + slot].xyzw[2].f[j] = (float)num_vertices;
+               machine->Inputs[idx + slot].xyzw[3].f[j] = (float)num_vertices;
+            }
+            else {
+#if 1
+               debug_printf("\t%d: %f %f %f %f\n", slot,
+                            input[idx + vs_slot][0],
+                            input[idx + vs_slot][1],
+                            input[idx + vs_slot][2],
+                            input[idx + vs_slot][3]);
+               assert(!util_is_inf_or_nan(input[idx + vs_slot][0]));
+               assert(!util_is_inf_or_nan(input[idx + vs_slot][1]));
+               assert(!util_is_inf_or_nan(input[idx + vs_slot][2]));
+               assert(!util_is_inf_or_nan(input[idx + vs_slot][3]));
 #endif
 
-         for (slot = 0; slot < shader->info.num_inputs; slot++) {
-#if 0
-            assert(!util_is_inf_or_nan(input[idx + slot][0]));
-            assert(!util_is_inf_or_nan(input[idx + slot][1]));
-            assert(!util_is_inf_or_nan(input[idx + slot][2]));
-            assert(!util_is_inf_or_nan(input[idx + slot][3]));
-#endif
-            machine->Inputs[idx + slot].xyzw[0].f[j] = input[idx + slot][0];
-            machine->Inputs[idx + slot].xyzw[1].f[j] = input[idx + slot][1];
-            machine->Inputs[idx + slot].xyzw[2].f[j] = input[idx + slot][2];
-            machine->Inputs[idx + slot].xyzw[3].f[j] = input[idx + slot][3];
+               machine->Inputs[idx + slot].xyzw[0].f[j] = input[idx + vs_slot][0];
+               machine->Inputs[idx + slot].xyzw[1].f[j] = input[idx + vs_slot][1];
+               machine->Inputs[idx + slot].xyzw[2].f[j] = input[idx + vs_slot][2];
+               machine->Inputs[idx + slot].xyzw[3].f[j] = input[idx + vs_slot][3];
+               ++vs_slot;
+            }
          }
 
          input = (const float (*)[4])((const char *)input + input_stride);
@@ -195,13 +202,20 @@ void draw_geometry_shader_run(struct draw_geometry_shader *shader,
    unsigned slot;
    unsigned num_vertices = num_vertices_for_prim(shader->state.input_type);
    unsigned num_primitives = count/num_vertices;
+   unsigned inputs_from_vs = 0;
 
    machine->Consts = constants;
+
+   for (i = 0; i < shader->info.num_inputs; ++i) {
+      if (shader->info.input_semantic_name[i] != TGSI_SEMANTIC_VERTICES &&
+          shader->info.input_semantic_name[i] != TGSI_SEMANTIC_PRIMID)
+         ++inputs_from_vs;
+   }
 
    for (i = 0; i < num_primitives; i += MAX_TGSI_PRIMITIVES) {
       unsigned int max_primitives = MIN2(MAX_TGSI_PRIMITIVES, num_primitives - i);
 
-      draw_fetch_geometry_input(shader, i, max_primitives, input, input_stride);
+      draw_fetch_geometry_input(shader, i, max_primitives, input, input_stride, inputs_from_vs);
 
       tgsi_set_exec_mask(machine,
                          1,
