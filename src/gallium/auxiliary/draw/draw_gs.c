@@ -152,9 +152,10 @@ static void draw_fetch_geometry_input(struct draw_geometry_shader *shader,
    unsigned num_vertices = num_vertices_for_prim(shader->state.input_type);
 
    for (k = 0; k < num_primitives; ++k) {
+      debug_printf("%d) Prim\n", start_primitive + k);
       for (j = 0; j < num_vertices; j++) {
          int idx = ((start_primitive + k) * num_vertices + j) * inputs_from_vs;
-         debug_printf("%d) Prim, %d) Input vert:\n", start_primitive, idx);
+         debug_printf("\t%d)(%d) Input vert:\n", idx, j);
 
          for (slot = 0, vs_slot = 0; slot < shader->info.num_inputs; slot++) {
             if (shader->info.input_semantic_name[slot] == TGSI_SEMANTIC_VERTICES) {
@@ -166,20 +167,20 @@ static void draw_fetch_geometry_input(struct draw_geometry_shader *shader,
             else {
 #if 1
                debug_printf("\t%d: %f %f %f %f\n", slot,
-                            input[idx + vs_slot][0],
-                            input[idx + vs_slot][1],
-                            input[idx + vs_slot][2],
-                            input[idx + vs_slot][3]);
-               assert(!util_is_inf_or_nan(input[idx + vs_slot][0]));
-               assert(!util_is_inf_or_nan(input[idx + vs_slot][1]));
-               assert(!util_is_inf_or_nan(input[idx + vs_slot][2]));
-               assert(!util_is_inf_or_nan(input[idx + vs_slot][3]));
+                            input[vs_slot][0],
+                            input[vs_slot][1],
+                            input[vs_slot][2],
+                            input[vs_slot][3]);
+               assert(!util_is_inf_or_nan(input[vs_slot][0]));
+               assert(!util_is_inf_or_nan(input[vs_slot][1]));
+               assert(!util_is_inf_or_nan(input[vs_slot][2]));
+               assert(!util_is_inf_or_nan(input[vs_slot][3]));
 #endif
 
-               machine->Inputs[idx + slot].xyzw[0].f[j] = input[idx + vs_slot][0];
-               machine->Inputs[idx + slot].xyzw[1].f[j] = input[idx + vs_slot][1];
-               machine->Inputs[idx + slot].xyzw[2].f[j] = input[idx + vs_slot][2];
-               machine->Inputs[idx + slot].xyzw[3].f[j] = input[idx + vs_slot][3];
+               machine->Inputs[idx + slot].xyzw[0].f[j] = input[vs_slot][0];
+               machine->Inputs[idx + slot].xyzw[1].f[j] = input[vs_slot][1];
+               machine->Inputs[idx + slot].xyzw[2].f[j] = input[vs_slot][2];
+               machine->Inputs[idx + slot].xyzw[3].f[j] = input[vs_slot][3];
                ++vs_slot;
             }
          }
