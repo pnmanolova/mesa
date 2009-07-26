@@ -57,6 +57,7 @@ extern const struct st_tracked_state st_update_sampler;
 extern const struct st_tracked_state st_update_texture;
 extern const struct st_tracked_state st_finalize_textures;
 extern const struct st_tracked_state st_update_fs_constants;
+extern const struct st_tracked_state st_update_gs_constants;
 extern const struct st_tracked_state st_update_vs_constants;
 extern const struct st_tracked_state st_update_pixel_transfer;
 

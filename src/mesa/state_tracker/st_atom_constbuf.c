@@ -59,7 +59,8 @@ void st_upload_constants( struct st_context *st,
    struct pipe_constant_buffer *cbuf = &st->state.constants[shader_type];
 
    assert(shader_type == PIPE_SHADER_VERTEX ||
-          shader_type == PIPE_SHADER_FRAGMENT);
+          shader_type == PIPE_SHADER_FRAGMENT ||
+          shader_type == PIPE_SHADER_GEOMETRY);
 
    /* update constants */
    if (params && params->NumParameters) {

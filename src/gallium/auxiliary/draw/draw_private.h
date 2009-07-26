@@ -153,8 +153,9 @@ struct draw_context
          /** vertex arrays */
          const void *vbuffer[PIPE_MAX_ATTRIBS];
          
-         /** constant buffer (for vertex shader) */
-         const void *constants;
+         /** constant buffer (for vertex/geometry shader) */
+         const void *vs_constants;
+         const void *gs_constants;
       } user;
 
       boolean test_fse;         /* enable FSE even though its not correct (eg for softpipe) */
@@ -221,11 +222,6 @@ struct draw_context
 
       uint num_samplers;
       struct tgsi_sampler **samplers;
-
-      const float (*aligned_constants)[4];
-
-      const float (*aligned_constant_storage)[4];
-      unsigned const_storage_size;
    } gs;
 
    /* Clip derived state:
@@ -263,10 +259,12 @@ void draw_vs_set_constants( struct draw_context *,
 
 
 /*******************************************************************************
- * Geometry shading (was passthrough) code:
+ * Geometry shading code:
  */
 boolean draw_gs_init( struct draw_context *draw );
-
+void draw_gs_set_constants( struct draw_context *,
+                            const float (*constants)[4],
+                            unsigned size );
 
 /*******************************************************************************
  * Vertex processing (was passthrough) code:

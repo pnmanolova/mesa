@@ -386,7 +386,9 @@ update_program_constants(GLcontext *ctx)
    if (ctx->GeometryProgram._Current) {
       const struct gl_program_parameter_list *params =
          ctx->GeometryProgram._Current->Base.Parameters;
-      if (params && params->StateFlags & ctx->NewState) {
+      /*FIXME: StateFlags is always 0 because we have unnamed constant
+       *       not state changes */
+      if (params /*&& params->StateFlags & ctx->NewState*/) {
          new_state |= _NEW_PROGRAM_CONSTANTS;
       }
    }

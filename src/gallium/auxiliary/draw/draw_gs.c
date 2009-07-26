@@ -63,6 +63,13 @@ draw_gs_init( struct draw_context *draw )
 }
 
 
+void draw_gs_set_constants( struct draw_context *draw,
+                            const float (*constants)[4],
+                            unsigned size )
+{
+}
+
+
 struct draw_geometry_shader *
 draw_create_geometry_shader(struct draw_context *draw,
                             const struct pipe_geometry_shader_state *state)
@@ -106,9 +113,9 @@ void draw_bind_geometry_shader(struct draw_context *draw,
 }
 
 void draw_delete_geometry_shader(struct draw_context *draw,
-                                 struct draw_geometry_shader *dvs)
+                                 struct draw_geometry_shader *dgs)
 {
-   FREE(dvs);
+   FREE(dgs);
 }
 
 static INLINE int num_vertices_for_prim(int prim)
@@ -166,11 +173,6 @@ static void draw_fetch_geometry_input(struct draw_geometry_shader *shader,
             }
             else {
 #if 1
-               debug_printf("\t%d: %f %f %f %f\n", slot,
-                            input[vs_slot][0],
-                            input[vs_slot][1],
-                            input[vs_slot][2],
-                            input[vs_slot][3]);
                assert(!util_is_inf_or_nan(input[vs_slot][0]));
                assert(!util_is_inf_or_nan(input[vs_slot][1]));
                assert(!util_is_inf_or_nan(input[vs_slot][2]));
@@ -183,6 +185,13 @@ static void draw_fetch_geometry_input(struct draw_geometry_shader *shader,
                machine->Inputs[idx + slot].xyzw[3].f[j] = input[vs_slot][3];
                ++vs_slot;
             }
+#if 0
+            debug_printf("\t%d: %f %f %f %f\n", slot,
+                         machine->Inputs[idx + slot].xyzw[0].f[j],
+                         machine->Inputs[idx + slot].xyzw[1].f[j],
+                         machine->Inputs[idx + slot].xyzw[2].f[j],
+                         machine->Inputs[idx + slot].xyzw[3].f[j]);
+#endif
          }
 
          input = (const float (*)[4])((const char *)input + input_stride);

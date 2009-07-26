@@ -2249,6 +2249,7 @@ exec_instruction(
       FOR_EACH_ENABLED_CHANNEL( *inst, chan_index ) {
          FETCH( &r[0], 0, chan_index );
          FETCH( &r[1], 1, chan_index );
+
          micro_le( &r[0], &r[1], &r[0], &mach->Temps[TEMP_1_I].xyzw[TEMP_1_C], &mach->Temps[TEMP_0_I].xyzw[TEMP_0_C] );
          STORE( &r[0], 0, chan_index );
       }

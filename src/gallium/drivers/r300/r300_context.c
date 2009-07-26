@@ -50,7 +50,7 @@ static boolean r300_draw_range_elements(struct pipe_context* pipe,
         draw_set_mapped_element_buffer(r300->draw, 0, NULL);
     }
 
-    draw_set_mapped_constant_buffer(r300->draw,
+    draw_set_mapped_constant_buffer(r300->draw, PIPE_SHADER_VERTEX,
             r300->shader_constants[PIPE_SHADER_VERTEX].constants,
             r300->shader_constants[PIPE_SHADER_VERTEX].user_count *
                 (sizeof(float) * 4));

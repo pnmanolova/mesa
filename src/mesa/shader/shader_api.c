@@ -1586,6 +1586,8 @@ _mesa_use_program(GLcontext *ctx, GLuint program)
             printf(" vert prog %u\n", shProg->VertexProgram->Base.Id);
          if (shProg->FragmentProgram)
             printf(" frag prog %u\n", shProg->FragmentProgram->Base.Id);
+         if (shProg->GeometryProgram)
+            printf(" frag prog %u\n", shProg->FragmentProgram->Base.Id);
       }
    }
    else {
