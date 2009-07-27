@@ -208,7 +208,7 @@ void draw_geometry_shader_run(struct draw_geometry_shader *shader,
                               unsigned output_stride)
 {
    struct tgsi_exec_machine *machine = shader->machine;
-   unsigned int i, j;
+   unsigned int i, j, prim_idx;
    unsigned slot;
    unsigned num_vertices = num_vertices_for_prim(shader->state.input_type);
    unsigned num_primitives = count/num_vertices;
@@ -238,26 +238,23 @@ void draw_geometry_shader_run(struct draw_geometry_shader *shader,
 
       /* Unswizzle all output results.
        */
-      for (j = 0; j < num_vertices; j++) {
-         for (slot = 0; slot < shader->info.num_outputs; slot++) {
-            output[slot][0] = machine->Outputs[slot].xyzw[0].f[j];
-            output[slot][1] = machine->Outputs[slot].xyzw[1].f[j];
-            output[slot][2] = machine->Outputs[slot].xyzw[2].f[j];
-            output[slot][3] = machine->Outputs[slot].xyzw[3].f[j];
-
+      for (prim_idx = 0; prim_idx < max_primitives; ++prim_idx) {
+         for (j = 0; j < num_vertices; j++) {
+            int idx = ((i + prim_idx) * num_vertices + j) * shader->info.num_outputs;
+            debug_printf("%d) Post xform vert:\n", i + j);
+            for (slot = 0; slot < shader->info.num_outputs; slot++) {
+               output[idx + slot][0] = machine->Outputs[idx + slot].xyzw[0].f[j];
+               output[idx + slot][1] = machine->Outputs[idx + slot].xyzw[1].f[j];
+               output[idx + slot][2] = machine->Outputs[idx + slot].xyzw[2].f[j];
+               output[idx + slot][3] = machine->Outputs[idx + slot].xyzw[3].f[j];
+               debug_printf("\t%d: %f %f %f %f\n", slot,
+                            output[idx + slot][0],
+                            output[idx + slot][1],
+                            output[idx + slot][2],
+                            output[idx + slot][3]);
+               assert(!util_is_inf_or_nan(output[idx + slot][0]));
+            }
          }
-
-#if 0
-	 debug_printf("%d) Post xform vert:\n", i + j);
-	 for (slot = 0; slot < shader->info.num_outputs; slot++) {
-	    debug_printf("\t%d: %f %f %f %f\n", slot,
-			 output[slot][0],
-			 output[slot][1],
-			 output[slot][2],
-			 output[slot][3]);
-            assert(!util_is_inf_or_nan(output[slot][0]));
-         }
-#endif
 
 	 output = (float (*)[4])((char *)output + output_stride);
       }
