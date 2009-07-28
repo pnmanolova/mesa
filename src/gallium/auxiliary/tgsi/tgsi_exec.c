@@ -1742,6 +1742,19 @@ exec_kilp(struct tgsi_exec_machine *mach,
    mach->Temps[TEMP_KILMASK_I].xyzw[TEMP_KILMASK_C].u[0] |= kilmask;
 }
 
+static void
+emit_vertex(struct tgsi_exec_machine *mach)
+{
+   mach->Temps[TEMP_OUTPUT_I].xyzw[TEMP_OUTPUT_C].u[0] += 16;
+   mach->Primitives[mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0]]++;
+}
+
+static void
+emit_primitive(struct tgsi_exec_machine *mach)
+{
+   mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0]++;
+   mach->Primitives[mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0]] = 0;
+}
 
 /*
  * Fetch a four texture samples using STR texture coordinates.
@@ -3089,13 +3102,11 @@ exec_instruction(
       break;
 
    case TGSI_OPCODE_EMIT:
-      mach->Temps[TEMP_OUTPUT_I].xyzw[TEMP_OUTPUT_C].u[0] += 16;
-      mach->Primitives[mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0]]++;
+      emit_vertex(mach);
       break;
 
    case TGSI_OPCODE_ENDPRIM:
-      mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0]++;
-      mach->Primitives[mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0]] = 0;
+      emit_primitive(mach);
       break;
 
    case TGSI_OPCODE_LOOP:
