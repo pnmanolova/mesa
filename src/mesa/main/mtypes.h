@@ -284,8 +284,9 @@ typedef enum {
    GEOM_RESULT_CLPV = 15,
    GEOM_RESULT_PRID = 16,
    GEOM_RESULT_LAYR = 17,
-   GEOM_RESULT_VAR0 = 18,  /**< shader varying */
-   GEOM_RESULT_MAX  =  (GEOM_RESULT_VAR0 + MAX_VARYING)
+   GEOM_RESULT_VAR0 = 18,  /**< shader varying, should really be 16 */
+   /* ### we need to -2 because var0 is 18 instead 16 like in the others */
+   GEOM_RESULT_MAX  =  (GEOM_RESULT_VAR0 + MAX_VARYING - 2)
 } gl_geom_result;
 /*@}*/
 
