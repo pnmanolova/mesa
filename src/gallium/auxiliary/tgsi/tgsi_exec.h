@@ -210,6 +210,8 @@ struct tgsi_exec_machine
 
    /* GEOMETRY processor only. */
    unsigned                      *Primitives;
+   unsigned                       NumOutputs;
+   unsigned                       MaxGeometryShaderOutputs;
 
    /* FRAGMENT processor only. */
    const struct tgsi_interp_coef *InterpCoefs;

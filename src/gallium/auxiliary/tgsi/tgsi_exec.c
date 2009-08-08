@@ -292,6 +292,14 @@ tgsi_exec_machine_bind_shader(
                                    * sizeof(struct tgsi_full_declaration));
             maxDeclarations += 10;
          }
+         if (parse.FullToken.FullDeclaration.Declaration.File == TGSI_FILE_OUTPUT) {
+            unsigned reg;
+            for (reg = parse.FullToken.FullDeclaration.DeclarationRange.First;
+                 reg <= parse.FullToken.FullDeclaration.DeclarationRange.Last;
+                 ++reg) {
+               ++mach->NumOutputs;
+            }
+         }
          memcpy(declarations + numDeclarations,
                 &parse.FullToken.FullDeclaration,
                 sizeof(declarations[0]));
@@ -1447,6 +1455,10 @@ store_dest(
       index = mach->Temps[TEMP_OUTPUT_I].xyzw[TEMP_OUTPUT_C].u[0]
          + reg->DstRegister.Index;
       dst = &mach->Outputs[offset + index].xyzw[chan_index];
+      if (TGSI_PROCESSOR_GEOMETRY == mach->Processor) {
+      fprintf(stderr, "STORING OUT[%d] = (%f, %f, %f, %f)\n", index, chan->f[0],
+              chan->f[1], chan->f[2], chan->f[3]);
+      }
       break;
 
    case TGSI_FILE_TEMPORARY:
@@ -1745,15 +1757,17 @@ exec_kilp(struct tgsi_exec_machine *mach,
 static void
 emit_vertex(struct tgsi_exec_machine *mach)
 {
-   mach->Temps[TEMP_OUTPUT_I].xyzw[TEMP_OUTPUT_C].u[0] += 16;
+   mach->Temps[TEMP_OUTPUT_I].xyzw[TEMP_OUTPUT_C].u[0] += mach->NumOutputs;
    mach->Primitives[mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0]]++;
 }
 
 static void
 emit_primitive(struct tgsi_exec_machine *mach)
 {
-   mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0]++;
-   mach->Primitives[mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0]] = 0;
+   unsigned *prim_count = &mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0];
+   ++(*prim_count);
+   debug_assert((*prim_count * mach->NumOutputs) < mach->MaxGeometryShaderOutputs);
+   mach->Primitives[*prim_count] = 0;
 }
 
 /*
