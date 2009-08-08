@@ -1757,6 +1757,11 @@ exec_kilp(struct tgsi_exec_machine *mach,
 static void
 emit_vertex(struct tgsi_exec_machine *mach)
 {
+   /* FIXME: check for exec mask
+   unsigned i;
+   for (i = 0; i < QUAD_SIZE; ++i) {
+         if ((mach->ExecMask & (1 << i)) == 0) {
+   */
    mach->Temps[TEMP_OUTPUT_I].xyzw[TEMP_OUTPUT_C].u[0] += mach->NumOutputs;
    mach->Primitives[mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0]]++;
 }
@@ -1765,6 +1770,11 @@ static void
 emit_primitive(struct tgsi_exec_machine *mach)
 {
    unsigned *prim_count = &mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0];
+   /* FIXME: check for exec mask
+   unsigned i;
+   for (i = 0; i < QUAD_SIZE; ++i) {
+         if ((mach->ExecMask & (1 << i)) == 0) {
+   */
    ++(*prim_count);
    debug_assert((*prim_count * mach->NumOutputs) < mach->MaxGeometryShaderOutputs);
    mach->Primitives[*prim_count] = 0;
