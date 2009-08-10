@@ -167,7 +167,8 @@ static void draw_fetch_geometry_input(struct draw_geometry_shader *shader,
    unsigned num_vertices = num_vertices_for_prim(shader->state.input_type);
 
    for (k = 0; k < num_primitives; ++k) {
-      debug_printf("%d) Prim\n", start_primitive + k);
+      debug_printf("%d) Prim (num_verts = %d)\n", start_primitive + k,
+                   num_vertices);
       for (j = 0; j < num_vertices; j++) {
          int idx = ((start_primitive + k) * num_vertices + j) * inputs_from_vs;
          debug_printf("\t%d)(%d) Input vert:\n", idx, j);
@@ -194,7 +195,7 @@ static void draw_fetch_geometry_input(struct draw_geometry_shader *shader,
                machine->Inputs[idx + slot].xyzw[3].f[j] = input[vs_slot][3];
                ++vs_slot;
             }
-#if 0
+#if 1
             debug_printf("\t%d: %f %f %f %f\n", slot,
                          machine->Inputs[idx + slot].xyzw[0].f[j],
                          machine->Inputs[idx + slot].xyzw[1].f[j],
@@ -208,6 +209,45 @@ static void draw_fetch_geometry_input(struct draw_geometry_shader *shader,
    }
 }
 
+static INLINE void
+draw_geometry_fetch_outputs(struct draw_geometry_shader *shader,
+                            int num_primitives,
+                            float (*output)[4],
+                            unsigned vertex_size)
+{
+   struct tgsi_exec_machine *machine = shader->machine;
+   unsigned prim_idx, j, slot;
+
+   /* Unswizzle all output results.
+    */
+   /* FIXME: handle all the primitives produced by the gs, not just
+    * the first one
+   unsigned prim_count =
+    mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0];*/
+   for (prim_idx = 0; prim_idx < num_primitives; ++prim_idx) {
+      unsigned num_verts_per_prim = machine->Primitives[0];
+      for (j = 0; j < num_verts_per_prim; j++) {
+         int idx = (prim_idx * num_verts_per_prim + j) *
+                   shader->info.num_outputs;
+         debug_printf("%d) Output vert:\n", idx);
+         for (slot = 0; slot < shader->info.num_outputs; slot++) {
+            output[slot][0] = machine->Outputs[idx + slot].xyzw[0].f[prim_idx];
+            output[slot][1] = machine->Outputs[idx + slot].xyzw[1].f[prim_idx];
+            output[slot][2] = machine->Outputs[idx + slot].xyzw[2].f[prim_idx];
+            output[slot][3] = machine->Outputs[idx + slot].xyzw[3].f[prim_idx];
+            debug_printf("\t%d: %f %f %f %f\n", slot,
+                         output[slot][0],
+                         output[slot][1],
+                         output[slot][2],
+                         output[slot][3]);
+            assert(!util_is_inf_or_nan(output[slot][0]));
+         }
+      }
+
+      output = (float (*)[4])((char *)output + (num_verts_per_prim * vertex_size));
+   }
+}
+
 void draw_geometry_shader_run(struct draw_geometry_shader *shader,
                               const float (*input)[4],
                               float (*output)[4],
@@ -217,8 +257,7 @@ void draw_geometry_shader_run(struct draw_geometry_shader *shader,
                               unsigned vertex_size)
 {
    struct tgsi_exec_machine *machine = shader->machine;
-   unsigned int i, j, prim_idx;
-   unsigned slot;
+   unsigned int i;
    unsigned num_vertices = num_vertices_for_prim(shader->state.input_type);
    unsigned num_primitives = count/num_vertices;
    unsigned inputs_from_vs = 0;
@@ -231,9 +270,8 @@ void draw_geometry_shader_run(struct draw_geometry_shader *shader,
          ++inputs_from_vs;
    }
 
-   for (i = 0; i < num_primitives; i += MAX_TGSI_PRIMITIVES) {
-      unsigned int max_primitives = MIN2(MAX_TGSI_PRIMITIVES,
-                                         num_primitives - i);
+   for (i = 0; i < num_primitives; ++i) {
+      unsigned int max_primitives = 1;
 
       draw_fetch_geometry_input(shader, i, max_primitives, input,
                                 input_stride, inputs_from_vs);
@@ -247,29 +285,8 @@ void draw_geometry_shader_run(struct draw_geometry_shader *shader,
       /* run interpreter */
       tgsi_exec_machine_run(machine);
 
-      /* Unswizzle all output results.
-       */
-      for (prim_idx = 0; prim_idx < max_primitives; ++prim_idx) {
-         for (j = 0; j < num_vertices; j++) {
-            int idx = ((i + prim_idx) * num_vertices + j) *
-                      shader->info.num_outputs;
-            debug_printf("%d) Post xform vert:\n", idx);
-            for (slot = 0; slot < shader->info.num_outputs; slot++) {
-               output[idx + slot][0] = machine->Outputs[idx + slot].xyzw[0].f[prim_idx];
-               output[idx + slot][1] = machine->Outputs[idx + slot].xyzw[1].f[prim_idx];
-               output[idx + slot][2] = machine->Outputs[idx + slot].xyzw[2].f[prim_idx];
-               output[idx + slot][3] = machine->Outputs[idx + slot].xyzw[3].f[prim_idx];
-               debug_printf("\t%d: %f %f %f %f\n", slot,
-                            output[idx + slot][0],
-                            output[idx + slot][1],
-                            output[idx + slot][2],
-                            output[idx + slot][3]);
-               assert(!util_is_inf_or_nan(output[idx + slot][0]));
-            }
-         }
-
-	 output = (float (*)[4])((char *)output + (num_vertices * vertex_size));
-      }
+      draw_geometry_fetch_outputs(shader, max_primitives,
+                                  output, vertex_size);
    }
 }
 

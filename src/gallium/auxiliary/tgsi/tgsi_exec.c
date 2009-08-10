@@ -1455,10 +1455,15 @@ store_dest(
       index = mach->Temps[TEMP_OUTPUT_I].xyzw[TEMP_OUTPUT_C].u[0]
          + reg->DstRegister.Index;
       dst = &mach->Outputs[offset + index].xyzw[chan_index];
+#if 0
       if (TGSI_PROCESSOR_GEOMETRY == mach->Processor) {
-      fprintf(stderr, "STORING OUT[%d] = (%f, %f, %f, %f)\n", index, chan->f[0],
-              chan->f[1], chan->f[2], chan->f[3]);
+         fprintf(stderr, "STORING OUT[%d] mask(%d), = (", index, execmask);
+         for (i = 0; i < QUAD_SIZE; i++)
+            if (execmask & (1 << i))
+               fprintf(stderr, "%f, ", chan->f[i]);
+         fprintf(stderr, ")\n");
       }
+#endif
       break;
 
    case TGSI_FILE_TEMPORARY:
@@ -1757,27 +1762,31 @@ exec_kilp(struct tgsi_exec_machine *mach,
 static void
 emit_vertex(struct tgsi_exec_machine *mach)
 {
-   /* FIXME: check for exec mask
+   /* FIXME: check for exec mask correctly
    unsigned i;
    for (i = 0; i < QUAD_SIZE; ++i) {
-         if ((mach->ExecMask & (1 << i)) == 0) {
+         if ((mach->ExecMask & (1 << i)))
    */
-   mach->Temps[TEMP_OUTPUT_I].xyzw[TEMP_OUTPUT_C].u[0] += mach->NumOutputs;
-   mach->Primitives[mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0]]++;
+   if (mach->ExecMask) {
+      mach->Temps[TEMP_OUTPUT_I].xyzw[TEMP_OUTPUT_C].u[0] += mach->NumOutputs;
+      mach->Primitives[mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0]]++;
+   }
 }
 
 static void
 emit_primitive(struct tgsi_exec_machine *mach)
 {
    unsigned *prim_count = &mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0];
-   /* FIXME: check for exec mask
+   /* FIXME: check for exec mask correctly
    unsigned i;
    for (i = 0; i < QUAD_SIZE; ++i) {
-         if ((mach->ExecMask & (1 << i)) == 0) {
+         if ((mach->ExecMask & (1 << i)))
    */
-   ++(*prim_count);
-   debug_assert((*prim_count * mach->NumOutputs) < mach->MaxGeometryShaderOutputs);
-   mach->Primitives[*prim_count] = 0;
+   if (mach->ExecMask) {
+      ++(*prim_count);
+      debug_assert((*prim_count * mach->NumOutputs) < mach->MaxGeometryShaderOutputs);
+      mach->Primitives[*prim_count] = 0;
+   }
 }
 
 /*
