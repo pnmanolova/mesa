@@ -9,7 +9,7 @@
 #include <GL/glext.h>
 
 static const char *filename = NULL;
-static GLuint nr_steps = 4;
+static GLuint nr_steps = 0;
 
 static GLuint fragShader;
 static GLuint vertShader;
