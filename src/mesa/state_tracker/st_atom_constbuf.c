@@ -147,9 +147,12 @@ const struct st_tracked_state st_update_fs_constants = {
 static void update_gs_constants(struct st_context *st )
 {
    struct st_geometry_program *gp = st->gp;
-   struct gl_program_parameter_list *params = gp->Base.Base.Parameters;
+   struct gl_program_parameter_list *params;
 
-   st_upload_constants( st, params, PIPE_SHADER_GEOMETRY );
+   if (gp) {
+      params = gp->Base.Base.Parameters;
+      st_upload_constants( st, params, PIPE_SHADER_GEOMETRY );
+   }
 }
 
 const struct st_tracked_state st_update_gs_constants = {
