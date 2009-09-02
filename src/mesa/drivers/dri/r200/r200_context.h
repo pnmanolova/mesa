@@ -467,6 +467,23 @@ struct r200_texture_state {
 #define PRF_STATE_SIZE    3
 
 
+#define SCI_CMD_0         0
+#define SCI_RE_AUX        1
+#define SCI_CMD_1         2
+#define SCI_XY_1          3
+#define SCI_CMD_2         4
+#define SCI_XY_2          5
+#define SCI_STATE_SIZE    6
+
+#define R200_QUERYOBJ_CMD_0  0
+#define R200_QUERYOBJ_DATA_0 1
+#define R200_QUERYOBJ_CMDSIZE  2
+
+#define STP_CMD_0 0
+#define STP_DATA_0 1
+#define STP_CMD_1 2
+#define STP_STATE_SIZE 35
+
 struct r200_hw_state {
    /* Hardware state, stored as cmdbuf commands:  
     *   -- Need to doublebuffer for
@@ -475,6 +492,7 @@ struct r200_hw_state {
     */
    struct radeon_state_atom ctx;
    struct radeon_state_atom set;
+   struct radeon_state_atom sci;
    struct radeon_state_atom vte;
    struct radeon_state_atom lin;
    struct radeon_state_atom msk;
@@ -508,12 +526,12 @@ struct r200_hw_state {
    struct radeon_state_atom atf;
    struct radeon_state_atom spr;
    struct radeon_state_atom ptp;
+   struct radeon_state_atom stp;
 };
 
 struct r200_state {
    /* Derived state for internal purposes:
     */
-   struct radeon_stipple_state stipple;
    struct r200_texture_state texture;
    GLuint envneeded;
 };
@@ -525,8 +543,6 @@ struct r200_state {
  */
 struct r200_tcl_info {
    GLuint hw_primitive;
-
-   GLuint *Elts;
 
    int elt_used;
 

@@ -49,6 +49,13 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /* The state atoms will be emitted in the order they appear in the atom list,
  * so this step is important.
  */
+#define insert_at_tail_if(atom_list, atom) \
+   do { \
+      struct radeon_state_atom* __atom = (atom); \
+      if (__atom->check) \
+	 insert_at_tail((atom_list), __atom); \
+   } while(0)
+
 void r200SetUpAtomList( r200ContextPtr rmesa )
 {
    int i, mtu;
@@ -58,80 +65,52 @@ void r200SetUpAtomList( r200ContextPtr rmesa )
    make_empty_list(&rmesa->radeon.hw.atomlist);
    rmesa->radeon.hw.atomlist.name = "atom-list";
 
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.ctx );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.set );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.lin );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.msk );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.vpt );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.vtx );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.vap );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.vte );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.msc );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.cst );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.zbs );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.tcl );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.msl );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.tcg );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.grd );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.fog );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.tam );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.tf );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.atf );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.ctx );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.set );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.lin );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.msk );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.vpt );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.vtx );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.vap );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.vte );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.msc );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.cst );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.zbs );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.tcl );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.msl );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.tcg );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.grd );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.fog );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.tam );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.tf );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.atf );
    for (i = 0; i < mtu; ++i)
-       insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.tex[i] );
+       insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.tex[i] );
    for (i = 0; i < mtu; ++i)
-       insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.cube[i] );
+       insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.cube[i] );
    for (i = 0; i < 6; ++i)
-       insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.pix[i] );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.afs[0] );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.afs[1] );
+       insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.pix[i] );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.afs[0] );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.afs[1] );
    for (i = 0; i < 8; ++i)
-       insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.lit[i] );
+       insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.lit[i] );
    for (i = 0; i < 3 + mtu; ++i)
-       insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.mat[i] );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.eye );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.glt );
+       insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.mat[i] );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.eye );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.glt );
    for (i = 0; i < 2; ++i)
-      insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.mtl[i] );
+      insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.mtl[i] );
    for (i = 0; i < 6; ++i)
-       insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.ucp[i] );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.spr );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.ptp );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.prf );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.pvs );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.vpp[0] );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.vpp[1] );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.vpi[0] );
-   insert_at_tail( &rmesa->radeon.hw.atomlist, &rmesa->hw.vpi[1] );
-}
-
-void r200EmitScissor(r200ContextPtr rmesa)
-{
-    BATCH_LOCALS(&rmesa->radeon);
-    if (!rmesa->radeon.radeonScreen->kernel_mm) {
-       return;
-    }
-    if (rmesa->radeon.state.scissor.enabled) {
-        BEGIN_BATCH(8);
-        OUT_BATCH(CP_PACKET0(R200_RE_CNTL, 0));
-        OUT_BATCH(R200_SCISSOR_ENABLE | rmesa->hw.set.cmd[SET_RE_CNTL]);
-        OUT_BATCH(CP_PACKET0(R200_RE_AUX_SCISSOR_CNTL, 0));
-        OUT_BATCH(R200_SCISSOR_ENABLE_0);
-        OUT_BATCH(CP_PACKET0(R200_RE_SCISSOR_TL_0, 0));
-        OUT_BATCH((rmesa->radeon.state.scissor.rect.y1 << 16) |
-                  rmesa->radeon.state.scissor.rect.x1);
-        OUT_BATCH(CP_PACKET0(R200_RE_SCISSOR_BR_0, 0));
-        OUT_BATCH(((rmesa->radeon.state.scissor.rect.y2 - 1) << 16) |
-                  (rmesa->radeon.state.scissor.rect.x2 - 1));
-        END_BATCH();
-    } else {
-        BEGIN_BATCH(4);
-        OUT_BATCH(CP_PACKET0(R200_RE_CNTL, 0));
-        OUT_BATCH(rmesa->hw.set.cmd[SET_RE_CNTL] & ~R200_SCISSOR_ENABLE);
-        OUT_BATCH(CP_PACKET0(R200_RE_AUX_SCISSOR_CNTL, 0));
-        OUT_BATCH(0);
-        END_BATCH();
-    }
+       insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.ucp[i] );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.spr );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.ptp );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.prf );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.pvs );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.vpp[0] );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.vpp[1] );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.vpi[0] );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.vpi[1] );
+   insert_at_tail_if( &rmesa->radeon.hw.atomlist, &rmesa->hw.sci );
 }
 
 /* Fire a section of the retained (indexed_verts) buffer as a regular
@@ -147,10 +126,9 @@ void r200EmitVbufPrim( r200ContextPtr rmesa,
    
    radeonEmitState(&rmesa->radeon);
    
-   if (R200_DEBUG & (DEBUG_IOCTL|DEBUG_PRIMS))
-      fprintf(stderr, "%s cmd_used/4: %d prim %x nr %d\n", __FUNCTION__,
-	      rmesa->store.cmd_used/4, primitive, vertex_nr);
-   r200EmitScissor(rmesa);
+   radeon_print(RADEON_RENDER|RADEON_SWRENDER,RADEON_VERBOSE,
+           "%s cmd_used/4: %d prim %x nr %d\n", __FUNCTION__,
+           rmesa->store.cmd_used/4, primitive, vertex_nr);
  
    BEGIN_BATCH(3);
    OUT_BATCH_PACKET3_CLIP(R200_CP_CMD_3D_DRAW_VBUF_2, 0);
@@ -164,7 +142,6 @@ static void r200FireEB(r200ContextPtr rmesa, int vertex_count, int type)
 	BATCH_LOCALS(&rmesa->radeon);
 
 	if (vertex_count > 0) {
-        r200EmitScissor(rmesa);
 		BEGIN_BATCH(8+2);
 		OUT_BATCH_PACKET3_CLIP(R200_CP_CMD_3D_DRAW_INDX_2, 0);
 		OUT_BATCH(R200_VF_PRIM_WALK_IND |
@@ -198,8 +175,7 @@ void r200FlushElts(GLcontext *ctx)
    r200ContextPtr rmesa = R200_CONTEXT(ctx);
    int nr, elt_used = rmesa->tcl.elt_used;
 
-   if (R200_DEBUG & (DEBUG_IOCTL|DEBUG_PRIMS))
-     fprintf(stderr, "%s %x %d\n", __FUNCTION__, rmesa->tcl.hw_primitive, elt_used);
+   radeon_print(RADEON_RENDER, RADEON_VERBOSE, "%s %x %d\n", __FUNCTION__, rmesa->tcl.hw_primitive, elt_used);
 
    assert( rmesa->radeon.dma.flush == r200FlushElts );
    rmesa->radeon.dma.flush = NULL;
@@ -213,8 +189,11 @@ void r200FlushElts(GLcontext *ctx)
    radeon_bo_unref(rmesa->radeon.tcl.elt_dma_bo);
    rmesa->radeon.tcl.elt_dma_bo = NULL;
 
-   if (R200_DEBUG & DEBUG_SYNC) {
-      fprintf(stderr, "%s: Syncing\n", __FUNCTION__);
+   if (R200_ELT_BUF_SZ > elt_used)
+     radeonReturnDmaRegion(&rmesa->radeon, R200_ELT_BUF_SZ - elt_used);
+
+   if (radeon_is_debug_enabled(RADEON_SYNC, RADEON_CRITICAL)) {
+      radeon_print(RADEON_SYNC, RADEON_NORMAL, "%s: Syncing\n", __FUNCTION__);
       radeonFinish( rmesa->radeon.glCtx );
    }
 }
@@ -225,35 +204,20 @@ GLushort *r200AllocEltsOpenEnded( r200ContextPtr rmesa,
 				    GLuint min_nr )
 {
    GLushort *retval;
-   int ret;
 
-   if (R200_DEBUG & DEBUG_IOCTL)
-      fprintf(stderr, "%s %d prim %x\n", __FUNCTION__, min_nr, primitive);
+   radeon_print(RADEON_RENDER, RADEON_VERBOSE, "%s %d prim %x\n", __FUNCTION__, min_nr, primitive);
 
    assert((primitive & R200_VF_PRIM_WALK_IND));
    
    radeonEmitState(&rmesa->radeon);
 
-   rmesa->radeon.tcl.elt_dma_bo = radeon_bo_open(rmesa->radeon.radeonScreen->bom,
-					  0, R200_ELT_BUF_SZ, 4,
-					  RADEON_GEM_DOMAIN_GTT, 0);
-   rmesa->radeon.tcl.elt_dma_offset = 0;
+   radeonAllocDmaRegion(&rmesa->radeon, &rmesa->radeon.tcl.elt_dma_bo,
+			&rmesa->radeon.tcl.elt_dma_offset, R200_ELT_BUF_SZ, 4);
    rmesa->tcl.elt_used = min_nr * 2;
-
-   ret = radeon_cs_space_check_with_bo(rmesa->radeon.cmdbuf.cs, rmesa->radeon.tcl.elt_dma_bo,
-				 RADEON_GEM_DOMAIN_GTT, 0);
-   if (ret) {
-      fprintf(stderr,"failure to revalidate BOs - badness\n");
-   }
 
    radeon_bo_map(rmesa->radeon.tcl.elt_dma_bo, 1);
    retval = rmesa->radeon.tcl.elt_dma_bo->ptr + rmesa->radeon.tcl.elt_dma_offset;
    
-
-   if (R200_DEBUG & DEBUG_PRIMS)
-      fprintf(stderr, "%s: header prim %x \n",
-	      __FUNCTION__, primitive);
-
    assert(!rmesa->radeon.dma.flush);
    rmesa->radeon.glCtx->Driver.NeedFlush |= FLUSH_STORED_VERTICES;
    rmesa->radeon.dma.flush = r200FlushElts;
@@ -261,7 +225,17 @@ GLushort *r200AllocEltsOpenEnded( r200ContextPtr rmesa,
    return retval;
 }
 
+void r200EmitMaxVtxIndex(r200ContextPtr rmesa, int count)
+{
+   BATCH_LOCALS(&rmesa->radeon);
 
+   if (rmesa->radeon.radeonScreen->kernel_mm) {
+	   BEGIN_BATCH_NO_AUTOSTATE(2);
+	   OUT_BATCH(CP_PACKET0(R200_SE_VF_MAX_VTX_INDX, 0));
+	   OUT_BATCH(count);
+	   END_BATCH();
+   }
+}
 
 void r200EmitVertexAOS( r200ContextPtr rmesa,
 			GLuint vertex_size,
@@ -270,8 +244,7 @@ void r200EmitVertexAOS( r200ContextPtr rmesa,
 {
    BATCH_LOCALS(&rmesa->radeon);
 
-   if (R200_DEBUG & (DEBUG_PRIMS|DEBUG_IOCTL))
-      fprintf(stderr, "%s:  vertex_size 0x%x offset 0x%x \n",
+   radeon_print(RADEON_SWRENDER, RADEON_VERBOSE, "%s:  vertex_size 0x%x offset 0x%x \n",
 	      __FUNCTION__, vertex_size, offset);
 
 
@@ -290,9 +263,9 @@ void r200EmitAOS(r200ContextPtr rmesa, GLuint nr, GLuint offset)
    int sz = 1 + (nr >> 1) * 3 + (nr & 1) * 2;
    int i;
    
-   if (RADEON_DEBUG & DEBUG_VERTS)
-      fprintf(stderr, "%s: nr=%d, ofs=0x%08x\n", __FUNCTION__, nr,
-	      offset);
+   radeon_print(RADEON_RENDER, RADEON_VERBOSE,
+           "%s: nr=%d, ofs=0x%08x\n",
+           __FUNCTION__, nr, offset);
 
    BEGIN_BATCH(sz+2+ (nr*2));
    OUT_BATCH_PACKET3(R200_CP_CMD_3D_LOAD_VBPNTR, sz - 1);

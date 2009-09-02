@@ -60,9 +60,11 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "r200_tcl.h"
 #include "r200_maos.h"
 #include "r200_vertprog.h"
+#include "radeon_queryobj.h"
 
 #include "radeon_span.h"
 
+#define need_GL_ARB_occlusion_query
 #define need_GL_ARB_vertex_program
 #define need_GL_ATI_fragment_shader
 #define need_GL_EXT_blend_minmax
@@ -116,6 +118,7 @@ static const GLubyte *r200GetString( GLcontext *ctx, GLenum name )
 const struct dri_extension card_extensions[] =
 {
     { "GL_ARB_multitexture",               NULL },
+    { "GL_ARB_occlusion_query",		   GL_ARB_occlusion_query_functions},
     { "GL_ARB_texture_border_clamp",       NULL },
     { "GL_ARB_texture_env_add",            NULL },
     { "GL_ARB_texture_env_combine",        NULL },
@@ -218,26 +221,6 @@ static void r200InitDriverFuncs( struct dd_function_table *functions )
     functions->GetString		= r200GetString;
 }
 
-static const struct dri_debug_control debug_control[] =
-{
-    { "fall",  DEBUG_FALLBACKS },
-    { "tex",   DEBUG_TEXTURE },
-    { "ioctl", DEBUG_IOCTL },
-    { "prim",  DEBUG_PRIMS },
-    { "vert",  DEBUG_VERTS },
-    { "state", DEBUG_STATE },
-    { "code",  DEBUG_CODEGEN },
-    { "vfmt",  DEBUG_VFMT },
-    { "vtxf",  DEBUG_VFMT },
-    { "verb",  DEBUG_VERBOSE },
-    { "dri",   DEBUG_DRI },
-    { "dma",   DEBUG_DMA },
-    { "san",   DEBUG_SANITY },
-    { "sync",  DEBUG_SYNC },
-    { "pix",   DEBUG_PIXEL },
-    { "mem",   DEBUG_MEMORY },
-    { NULL,    0 }
-};
 
 static void r200_get_lock(radeonContextPtr radeon)
 {
@@ -262,6 +245,19 @@ static void r200_vtbl_emit_cs_header(struct radeon_cs *cs, radeonContextPtr rmes
 {
 }
 
+static void r200_emit_query_finish(radeonContextPtr radeon)
+{
+   BATCH_LOCALS(radeon);
+   struct radeon_query_object *query = radeon->query.current;
+
+   BEGIN_BATCH_NO_AUTOSTATE(4);
+   OUT_BATCH(CP_PACKET0(RADEON_RB3D_ZPASS_ADDR, 0));
+   OUT_BATCH_RELOC(0, query->bo, query->curr_offset, 0, RADEON_GEM_DOMAIN_GTT, 0);
+   END_BATCH();
+   query->curr_offset += sizeof(uint32_t);
+   assert(query->curr_offset < RADEON_QUERY_PAGE_SIZE);
+   query->emitted_begin = GL_FALSE;
+}
 
 static void r200_init_vtbl(radeonContextPtr radeon)
 {
@@ -270,6 +266,8 @@ static void r200_init_vtbl(radeonContextPtr radeon)
    radeon->vtbl.emit_cs_header = r200_vtbl_emit_cs_header;
    radeon->vtbl.swtcl_flush = r200_swtcl_flush;
    radeon->vtbl.fallback = r200Fallback;
+   radeon->vtbl.update_scissor = r200_vtbl_update_scissor;
+   radeon->vtbl.emit_query_finish = r200_emit_query_finish;
 }
 
 
@@ -309,7 +307,8 @@ GLboolean r200CreateContext( const __GLcontextModes *glVisual,
    rmesa->radeon.initialMaxAnisotropy = driQueryOptionf(&rmesa->radeon.optionCache,
 							"def_max_anisotropy");
 
-   if ( driQueryOptionb( &rmesa->radeon.optionCache, "hyperz" ) ) {
+   if ( sPriv->drm_version.major == 1
+       && driQueryOptionb( &rmesa->radeon.optionCache, "hyperz" ) ) {
       if ( sPriv->drm_version.minor < 13 )
 	 fprintf( stderr, "DRM version 1.%d too old to support HyperZ, "
 			  "disabling.\n", sPriv->drm_version.minor );
@@ -326,9 +325,10 @@ GLboolean r200CreateContext( const __GLcontextModes *glVisual,
    _mesa_init_driver_functions(&functions);
    r200InitDriverFuncs(&functions);
    r200InitIoctlFuncs(&functions);
-   r200InitStateFuncs(&functions);
+   r200InitStateFuncs(&functions, screen->kernel_mm);
    r200InitTextureFuncs(&functions);
    r200InitShaderFuncs(&functions); 
+   radeonInitQueryObjFunctions(&functions);
 
    if (!radeonInitContext(&rmesa->radeon, &functions,
 			  glVisual, driContextPriv,
@@ -457,6 +457,9 @@ GLboolean r200CreateContext( const __GLcontextModes *glVisual,
       driInitSingleExtension( ctx, ATI_fs_extension );
    if (rmesa->radeon.radeonScreen->drmSupportsPointSprites)
       driInitExtensions( ctx, point_extensions, GL_FALSE );
+
+   if (!rmesa->radeon.radeonScreen->kernel_mm)
+      _mesa_disable_extension(ctx, "GL_ARB_occlusion_query");
 #if 0
    r200InitDriverFuncs( ctx );
    r200InitIoctlFuncs( ctx );
@@ -474,13 +477,6 @@ GLboolean r200CreateContext( const __GLcontextModes *glVisual,
 
    rmesa->prefer_gart_client_texturing = 
       (getenv("R200_GART_CLIENT_TEXTURES") != 0);
-
-#if DO_DEBUG
-   R200_DEBUG  = driParseDebugString( getenv( "R200_DEBUG" ),
-				      debug_control );
-   R200_DEBUG |= driParseDebugString( getenv( "RADEON_DEBUG" ),
-				      debug_control );
-#endif
 
    tcl_mode = driQueryOptioni(&rmesa->radeon.optionCache, "tcl_mode");
    if (driQueryOptionb(&rmesa->radeon.optionCache, "no_rast")) {
@@ -500,3 +496,15 @@ GLboolean r200CreateContext( const __GLcontextModes *glVisual,
 }
 
 
+void r200DestroyContext( __DRIcontextPrivate *driContextPriv )
+{
+	int i;
+	r200ContextPtr rmesa = (r200ContextPtr)driContextPriv->driverPrivate;
+	if (rmesa)
+	{
+		for ( i = 0 ; i < R200_MAX_TEXTURE_UNITS ; i++ ) {
+			_math_matrix_dtr( &rmesa->TexGenMatrix[i] );
+		}
+	}
+	radeonDestroyContext(driContextPriv);
+}

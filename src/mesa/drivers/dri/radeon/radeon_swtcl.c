@@ -38,6 +38,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "main/enums.h"
 #include "main/imports.h"
 #include "main/macros.h"
+#include "main/simple_list.h"
 
 #include "swrast_setup/swrast_setup.h"
 #include "math/m_translate.h"
@@ -50,6 +51,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "radeon_state.h"
 #include "radeon_swtcl.h"
 #include "radeon_tcl.h"
+#include "radeon_debug.h"
 
 
 /* R100: xyzw, c0, c1/fog, stq[0..2]  = 4+1+1+3*3 = 15  right? */
@@ -213,22 +215,41 @@ static void radeonSetVertexFormat( GLcontext *ctx )
 			      NULL, 0 );
       rmesa->radeon.swtcl.vertex_size /= 4;
       RENDERINPUTS_COPY( rmesa->radeon.tnl_index_bitset, index_bitset );
-      if (RADEON_DEBUG & DEBUG_VERTS)
-	 fprintf( stderr, "%s: vertex_size= %d floats\n",
-		  __FUNCTION__, rmesa->radeon.swtcl.vertex_size);
+      radeon_print(RADEON_SWRENDER, RADEON_VERBOSE,
+	  "%s: vertex_size= %d floats\n",  __FUNCTION__, rmesa->radeon.swtcl.vertex_size);
    }
 }
 
+static void radeon_predict_emit_size( r100ContextPtr rmesa )
+{
+
+    if (!rmesa->radeon.swtcl.emit_prediction) {
+        const int state_size = radeonCountStateEmitSize( &rmesa->radeon );
+        const int scissor_size = 8;
+        const int prims_size = 8;
+        const int vertex_size = 7;
+
+        if (rcommonEnsureCmdBufSpace(&rmesa->radeon,
+                    state_size +
+                    (scissor_size + prims_size + vertex_size),
+                    __FUNCTION__))
+            rmesa->radeon.swtcl.emit_prediction = radeonCountStateEmitSize( &rmesa->radeon );
+        else
+            rmesa->radeon.swtcl.emit_prediction = state_size;
+        rmesa->radeon.swtcl.emit_prediction += scissor_size + prims_size + vertex_size
+            + rmesa->radeon.cmdbuf.cs->cdw;
+    }
+}
 
 static void radeonRenderStart( GLcontext *ctx )
 {
-   r100ContextPtr rmesa = R100_CONTEXT( ctx );
+    r100ContextPtr rmesa = R100_CONTEXT( ctx );
 
-   radeonSetVertexFormat( ctx );
-   
-   if (rmesa->radeon.dma.flush != 0 && 
-       rmesa->radeon.dma.flush != rcommon_flush_last_swtcl_prim)
-      rmesa->radeon.dma.flush( ctx );
+    radeonSetVertexFormat( ctx );
+
+    if (rmesa->radeon.dma.flush != 0 &&
+            rmesa->radeon.dma.flush != rcommon_flush_last_swtcl_prim)
+        rmesa->radeon.dma.flush( ctx );
 }
 
 
@@ -283,15 +304,12 @@ void r100_swtcl_flush(GLcontext *ctx, uint32_t current_offset)
 {
    r100ContextPtr rmesa = R100_CONTEXT(ctx);
 
-   rcommonEnsureCmdBufSpace(&rmesa->radeon,
-			    rmesa->radeon.hw.max_state_size + (12*sizeof(int)),
-			    __FUNCTION__);
 
 
    radeonEmitState(&rmesa->radeon);
    radeonEmitVertexAOS( rmesa,
 			rmesa->radeon.swtcl.vertex_size,
-			rmesa->radeon.dma.current,
+			first_elem(&rmesa->radeon.dma.reserved)->bo,
 			current_offset);
 
 		      
@@ -299,6 +317,13 @@ void r100_swtcl_flush(GLcontext *ctx, uint32_t current_offset)
 		       rmesa->swtcl.vertex_format,
 		       rmesa->radeon.swtcl.hw_primitive,
 		       rmesa->radeon.swtcl.numverts);
+   if ( rmesa->radeon.swtcl.emit_prediction < rmesa->radeon.cmdbuf.cs->cdw )
+     WARN_ONCE("Rendering was %d commands larger than predicted size."
+	 " We might overflow  command buffer.\n",
+	 rmesa->radeon.cmdbuf.cs->cdw - rmesa->radeon.swtcl.emit_prediction );
+
+
+   rmesa->radeon.swtcl.emit_prediction = 0;
 
 }
 
@@ -341,6 +366,16 @@ radeonDmaPrimitive( r100ContextPtr rmesa, GLenum prim )
    //   assert(rmesa->radeon.dma.current.ptr == rmesa->radeon.dma.current.start);
 }
 
+static void* radeon_alloc_verts( r100ContextPtr rmesa , GLuint nr, GLuint size )
+{
+   void *rv;
+   do {
+     radeon_predict_emit_size( rmesa );
+     rv = rcommonAllocDmaLowVerts( &rmesa->radeon, nr, size );
+   } while (!rv);
+   return rv;
+}
+
 #define LOCAL_VARS r100ContextPtr rmesa = R100_CONTEXT(ctx)
 #define INIT( prim ) radeonDmaPrimitive( rmesa, prim )
 #define FLUSH()  RADEON_NEWPRIM( rmesa )
@@ -348,8 +383,7 @@ radeonDmaPrimitive( r100ContextPtr rmesa, GLenum prim )
 //  (((int)rmesa->radeon.dma.current.end - (int)rmesa->radeon.dma.current.ptr) / (rmesa->radeon.swtcl.vertex_size*4))
 #define GET_SUBSEQUENT_VB_MAX_VERTS() \
   ((RADEON_BUFFER_SIZE) / (rmesa->radeon.swtcl.vertex_size*4))
-#define ALLOC_VERTS( nr ) \
-  rcommonAllocDmaLowVerts( &rmesa->radeon, nr, rmesa->radeon.swtcl.vertex_size * 4 )
+#define ALLOC_VERTS( nr ) radeon_alloc_verts( rmesa, nr, rmesa->radeon.swtcl.vertex_size * 4 )
 #define EMIT_VERTS( ctx, j, nr, buf ) \
   _tnl_emit_vertices_to_buffer(ctx, j, (j)+(nr), buf)
 
@@ -386,8 +420,8 @@ static GLboolean radeon_run_render( GLcontext *ctx,
       if (!length)
 	 continue;
 
-      if (RADEON_DEBUG & DEBUG_PRIMS)
-	 fprintf(stderr, "radeon_render.c: prim %s %d..%d\n", 
+      radeon_print(RADEON_SWRENDER, RADEON_NORMAL,
+	  "radeon_render.c: prim %s %d..%d\n",
 		 _mesa_lookup_enum_by_nr(prim & PRIM_MODE_MASK), 
 		 start, start+length);
 
@@ -442,7 +476,7 @@ static void radeonResetLineStipple( GLcontext *ctx );
 #undef ALLOC_VERTS
 #define CTX_ARG r100ContextPtr rmesa
 #define GET_VERTEX_DWORDS() rmesa->radeon.swtcl.vertex_size
-#define ALLOC_VERTS( n, size ) rcommonAllocDmaLowVerts( &rmesa->radeon, n, (size) * 4 )
+#define ALLOC_VERTS( n, size ) radeon_alloc_verts( rmesa, n, (size) * 4 )
 #undef LOCAL_VARS
 #define LOCAL_VARS						\
    r100ContextPtr rmesa = R100_CONTEXT(ctx);		\
@@ -551,7 +585,7 @@ do {							\
 
 #define LOCAL_VARS(n)							\
    r100ContextPtr rmesa = R100_CONTEXT(ctx);			\
-   GLuint color[n], spec[n];						\
+   GLuint color[n] = {0}, spec[n] = {0};						\
    GLuint coloroffset = rmesa->swtcl.coloroffset;	\
    GLuint specoffset = rmesa->swtcl.specoffset;			\
    (void) color; (void) spec; (void) coloroffset; (void) specoffset;
@@ -750,7 +784,7 @@ void radeonFallback( GLcontext *ctx, GLuint bit, GLboolean mode )
 	 TCL_FALLBACK( ctx, RADEON_TCL_FALLBACK_RASTER, GL_TRUE );
 	 _swsetup_Wakeup( ctx );
 	 rmesa->radeon.swtcl.RenderIndex = ~0;
-         if (RADEON_DEBUG & DEBUG_FALLBACKS) {
+         if (RADEON_DEBUG & RADEON_FALLBACKS) {
             fprintf(stderr, "Radeon begin rasterization fallback: 0x%x %s\n",
                     bit, getFallbackString(bit));
          }
@@ -781,7 +815,7 @@ void radeonFallback( GLcontext *ctx, GLuint bit, GLboolean mode )
 	    radeonChooseVertexState( ctx );
 	    radeonChooseRenderState( ctx );
 	 }
-         if (RADEON_DEBUG & DEBUG_FALLBACKS) {
+         if (RADEON_DEBUG & RADEON_FALLBACKS) {
             fprintf(stderr, "Radeon end rasterization fallback: 0x%x %s\n",
                     bit, getFallbackString(bit));
          }
@@ -804,6 +838,7 @@ void radeonInitSwtcl( GLcontext *ctx )
       init_rast_tab();
       firsttime = 0;
    }
+   rmesa->radeon.swtcl.emit_prediction = 0;
 
    tnl->Driver.Render.Start = radeonRenderStart;
    tnl->Driver.Render.Finish = radeonRenderFinish;

@@ -50,6 +50,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "radeon_tcl.h"
 #include "radeon_swtcl.h"
 #include "radeon_maos.h"
+#include "radeon_common_context.h"
 
 
 
@@ -149,9 +150,6 @@ static GLushort *radeonAllocElts( r100ContextPtr rmesa, GLuint nr )
       if (rmesa->radeon.dma.flush)
 	 rmesa->radeon.dma.flush( rmesa->radeon.glCtx );
 
-      rcommonEnsureCmdBufSpace(&rmesa->radeon, rmesa->radeon.hw.max_state_size + ELTS_BUFSZ(nr) + 
-			       AOS_BUFSZ(rmesa->radeon.tcl.aos_count), __FUNCTION__);
-
       radeonEmitAOS( rmesa,
 		     rmesa->radeon.tcl.aos_count, 0 );
 
@@ -176,10 +174,6 @@ static void radeonEmitPrim( GLcontext *ctx,
    r100ContextPtr rmesa = R100_CONTEXT( ctx );
    radeonTclPrimitive( ctx, prim, hwprim );
    
-   rcommonEnsureCmdBufSpace( &rmesa->radeon,
-			     AOS_BUFSZ(rmesa->radeon.tcl.aos_count) +
-			     rmesa->radeon.hw.max_state_size + VBUF_BUFSZ, __FUNCTION__ );
-
    radeonEmitAOS( rmesa,
 		  rmesa->radeon.tcl.aos_count,
 		  start );
@@ -195,6 +189,8 @@ static void radeonEmitPrim( GLcontext *ctx,
 #define EMIT_PRIM( ctx, prim, hwprim, start, count ) do {       \
    radeonEmitPrim( ctx, prim, hwprim, start, count );           \
    (void) rmesa; } while (0)
+
+#define MAX_CONVERSION_SIZE 40
 
 /* Try & join small primitives
  */
@@ -360,6 +356,73 @@ radeonComputeFogBlendFactor( GLcontext *ctx, GLfloat fogcoord )
    }
 }
 
+/**
+ * Predict total emit size for next rendering operation so there is no flush in middle of rendering
+ * Prediction has to aim towards the best possible value that is worse than worst case scenario
+ */
+static GLuint radeonEnsureEmitSize( GLcontext * ctx , GLuint inputs )
+{
+  r100ContextPtr rmesa = R100_CONTEXT(ctx);
+  TNLcontext *tnl = TNL_CONTEXT(ctx);
+  struct vertex_buffer *VB = &tnl->vb;
+  GLuint space_required;
+  GLuint state_size;
+  GLuint nr_aos = 1; /* radeonEmitArrays does always emit one */
+  int i;
+  /* list of flags that are allocating aos object */
+  const GLuint flags_to_check[] = {
+    VERT_BIT_NORMAL,
+    VERT_BIT_COLOR0,
+    VERT_BIT_COLOR1,
+    VERT_BIT_FOG
+  };
+  /* predict number of aos to emit */
+  for (i=0; i < sizeof(flags_to_check)/sizeof(flags_to_check[0]); ++i)
+  {
+    if (inputs & flags_to_check[i])
+      ++nr_aos;
+  }
+  for (i = 0; i < ctx->Const.MaxTextureUnits; ++i)
+  {
+    if (inputs & VERT_BIT_TEX(i))
+      ++nr_aos;
+  }
+
+  {
+    /* count the prediction for state size */
+    space_required = 0;
+    state_size = radeonCountStateEmitSize( &rmesa->radeon );
+    /* tcl may be changed in radeonEmitArrays so account for it if not dirty */
+    if (!rmesa->hw.tcl.dirty)
+      state_size += rmesa->hw.tcl.check( rmesa->radeon.glCtx, &rmesa->hw.tcl );
+    /* predict size for elements */
+    for (i = 0; i < VB->PrimitiveCount; ++i)
+    {
+      if (!VB->Primitive[i].count)
+	continue;
+      /* If primitive.count is less than MAX_CONVERSION_SIZE
+	 rendering code may decide convert to elts.
+	 In that case we have to make pessimistic prediction.
+	 and use larger of 2 paths. */
+      const GLuint elts = ELTS_BUFSZ(nr_aos);
+      const GLuint index = INDEX_BUFSZ;
+      const GLuint vbuf = VBUF_BUFSZ;
+      if ( (!VB->Elts && VB->Primitive[i].count >= MAX_CONVERSION_SIZE)
+	  || vbuf > index + elts)
+	space_required += vbuf;
+      else
+	space_required += index + elts;
+      space_required += AOS_BUFSZ(nr_aos);
+    }
+    space_required += SCISSOR_BUFSZ;
+  }
+  /* flush the buffer in case we need more than is left. */
+  if (rcommonEnsureCmdBufSpace(&rmesa->radeon, space_required, __FUNCTION__))
+    return space_required + radeonCountStateEmitSize( &rmesa->radeon );
+  else
+    return space_required + state_size;
+}
+
 /**********************************************************************/
 /*                          Render pipeline stage                     */
 /**********************************************************************/
@@ -410,6 +473,8 @@ static GLboolean radeon_run_tcl_render( GLcontext *ctx,
    }
 
    radeonReleaseArrays( ctx, ~0 );
+   GLuint emit_end = radeonEnsureEmitSize( ctx, inputs )
+     + rmesa->radeon.cmdbuf.cs->cdw;
    radeonEmitArrays( ctx, inputs );
 
    rmesa->tcl.Elts = VB->Elts;
@@ -428,6 +493,10 @@ static GLboolean radeon_run_tcl_render( GLcontext *ctx,
       else
 	 radeonEmitPrimitive( ctx, start, start+length, prim );
    }
+
+   if (emit_end < rmesa->radeon.cmdbuf.cs->cdw)
+      WARN_ONCE("Rendering was %d commands larger than predicted size."
+	  " We might overflow  command buffer.\n", rmesa->radeon.cmdbuf.cs->cdw - emit_end);
 
    return GL_FALSE;		/* finished the pipe */
 }
@@ -518,7 +587,7 @@ static void transition_to_hwtnl( GLcontext *ctx )
    //      radeonReleaseDmaRegion( rmesa, &rmesa->swtcl.indexed_verts, 
    //			      __FUNCTION__ );
 
-   if (RADEON_DEBUG & DEBUG_FALLBACKS) 
+   if (RADEON_DEBUG & RADEON_FALLBACKS)
       fprintf(stderr, "Radeon end tcl fallback\n");
 }
 
@@ -555,7 +624,7 @@ void radeonTclFallback( GLcontext *ctx, GLuint bit, GLboolean mode )
    if (mode) {
       rmesa->radeon.TclFallback |= bit;
       if (oldfallback == 0) {
-	 if (RADEON_DEBUG & DEBUG_FALLBACKS) 
+	 if (RADEON_DEBUG & RADEON_FALLBACKS)
 	    fprintf(stderr, "Radeon begin tcl fallback %s\n",
 		    getFallbackString( bit ));
 	 transition_to_swtnl( ctx );
@@ -564,7 +633,7 @@ void radeonTclFallback( GLcontext *ctx, GLuint bit, GLboolean mode )
    else {
       rmesa->radeon.TclFallback &= ~bit;
       if (oldfallback == bit) {
-	 if (RADEON_DEBUG & DEBUG_FALLBACKS) 
+	 if (RADEON_DEBUG & RADEON_FALLBACKS)
 	    fprintf(stderr, "Radeon end tcl fallback %s\n",
 		    getFallbackString( bit ));
 	 transition_to_hwtnl( ctx );

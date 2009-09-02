@@ -113,7 +113,7 @@ struct brw_sf_unit_key {
 
    unsigned int nr_urb_entries, urb_size, sfsize;
 
-   GLenum front_face, cull_face;
+   GLenum front_face, cull_face, provoking_vertex;
    unsigned scissor:1;
    unsigned line_smooth:1;
    unsigned point_sprite:1;
@@ -152,6 +152,9 @@ sf_unit_populate_key(struct brw_context *brw, struct brw_sf_unit_key *key)
    key->point_sprite = ctx->Point.PointSprite;
    key->point_size = CLAMP(ctx->Point.Size, ctx->Point.MinSize, ctx->Point.MaxSize);
    key->point_attenuated = ctx->Point._Attenuated;
+
+   /* _NEW_LIGHT */
+   key->provoking_vertex = ctx->Light.ProvokingVertex;
 
    key->render_to_fbo = brw->intel.ctx.DrawBuffer->Name != 0;
 }
@@ -246,7 +249,7 @@ sf_unit_create_from_key(struct brw_context *brw, struct brw_sf_unit_key *key,
    else if (sf.sf6.line_width <= 0x2)
        sf.sf6.line_width = 0;
 
-   /* _NEW_POINT */
+   /* _NEW_BUFFERS */
    key->render_to_fbo = brw->intel.ctx.DrawBuffer->Name != 0;
    if (!key->render_to_fbo) {
       /* Rendering to an OpenGL window */
@@ -276,6 +279,7 @@ sf_unit_create_from_key(struct brw_context *brw, struct brw_sf_unit_key *key,
    }
    /* XXX clamp max depends on AA vs. non-AA */
 
+   /* _NEW_POINT */
    sf.sf7.sprite_point = key->point_sprite;
    sf.sf7.point_size = CLAMP(rint(key->point_size), 1, 255) * (1<<3);
    sf.sf7.use_point_size_state = !key->point_attenuated;
@@ -283,9 +287,15 @@ sf_unit_create_from_key(struct brw_context *brw, struct brw_sf_unit_key *key,
 
    /* might be BRW_NEW_PRIMITIVE if we have to adjust pv for polygons:
     */
-   sf.sf7.trifan_pv = 2;
-   sf.sf7.linestrip_pv = 1;
-   sf.sf7.tristrip_pv = 2;
+   if (key->provoking_vertex == GL_LAST_VERTEX_CONVENTION) {
+      sf.sf7.trifan_pv = 2;
+      sf.sf7.linestrip_pv = 1;
+      sf.sf7.tristrip_pv = 2;
+   } else {
+      sf.sf7.trifan_pv = 1;
+      sf.sf7.linestrip_pv = 0;
+      sf.sf7.tristrip_pv = 0;
+   }
    sf.sf7.line_last_pixel_enable = 0;
 
    /* Set bias for OpenGL rasterization rules:
@@ -299,6 +309,9 @@ sf_unit_create_from_key(struct brw_context *brw, struct brw_sf_unit_key *key,
 			 &sf, sizeof(sf),
 			 NULL, NULL);
 
+   /* STATE_PREFETCH command description describes this state as being
+    * something loaded through the GPE (L2 ISC), so it's INSTRUCTION domain.
+    */
    /* Emit SF program relocation */
    dri_bo_emit_reloc(bo,
 		     I915_GEM_DOMAIN_INSTRUCTION, 0,
@@ -339,9 +352,11 @@ static void upload_sf_unit( struct brw_context *brw )
 const struct brw_tracked_state brw_sf_unit = {
    .dirty = {
       .mesa  = (_NEW_POLYGON | 
+		_NEW_LIGHT |
 		_NEW_LINE | 
 		_NEW_POINT | 
-		_NEW_SCISSOR),
+		_NEW_SCISSOR |
+		_NEW_BUFFERS),
       .brw   = BRW_NEW_URB_FENCE,
       .cache = (CACHE_NEW_SF_VP |
 		CACHE_NEW_SF_PROG)

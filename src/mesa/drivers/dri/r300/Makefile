@@ -27,16 +27,19 @@ COMMON_SOURCES = \
 	../common/dri_util.c
 
 RADEON_COMMON_SOURCES = \
-	radeon_texture.c \
+	radeon_bo_legacy.c \
+	radeon_buffer_objects.c \
 	radeon_common_context.c \
 	radeon_common.c \
-	radeon_dma.c \
-	radeon_lock.c \
-	radeon_bo_legacy.c \
 	radeon_cs_legacy.c \
+	radeon_dma.c \
+	radeon_debug.c \
+	radeon_fbo.c \
+	radeon_lock.c \
 	radeon_mipmap_tree.c \
 	radeon_span.c \
-	radeon_fbo.c
+	radeon_queryobj.c \
+	radeon_texture.c
 
 DRIVER_SOURCES = \
 		 radeon_screen.c \
@@ -48,17 +51,8 @@ DRIVER_SOURCES = \
 		 r300_render.c \
 		 r300_tex.c \
 		 r300_texstate.c \
-		 radeon_program.c \
-		 radeon_program_alu.c \
-		 radeon_program_pair.c \
-		 radeon_nqssadce.c \
 		 r300_vertprog.c \
 		 r300_fragprog_common.c \
-		 r300_fragprog.c \
-		 r300_fragprog_swizzle.c \
-		 r300_fragprog_emit.c \
-		 r500_fragprog.c \
-		 r500_fragprog_emit.c \
 		 r300_shader.c \
 		 r300_emit.c \
 		 r300_swtcl.c \
@@ -73,54 +67,18 @@ DRIVER_DEFINES = -DCOMPILE_R300 -DR200_MERGED=0 \
 #	-DRADEON_BO_TRACK \
 	-Wall
 
-SYMLINKS = \
-	server/radeon_dri.c \
-	server/radeon_dri.h \
-	server/radeon.h \
-	server/radeon_macros.h \
-	server/radeon_reg.h \
-	server/radeon_egl.c
-
-COMMON_SYMLINKS = \
-	radeon_chipset.h \
-	radeon_screen.c \
-	radeon_screen.h \
-	radeon_span.h \
-	radeon_span.c \
-	radeon_bo_legacy.c \
-	radeon_cs_legacy.c \
-	radeon_bo_legacy.h \
-	radeon_cs_legacy.h \
-	radeon_bocs_wrapper.h \
-	radeon_lock.c \
-	radeon_lock.h \
-	radeon_common.c \
-	radeon_common.h \
-	radeon_common_context.c \
-	radeon_common_context.h \
-	radeon_cmdbuf.h \
-	radeon_dma.c \
-	radeon_dma.h \
-	radeon_mipmap_tree.c \
-	radeon_mipmap_tree.h \
-	radeon_texture.c \
-	radeon_texture.h \
-	radeon_fbo.c \
-	$(CS_SOURCES)
-
 DRI_LIB_DEPS += $(RADEON_LDFLAGS)
+
+PIPE_DRIVERS =  compiler/libr300compiler.a
 
 ##### TARGETS #####
 
 include ../Makefile.template
 
-server:
-	mkdir -p server
+symlinks:
 
-$(SYMLINKS): server
-	@[ -e $@ ] || ln -sf ../../radeon/$@ server/
+# Mark the archive phony so that we always check for recompilation
+.PHONY : compiler/libr300compiler.a
 
-$(COMMON_SYMLINKS):
-	@[ -e $@ ] || ln -sf ../radeon/$@ ./
-
-symlinks: $(SYMLINKS) $(COMMON_SYMLINKS)
+compiler/libr300compiler.a:
+	cd compiler && $(MAKE)

@@ -574,6 +574,10 @@ static void r200FrontFace( GLcontext *ctx, GLenum mode )
    R200_STATECHANGE( rmesa, tcl );
    rmesa->hw.tcl.cmd[TCL_UCP_VERT_BLEND_CTL] &= ~R200_CULL_FRONT_IS_CCW;
 
+   /* Winding is inverted when rendering to FBO */
+   if (ctx->DrawBuffer && ctx->DrawBuffer->Name)
+      mode = (mode == GL_CW) ? GL_CCW : GL_CW;
+
    switch ( mode ) {
    case GL_CW:
       rmesa->hw.set.cmd[SET_SE_CNTL] |= R200_FFACE_CULL_CW;
@@ -758,31 +762,6 @@ static void r200PolygonOffset( GLcontext *ctx,
    R200_STATECHANGE( rmesa, zbs );
    rmesa->hw.zbs.cmd[ZBS_SE_ZBIAS_FACTOR]   = factoru.ui32;
    rmesa->hw.zbs.cmd[ZBS_SE_ZBIAS_CONSTANT] = constant.ui32;
-}
-
-static void r200PolygonStipple( GLcontext *ctx, const GLubyte *mask )
-{
-   r200ContextPtr rmesa = R200_CONTEXT(ctx);
-   GLuint i;
-   drm_radeon_stipple_t stipple;
-
-   /* Must flip pattern upside down.
-    */
-   for ( i = 0 ; i < 32 ; i++ ) {
-      rmesa->state.stipple.mask[31 - i] = ((GLuint *) mask)[i];
-   }
-
-   /* TODO: push this into cmd mechanism
-    */
-   radeon_firevertices(&rmesa->radeon);
-   LOCK_HARDWARE( &rmesa->radeon );
-
-   /* FIXME: Use window x,y offsets into stipple RAM.
-    */
-   stipple.mask = rmesa->state.stipple.mask;
-   drmCommandWrite( rmesa->radeon.dri.fd, DRM_RADEON_STIPPLE,
-                    &stipple, sizeof(stipple) );
-   UNLOCK_HARDWARE( &rmesa->radeon );
 }
 
 static void r200PolygonMode( GLcontext *ctx, GLenum face, GLenum mode )
@@ -1049,7 +1028,7 @@ void r200UpdateMaterial( GLcontext *ctx )
    if (ctx->Light.ColorMaterialEnabled)
       mask &= ~ctx->Light.ColorMaterialBitmask;
 
-   if (R200_DEBUG & DEBUG_STATE)
+   if (R200_DEBUG & RADEON_STATE)
       fprintf(stderr, "%s\n", __FUNCTION__);
 
    if (mask & MAT_BIT_FRONT_EMISSION) {
@@ -1646,6 +1625,30 @@ void r200UpdateWindow( GLcontext *ctx )
    rmesa->hw.vpt.cmd[VPT_SE_VPORT_ZOFFSET] = tz.ui32;
 }
 
+void r200_vtbl_update_scissor( GLcontext *ctx )
+{
+   r200ContextPtr r200 = R200_CONTEXT(ctx);
+   unsigned x1, y1, x2, y2;
+   struct radeon_renderbuffer *rrb;
+
+   R200_SET_STATE(r200, set, SET_RE_CNTL, R200_SCISSOR_ENABLE | r200->hw.set.cmd[SET_RE_CNTL]);
+
+   if (r200->radeon.state.scissor.enabled) {
+      x1 = r200->radeon.state.scissor.rect.x1;
+      y1 = r200->radeon.state.scissor.rect.y1;
+      x2 = r200->radeon.state.scissor.rect.x2;
+      y2 = r200->radeon.state.scissor.rect.y2;
+   } else {
+      rrb = radeon_get_colorbuffer(&r200->radeon);
+      x1 = 0;
+      y1 = 0;
+      x2 = rrb->base.Width - 1;
+      y2 = rrb->base.Height - 1;
+   }
+
+   R200_SET_STATE(r200, sci, SCI_XY_1, x1 | (y1 << 16));
+   R200_SET_STATE(r200, sci, SCI_XY_2, x2 | (y2 << 16));
+}
 
 
 static void r200Viewport( GLcontext *ctx, GLint x, GLint y,
@@ -1787,7 +1790,7 @@ static void r200Enable( GLcontext *ctx, GLenum cap, GLboolean state )
    r200ContextPtr rmesa = R200_CONTEXT(ctx);
    GLuint p, flag;
 
-   if ( R200_DEBUG & DEBUG_STATE )
+   if ( R200_DEBUG & RADEON_STATE )
       fprintf( stderr, "%s( %s = %s )\n", __FUNCTION__,
 	       _mesa_lookup_enum_by_nr( cap ),
 	       state ? "GL_TRUE" : "GL_FALSE" );
@@ -2171,7 +2174,7 @@ void r200LightingSpaceChange( GLcontext *ctx )
    r200ContextPtr rmesa = R200_CONTEXT(ctx);
    GLboolean tmp;
 
-   if (R200_DEBUG & DEBUG_STATE)
+   if (R200_DEBUG & RADEON_STATE)
       fprintf(stderr, "%s %d BEFORE %x\n", __FUNCTION__, ctx->_NeedEyeCoords,
 	      rmesa->hw.tcl.cmd[TCL_LIGHT_MODEL_CTL_0]);
 
@@ -2187,7 +2190,7 @@ void r200LightingSpaceChange( GLcontext *ctx )
       rmesa->hw.tcl.cmd[TCL_LIGHT_MODEL_CTL_0] &= ~R200_RESCALE_NORMALS;
    }
 
-   if (R200_DEBUG & DEBUG_STATE)
+   if (R200_DEBUG & RADEON_STATE)
       fprintf(stderr, "%s %d AFTER %x\n", __FUNCTION__, ctx->_NeedEyeCoords,
 	      rmesa->hw.tcl.cmd[TCL_LIGHT_MODEL_CTL_0]);
 }
@@ -2230,7 +2233,7 @@ static void update_texturematrix( GLcontext *ctx )
    GLuint compsel = rmesa->hw.vtx.cmd[VTX_TCL_OUTPUT_COMPSEL];
    int unit;
 
-   if (R200_DEBUG & DEBUG_STATE)
+   if (R200_DEBUG & RADEON_STATE)
       fprintf(stderr, "%s before COMPSEL: %x\n", __FUNCTION__,
 	      rmesa->hw.vtx.cmd[VTX_TCL_OUTPUT_COMPSEL]);
 
@@ -2285,8 +2288,11 @@ static GLboolean r200ValidateBuffers(GLcontext *ctx)
 {
    r200ContextPtr rmesa = R200_CONTEXT(ctx);
    struct radeon_renderbuffer *rrb;
+   struct radeon_dma_bo *dma_bo;
    int i, ret;
 
+	if (RADEON_DEBUG & RADEON_IOCTL)
+		fprintf(stderr, "%s\n", __FUNCTION__);
    radeon_cs_space_reset_bos(rmesa->radeon.cmdbuf.cs);
 
    rrb = radeon_get_colorbuffer(&rmesa->radeon);
@@ -2319,9 +2325,12 @@ static GLboolean r200ValidateBuffers(GLcontext *ctx)
 			   RADEON_GEM_DOMAIN_GTT | RADEON_GEM_DOMAIN_VRAM, 0);
    }
 
-   ret = radeon_cs_space_check_with_bo(rmesa->radeon.cmdbuf.cs, rmesa->radeon.dma.current, RADEON_GEM_DOMAIN_GTT, 0);
-   if (ret)
-       return GL_FALSE;
+   dma_bo = first_elem(&rmesa->radeon.dma.reserved);
+   {
+       ret = radeon_cs_space_check_with_bo(rmesa->radeon.cmdbuf.cs, dma_bo->bo, RADEON_GEM_DOMAIN_GTT, 0);
+       if (ret)
+	   return GL_FALSE;
+   }
    return GL_TRUE;
 }
 
@@ -2457,9 +2466,24 @@ static void r200WrapRunPipeline( GLcontext *ctx )
 }
 
 
+static void r200PolygonStipple( GLcontext *ctx, const GLubyte *mask )
+{
+   r200ContextPtr r200 = R200_CONTEXT(ctx);
+   GLint i;
+
+   radeon_firevertices(&r200->radeon);
+
+   R200_STATECHANGE(r200, stp);
+
+   /* Must flip pattern upside down.
+    */
+   for ( i = 31 ; i >= 0; i--) {
+     r200->hw.stp.cmd[3 + i] = ((GLuint *) mask)[i];
+   }
+}
 /* Initialize the driver's state functions.
  */
-void r200InitStateFuncs( struct dd_function_table *functions )
+void r200InitStateFuncs( struct dd_function_table *functions, GLboolean dri2 )
 {
    functions->UpdateState		= r200InvalidateState;
    functions->LightingSpaceChange	= r200LightingSpaceChange;
@@ -2493,7 +2517,10 @@ void r200InitStateFuncs( struct dd_function_table *functions )
    functions->LogicOpcode		= r200LogicOpCode;
    functions->PolygonMode		= r200PolygonMode;
    functions->PolygonOffset		= r200PolygonOffset;
-   functions->PolygonStipple		= r200PolygonStipple;
+   if (dri2)
+      functions->PolygonStipple		= r200PolygonStipple;
+   else
+      functions->PolygonStipple		= radeonPolygonStipplePreKMS;
    functions->PointParameterfv		= r200PointParameter;
    functions->PointSize			= r200PointSize;
    functions->RenderMode		= r200RenderMode;

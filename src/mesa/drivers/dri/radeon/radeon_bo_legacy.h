@@ -42,6 +42,9 @@ struct radeon_bo_manager *radeon_bo_manager_legacy_ctor(struct radeon_screen *sc
 void radeon_bo_manager_legacy_dtor(struct radeon_bo_manager *bom);
 void radeon_bo_legacy_texture_age(struct radeon_bo_manager *bom);
 unsigned radeon_bo_legacy_relocs_size(struct radeon_bo *bo);
+struct radeon_bo *radeon_legacy_bo_alloc_fake(struct radeon_bo_manager *bom,
+					      int size,
+	                                      uint32_t offset);
+void legacy_track_pending(struct radeon_bo_manager *bom, int debug);
 
-int radeon_legacy_bo_is_static(struct radeon_bo *bo);
 #endif

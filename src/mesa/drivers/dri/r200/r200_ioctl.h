@@ -44,6 +44,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "drm.h"
 #include "radeon_drm.h"
 
+extern void r200EmitMaxVtxIndex(r200ContextPtr rmesa, int count);
 extern void r200EmitVertexAOS( r200ContextPtr rmesa,
 			       GLuint vertex_size,
 			       struct radeon_bo *bo,
@@ -98,6 +99,16 @@ do {								\
    rmesa->radeon.hw.is_dirty = GL_TRUE;				\
 } while (0)
 
+#define R200_SET_STATE( rmesa, ATOM, index, newvalue ) 	\
+  do {	\
+    uint32_t __index = (index); \
+    uint32_t __dword = (newvalue); \
+    if (__dword != (rmesa)->hw.ATOM.cmd[__index]) { \
+      R200_STATECHANGE( (rmesa), ATOM ); \
+      (rmesa)->hw.ATOM.cmd[__index] = __dword; \
+    } \
+  } while(0)
+
 #define R200_DB_STATE( ATOM )			        \
    memcpy( rmesa->hw.ATOM.lastcmd, rmesa->hw.ATOM.cmd,	\
 	   rmesa->hw.ATOM.cmd_size * 4)
@@ -125,10 +136,12 @@ static INLINE int R200_DB_STATECHANGE(
  * are available, you will also be adding an rmesa->state.max_state_size because
  * r200EmitState is called from within r200EmitVbufPrim and r200FlushElts.
  */
-#define AOS_BUFSZ(nr)	((3 + ((nr / 2) * 3) + ((nr & 1) * 2)) * sizeof(int))
-#define VERT_AOS_BUFSZ	(5 * sizeof(int))
+#define AOS_BUFSZ(nr)	((3 + ((nr / 2) * 3) + ((nr & 1) * 2) + nr*2))
+#define VERT_AOS_BUFSZ	(5)
 #define ELTS_BUFSZ(nr)	(12 + nr * 2)
-#define VBUF_BUFSZ	(3 * sizeof(int))
+#define VBUF_BUFSZ	(3)
+#define SCISSOR_BUFSZ	(8)
+#define INDEX_BUFSZ	(8+2)
 
 static inline uint32_t cmdpacket3(int cmd_type)
 {

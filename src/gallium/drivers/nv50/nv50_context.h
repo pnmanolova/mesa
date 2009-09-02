@@ -71,12 +71,11 @@ struct nv50_sampler_stateobj {
 struct nv50_miptree_level {
 	int *image_offset;
 	unsigned pitch;
+	unsigned tile_mode;
 };
 
 struct nv50_miptree {
-	struct pipe_texture base;
-
-	struct nouveau_bo *bo;
+	struct nouveau_miptree base;
 
 	struct nv50_miptree_level level[PIPE_MAX_TEXTURE_LEVELS];
 	int image_nr;
@@ -119,6 +118,7 @@ struct nv50_state {
 	struct nouveau_stateobj *fragprog;
 	struct nouveau_stateobj *vtxfmt;
 	struct nouveau_stateobj *vtxbuf;
+	struct nouveau_stateobj *vtxattr;
 };
 
 struct nv50_context {

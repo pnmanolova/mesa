@@ -34,6 +34,7 @@
 
 #include "glapi/glapi.h"
 #include "stw_public.h"
+#include "stw_extgallium.h"
 
 struct stw_extension_entry
 {
@@ -60,6 +61,10 @@ static const struct stw_extension_entry stw_extension_entries[] = {
    STW_EXTENSION_ENTRY( wglGetSwapIntervalEXT ),
    STW_EXTENSION_ENTRY( wglSwapIntervalEXT ),
 
+   /* WGL_EXT_gallium ? */
+   STW_EXTENSION_ENTRY( wglGetGalliumScreenMESA ),
+   STW_EXTENSION_ENTRY( wglCreateGalliumContextMESA ),
+
    { NULL, NULL }
 };
 
@@ -75,7 +80,7 @@ stw_get_proc_address(
             return entry->proc;
 
    if (lpszProc[0] == 'g' && lpszProc[1] == 'l')
-        return (PROC) _glapi_get_proc_address( lpszProc );
+      return (PROC) _glapi_get_proc_address( lpszProc );
 
    return NULL;
 }

@@ -168,7 +168,9 @@ static void legacy_get_current_age(struct bo_manager_legacy *boml)
     unsigned char *RADEONMMIO = NULL;
     int r;
 
-    if (IS_R300_CLASS(boml->screen)) {
+    if (   IS_R300_CLASS(boml->screen) 
+        || IS_R600_CLASS(boml->screen) ) 
+    {
     	gp.param = RADEON_PARAM_LAST_CLEAR;
     	gp.value = (int *)&boml->current_age;
     	r = drmCommandWriteRead(boml->base.fd, DRM_RADEON_GETPARAM,
@@ -177,7 +179,8 @@ static void legacy_get_current_age(struct bo_manager_legacy *boml)
        	 fprintf(stderr, "%s: drmRadeonGetParam: %d\n", __FUNCTION__, r);
          exit(1);
        }
-    } else {
+    } 
+    else {
         RADEONMMIO = boml->screen->mmio.map;
         boml->current_age = boml->screen->scratch[3];
         boml->current_age = INREG(RADEON_GUI_SCRATCH_REG3);
@@ -232,8 +235,9 @@ static int legacy_wait_pending(struct radeon_bo *bo)
     return 0;
 }
 
-static void legacy_track_pending(struct bo_manager_legacy *boml, int debug)
+void legacy_track_pending(struct radeon_bo_manager *bom, int debug)
 {
+    struct bo_manager_legacy *boml = (struct bo_manager_legacy*) bom;
     struct bo_legacy *bo_legacy;
     struct bo_legacy *next;
 
@@ -241,8 +245,8 @@ static void legacy_track_pending(struct bo_manager_legacy *boml, int debug)
     bo_legacy = boml->pending_bos.pnext;
     while (bo_legacy) {
         if (debug)
-	  fprintf(stderr,"pending %p %d %d %d\n", bo_legacy, bo_legacy->base.size,
-		  boml->current_age, bo_legacy->pending);
+            fprintf(stderr,"pending %p %d %d %d\n", bo_legacy, bo_legacy->base.size,
+                    boml->current_age, bo_legacy->pending);
         next = bo_legacy->pnext;
         if (legacy_is_pending(&(bo_legacy->base))) {
         }
@@ -315,6 +319,7 @@ static struct bo_legacy *bo_allocate(struct bo_manager_legacy *boml,
     if (bo_legacy->next) {
         bo_legacy->next->prev = bo_legacy;
     }
+
     return bo_legacy;
 }
 
@@ -430,7 +435,6 @@ static struct radeon_bo *bo_open(struct radeon_bo_manager *bom,
         }
         return NULL;
     }
-
     bo_legacy = bo_allocate(boml, size, alignment, domains, flags);
     bo_legacy->static_bo = 0;
     r = legacy_new_handle(boml, &bo_legacy->base.handle);
@@ -438,21 +442,26 @@ static struct radeon_bo *bo_open(struct radeon_bo_manager *bom,
         bo_free(bo_legacy);
         return NULL;
     }
-    if (bo_legacy->base.domains & RADEON_GEM_DOMAIN_GTT) {
-    retry:
-        legacy_track_pending(boml, 0);
+    if (bo_legacy->base.domains & RADEON_GEM_DOMAIN_GTT) 
+    {
+retry:
+        legacy_track_pending(&boml->base, 0);
         /* dma buffers */
 
         r = bo_dma_alloc(&(bo_legacy->base));
-        if (r) {
-	  if (legacy_wait_any_pending(boml) == -1) {
-            bo_free(bo_legacy);
-	    return NULL;
-	  }
-	  goto retry;
-	  return NULL;
+        if (r) 
+        {
+	         if (legacy_wait_any_pending(boml) == -1) 
+             {
+                  bo_free(bo_legacy);
+	              return NULL;
+             }
+	         goto retry;
+	         return NULL;
         }
-    } else {
+    } 
+    else 
+    {
         bo_legacy->ptr = malloc(bo_legacy->base.size);
         if (bo_legacy->ptr == NULL) {
             bo_free(bo_legacy);
@@ -460,6 +469,7 @@ static struct radeon_bo *bo_open(struct radeon_bo_manager *bom,
         }
     }
     radeon_bo_ref(&(bo_legacy->base));
+
     return (struct radeon_bo*)bo_legacy;
 }
 
@@ -488,7 +498,7 @@ static int bo_map(struct radeon_bo *bo, int write)
 {
     struct bo_manager_legacy *boml = (struct bo_manager_legacy *)bo->bom;
     struct bo_legacy *bo_legacy = (struct bo_legacy*)bo;
-    
+
     legacy_wait_pending(bo);
     bo_legacy->validated = 0;
     bo_legacy->dirty = 1;
@@ -514,6 +524,7 @@ static int bo_map(struct radeon_bo *bo, int write)
         volatile int *buf = (int*)boml->screen->driScreen->pFB;
         p = *buf;
     }
+
     return 0;
 }
 
@@ -521,13 +532,28 @@ static int bo_unmap(struct radeon_bo *bo)
 {
     struct bo_legacy *bo_legacy = (struct bo_legacy*)bo;
 
-    if (--bo_legacy->map_count > 0) {
+    if (--bo_legacy->map_count > 0) 
+    {
         return 0;
     }
+    
     bo->ptr = NULL;
+
     return 0;
 }
 
+static int bo_is_busy(struct radeon_bo *bo, uint32_t *domain)
+{
+    *domain = 0;
+    if (bo->domains & RADEON_GEM_DOMAIN_GTT)
+        *domain = RADEON_GEM_DOMAIN_GTT;
+    else
+        *domain = RADEON_GEM_DOMAIN_CPU;
+    if (legacy_is_pending(bo))
+        return -EBUSY;
+    else
+        return 0;
+}
 
 static int bo_is_static(struct radeon_bo *bo)
 {
@@ -543,6 +569,9 @@ static struct radeon_bo_funcs bo_legacy_funcs = {
     bo_unmap,
     NULL,
     bo_is_static,
+    NULL,
+    NULL,
+    bo_is_busy
 };
 
 static int bo_vram_validate(struct radeon_bo *bo,
@@ -565,7 +594,7 @@ static int bo_vram_validate(struct radeon_bo *bo,
         if (r) {
 		pending_retry = 0;
 		while(boml->cpendings && pending_retry++ < 10000) {
-			legacy_track_pending(boml, 0);
+			legacy_track_pending(&boml->base, 0);
 			retry_count++;
 			if (retry_count > 2) {
 				free(bo_legacy->tobj);
@@ -587,44 +616,75 @@ static int bo_vram_validate(struct radeon_bo *bo,
 	driUpdateTextureLRU(&bo_legacy->tobj->base);
 
     if (bo_legacy->dirty || bo_legacy->tobj->base.dirty_images[0]) {
-        /* Copy to VRAM using a blit.
-         * All memory is 4K aligned. We're using 1024 pixels wide blits.
-         */
-        drm_radeon_texture_t tex;
-        drm_radeon_tex_image_t tmp;
-        int ret;
+	    if (IS_R600_CLASS(boml->screen)) {
+		    drm_radeon_texture_t tex;
+		    drm_radeon_tex_image_t tmp;
+		    int ret;
 
-        tex.offset = bo_legacy->offset;
-        tex.image = &tmp;
-        assert(!(tex.offset & 1023));
+		    tex.offset = bo_legacy->offset;
+		    tex.image = &tmp;
+		    assert(!(tex.offset & 1023));
 
-        tmp.x = 0;
-        tmp.y = 0;
-        if (bo->size < 4096) {
-            tmp.width = (bo->size + 3) / 4;
-            tmp.height = 1;
-        } else {
-            tmp.width = 1024;
-            tmp.height = (bo->size + 4095) / 4096;
-        }
-        tmp.data = bo_legacy->ptr;
-        tex.format = RADEON_TXFORMAT_ARGB8888;
-        tex.width = tmp.width;
-        tex.height = tmp.height;
-        tex.pitch = MAX2(tmp.width / 16, 1);
-        do {
-            ret = drmCommandWriteRead(bo->bom->fd,
-                                      DRM_RADEON_TEXTURE,
-                                      &tex,
-                                      sizeof(drm_radeon_texture_t));
-            if (ret) {
-                if (RADEON_DEBUG & DEBUG_IOCTL)
-                    fprintf(stderr, "DRM_RADEON_TEXTURE:  again!\n");
-                usleep(1);
-            }
-        } while (ret == -EAGAIN);
-        bo_legacy->dirty = 0;
-	bo_legacy->tobj->base.dirty_images[0] = 0;
+		    tmp.x = 0;
+		    tmp.y = 0;
+		    tmp.width = bo->size;
+		    tmp.height = 1;
+		    tmp.data = bo_legacy->ptr;
+		    tex.format = RADEON_TXFORMAT_ARGB8888;
+		    tex.width = tmp.width;
+		    tex.height = tmp.height;
+		    tex.pitch = bo->size;
+		    do {
+			    ret = drmCommandWriteRead(bo->bom->fd,
+						      DRM_RADEON_TEXTURE,
+						      &tex,
+						      sizeof(drm_radeon_texture_t));
+			    if (ret) {
+				    if (RADEON_DEBUG & RADEON_IOCTL)
+					    fprintf(stderr, "DRM_RADEON_TEXTURE:  again!\n");
+				    usleep(1);
+			    }
+		    } while (ret == -EAGAIN);
+	    } else {
+		    /* Copy to VRAM using a blit.
+		     * All memory is 4K aligned. We're using 1024 pixels wide blits.
+		     */
+		    drm_radeon_texture_t tex;
+		    drm_radeon_tex_image_t tmp;
+		    int ret;
+
+		    tex.offset = bo_legacy->offset;
+		    tex.image = &tmp;
+		    assert(!(tex.offset & 1023));
+
+		    tmp.x = 0;
+		    tmp.y = 0;
+		    if (bo->size < 4096) {
+			    tmp.width = (bo->size + 3) / 4;
+			    tmp.height = 1;
+		    } else {
+			    tmp.width = 1024;
+			    tmp.height = (bo->size + 4095) / 4096;
+		    }
+		    tmp.data = bo_legacy->ptr;
+		    tex.format = RADEON_TXFORMAT_ARGB8888;
+		    tex.width = tmp.width;
+		    tex.height = tmp.height;
+		    tex.pitch = MAX2(tmp.width / 16, 1);
+		    do {
+			    ret = drmCommandWriteRead(bo->bom->fd,
+						      DRM_RADEON_TEXTURE,
+						      &tex,
+						      sizeof(drm_radeon_texture_t));
+			    if (ret) {
+				    if (RADEON_DEBUG & RADEON_IOCTL)
+					    fprintf(stderr, "DRM_RADEON_TEXTURE:  again!\n");
+				    usleep(1);
+			    }
+		    } while (ret == -EAGAIN);
+	    }
+	    bo_legacy->dirty = 0;
+	    bo_legacy->tobj->base.dirty_images[0] = 0;
     }
     return 0;
 }
@@ -653,13 +713,14 @@ int radeon_bo_legacy_validate(struct radeon_bo *bo,
     if (bo_legacy->static_bo || bo_legacy->validated) {
         *soffset = bo_legacy->offset;
         *eoffset = bo_legacy->offset + bo->size;
+
         return 0;
     }
     if (!(bo->domains & RADEON_GEM_DOMAIN_GTT)) {
 
         r = bo_vram_validate(bo, soffset, eoffset);
         if (r) {
-	    legacy_track_pending(boml, 0);
+	    legacy_track_pending(&boml->base, 0);
 	    legacy_kick_all_buffers(boml);
 	    retries++;
 	    if (retries == 2) {
@@ -673,6 +734,7 @@ int radeon_bo_legacy_validate(struct radeon_bo *bo,
     *soffset = bo_legacy->offset;
     *eoffset = bo_legacy->offset + bo->size;
     bo_legacy->validated = 1;
+
     return 0;
 }
 
@@ -717,11 +779,13 @@ void radeon_bo_manager_legacy_dtor(struct radeon_bo_manager *bom)
 }
 
 static struct bo_legacy *radeon_legacy_bo_alloc_static(struct bo_manager_legacy *bom,
-						       int size, uint32_t offset)
+						       int size,
+						       uint32_t offset)
 {
     struct bo_legacy *bo;
 
     bo = bo_allocate(bom, size, 0, RADEON_GEM_DOMAIN_VRAM, 0);
+
     if (bo == NULL)
 	return NULL;
     bo->static_bo = 1;
@@ -783,6 +847,7 @@ struct radeon_bo_manager *radeon_bo_manager_legacy_ctor(struct radeon_screen *sc
 
     /* allocate front */
     bo = radeon_legacy_bo_alloc_static(bom, size, bom->screen->frontOffset);
+
     if (!bo) {
         radeon_bo_manager_legacy_dtor((struct radeon_bo_manager*)bom);
         return NULL;
@@ -793,6 +858,7 @@ struct radeon_bo_manager *radeon_bo_manager_legacy_ctor(struct radeon_screen *sc
 
     /* allocate back */
     bo = radeon_legacy_bo_alloc_static(bom, size, bom->screen->backOffset);
+
     if (!bo) {
         radeon_bo_manager_legacy_dtor((struct radeon_bo_manager*)bom);
         return NULL;
@@ -803,6 +869,7 @@ struct radeon_bo_manager *radeon_bo_manager_legacy_ctor(struct radeon_screen *sc
 
     /* allocate depth */
     bo = radeon_legacy_bo_alloc_static(bom, size, bom->screen->depthOffset);
+
     if (!bo) {
         radeon_bo_manager_legacy_dtor((struct radeon_bo_manager*)bom);
         return NULL;
@@ -829,5 +896,31 @@ unsigned radeon_bo_legacy_relocs_size(struct radeon_bo *bo)
         return 0;
     }
     return bo->size;
+}
+
+/*
+ * Fake up a bo for things like texture image_override.
+ * bo->offset already includes fb_location
+ */
+struct radeon_bo *radeon_legacy_bo_alloc_fake(struct radeon_bo_manager *bom,
+					      int size,
+	                                      uint32_t offset)
+{
+    struct bo_manager_legacy *boml = (struct bo_manager_legacy *)bom;
+    struct bo_legacy *bo;
+
+    bo = bo_allocate(boml, size, 0, RADEON_GEM_DOMAIN_VRAM, 0);
+
+    if (bo == NULL)
+	return NULL;
+    bo->static_bo = 1;
+    bo->offset = offset;
+    bo->base.handle = bo->offset;
+    bo->ptr = boml->screen->driScreen->pFB + (offset - boml->fb_location);
+    if (bo->base.handle > boml->nhandle) {
+        boml->nhandle = bo->base.handle + 1;
+    }
+    radeon_bo_ref(&(bo->base));
+    return &(bo->base);
 }
 

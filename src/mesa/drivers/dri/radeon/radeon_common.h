@@ -5,22 +5,12 @@
 #include "radeon_dma.h"
 #include "radeon_texture.h"
 
-
-#define TRI_CLEAR_COLOR_BITS (BUFFER_BIT_BACK_LEFT |			\
-			      BUFFER_BIT_FRONT_LEFT |			\
-			      BUFFER_BIT_COLOR0 |			\
-			      BUFFER_BIT_COLOR1 |			\
-			      BUFFER_BIT_COLOR2 |			\
-			      BUFFER_BIT_COLOR3 |			\
-			      BUFFER_BIT_COLOR4 |			\
-			      BUFFER_BIT_COLOR5 |			\
-			      BUFFER_BIT_COLOR6 |			\
-			      BUFFER_BIT_COLOR7)
-
+void radeonUserClear(GLcontext *ctx, GLuint mask);
 void radeonRecalcScissorRects(radeonContextPtr radeon);
 void radeonSetCliprects(radeonContextPtr radeon);
 void radeonUpdateScissor( GLcontext *ctx );
 void radeonScissor(GLcontext* ctx, GLint x, GLint y, GLsizei w, GLsizei h);
+void radeonPolygonStipplePreKMS( GLcontext *ctx, const GLubyte *mask );
 
 void radeonWaitForIdleLocked(radeonContextPtr radeon);
 extern uint32_t radeonGetAge(radeonContextPtr radeon);
@@ -35,6 +25,7 @@ void radeonUpdatePageFlipping(radeonContextPtr rmesa);
 void radeonFlush(GLcontext *ctx);
 void radeonFinish(GLcontext * ctx);
 void radeonEmitState(radeonContextPtr radeon);
+GLuint radeonCountStateEmitSize(radeonContextPtr radeon);
 
 void radeon_clear_tris(GLcontext *ctx, GLbitfield mask);
 

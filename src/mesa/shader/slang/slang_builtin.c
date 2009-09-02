@@ -436,7 +436,7 @@ emit_statevars(const char *name, int array_len,
                struct gl_program_parameter_list *paramList)
 {
    if (type->type == SLANG_SPEC_ARRAY) {
-      GLint i, pos;
+      GLint i, pos = -1;
       assert(array_len > 0);
       if (strcmp(name, "gl_ClipPlane") == 0) {
          tokens[0] = STATE_CLIPPLANE;
@@ -709,4 +709,224 @@ _slang_alloc_statevar(slang_ir_node *n,
 
    *direct = GL_FALSE;
    return alloc_state_var_array(n->Var, paramList);
+}
+
+
+
+
+#define SWIZZLE_ZWWW MAKE_SWIZZLE4(SWIZZLE_Z, SWIZZLE_W, SWIZZLE_W, SWIZZLE_W)
+
+
+/** Predefined shader inputs */
+struct input_info
+{
+   const char *Name;
+   GLuint Attrib;
+   GLenum Type;
+   GLuint Swizzle;
+};
+
+/** Predefined vertex shader inputs/attributes */
+static const struct input_info vertInputs[] = {
+   { "gl_Vertex", VERT_ATTRIB_POS, GL_FLOAT_VEC4, SWIZZLE_NOOP },
+   { "gl_Normal", VERT_ATTRIB_NORMAL, GL_FLOAT_VEC3, SWIZZLE_NOOP },
+   { "gl_Color", VERT_ATTRIB_COLOR0, GL_FLOAT_VEC4, SWIZZLE_NOOP },
+   { "gl_SecondaryColor", VERT_ATTRIB_COLOR1, GL_FLOAT_VEC4, SWIZZLE_NOOP },
+   { "gl_FogCoord", VERT_ATTRIB_FOG, GL_FLOAT, SWIZZLE_XXXX },
+   { "gl_MultiTexCoord0", VERT_ATTRIB_TEX0, GL_FLOAT_VEC4, SWIZZLE_NOOP },
+   { "gl_MultiTexCoord1", VERT_ATTRIB_TEX1, GL_FLOAT_VEC4, SWIZZLE_NOOP },
+   { "gl_MultiTexCoord2", VERT_ATTRIB_TEX2, GL_FLOAT_VEC4, SWIZZLE_NOOP },
+   { "gl_MultiTexCoord3", VERT_ATTRIB_TEX3, GL_FLOAT_VEC4, SWIZZLE_NOOP },
+   { "gl_MultiTexCoord4", VERT_ATTRIB_TEX4, GL_FLOAT_VEC4, SWIZZLE_NOOP },
+   { "gl_MultiTexCoord5", VERT_ATTRIB_TEX5, GL_FLOAT_VEC4, SWIZZLE_NOOP },
+   { "gl_MultiTexCoord6", VERT_ATTRIB_TEX6, GL_FLOAT_VEC4, SWIZZLE_NOOP },
+   { "gl_MultiTexCoord7", VERT_ATTRIB_TEX7, GL_FLOAT_VEC4, SWIZZLE_NOOP },
+   { NULL, 0, SWIZZLE_NOOP }
+};
+
+
+static const struct input_info geomInputs[] = {
+   { "gl_VerticesIn", GEOM_ATTRIB_VERTICES, SWIZZLE_NOOP },
+   { "gl_PrimitiveIDIn", GEOM_ATTRIB_PRIMITIVE_ID, SWIZZLE_NOOP },
+   { "gl_FrontColorIn", GEOM_ATTRIB_COLOR0, SWIZZLE_NOOP },
+   { "gl_BackColorIn", GEOM_ATTRIB_COLOR1, SWIZZLE_NOOP },
+   { "gl_FrontSecondaryColorIn", GEOM_ATTRIB_SECONDARY_COLOR0, SWIZZLE_NOOP },
+   { "gl_BackSecondaryColorIn", GEOM_ATTRIB_SECONDARY_COLOR1, SWIZZLE_NOOP },
+   { "gl_TexCoordIn", GEOM_ATTRIB_TEX_COORD, SWIZZLE_NOOP },
+   { "gl_FogFragCoordIn", GEOM_ATTRIB_FOG_FRAG_COORD, SWIZZLE_NOOP },
+   { "gl_PositionIn", GEOM_ATTRIB_POSITION, SWIZZLE_NOOP },
+   { "gl_ClipVertexIn", GEOM_ATTRIB_CLIP_VERTEX, SWIZZLE_NOOP },
+   { "gl_PointSizeIn", GEOM_ATTRIB_POINT_SIZE, SWIZZLE_NOOP },
+   { NULL, 0, SWIZZLE_NOOP }
+};
+
+/** Predefined fragment shader inputs */
+static const struct input_info fragInputs[] = {
+   { "gl_FragCoord", FRAG_ATTRIB_WPOS, GL_FLOAT_VEC4, SWIZZLE_NOOP },
+   { "gl_Color", FRAG_ATTRIB_COL0, GL_FLOAT_VEC4, SWIZZLE_NOOP },
+   { "gl_SecondaryColor", FRAG_ATTRIB_COL1, GL_FLOAT_VEC4, SWIZZLE_NOOP },
+   { "gl_TexCoord", FRAG_ATTRIB_TEX0, GL_FLOAT_VEC4, SWIZZLE_NOOP },
+   /* note: we're packing several quantities into the fogcoord vector */
+   { "gl_FogFragCoord", FRAG_ATTRIB_FOGC, GL_FLOAT, SWIZZLE_XXXX },
+   { "gl_FrontFacing", FRAG_ATTRIB_FACE, GL_FLOAT, SWIZZLE_XXXX },
+   { "gl_PointCoord", FRAG_ATTRIB_PNTC, GL_FLOAT_VEC2, SWIZZLE_XYZW },
+   { NULL, 0, SWIZZLE_NOOP }
+};
+
+
+/**
+ * Return the VERT_ATTRIB_* or FRAG_ATTRIB_* value that corresponds to
+ * a vertex or fragment program input variable.  Return -1 if the input
+ * name is invalid.
+ * XXX return size too
+ */
+GLint
+_slang_input_index(const char *name, GLenum target, GLuint *swizzleOut)
+{
+   const struct input_info *inputs;
+   GLuint i;
+
+   switch (target) {
+   case GL_VERTEX_PROGRAM_ARB:
+      inputs = vertInputs;
+      break;
+   case GL_FRAGMENT_PROGRAM_ARB:
+      inputs = fragInputs;
+      break;
+   case MESA_GEOMETRY_PROGRAM:
+      inputs = geomInputs;
+      break;
+   default:
+      _mesa_problem(NULL, "bad target in _slang_input_index");
+      return -1;
+   }
+
+   ASSERT(MAX_TEXTURE_COORD_UNITS == 8); /* if this fails, fix vertInputs above */
+
+   for (i = 0; inputs[i].Name; i++) {
+      if (strcmp(inputs[i].Name, name) == 0) {
+         /* found */
+         *swizzleOut = inputs[i].Swizzle;
+         return inputs[i].Attrib;
+      }
+   }
+   return -1;
+}
+
+
+/**
+ * Return name of the given vertex attribute (VERT_ATTRIB_x).
+ */
+const char *
+_slang_vert_attrib_name(GLuint attrib)
+{
+   GLuint i;
+   assert(attrib < VERT_ATTRIB_GENERIC0);
+   for (i = 0; vertInputs[i].Name; i++) {
+      if (vertInputs[i].Attrib == attrib)
+         return vertInputs[i].Name;
+   }
+   return NULL;
+}
+
+
+/**
+ * Return type (GL_FLOAT, GL_FLOAT_VEC2, etc) of the given vertex
+ * attribute (VERT_ATTRIB_x).
+ */
+GLenum
+_slang_vert_attrib_type(GLuint attrib)
+{
+   GLuint i;
+   assert(attrib < VERT_ATTRIB_GENERIC0);
+   for (i = 0; vertInputs[i].Name; i++) {
+      if (vertInputs[i].Attrib == attrib)
+         return vertInputs[i].Type;
+   }
+   return GL_NONE;
+}
+
+
+
+
+
+/** Predefined shader output info */
+struct output_info
+{
+   const char *Name;
+   GLuint Attrib;
+};
+
+/** Predefined vertex shader outputs */
+static const struct output_info vertOutputs[] = {
+   { "gl_Position", VERT_RESULT_HPOS },
+   { "gl_FrontColor", VERT_RESULT_COL0 },
+   { "gl_BackColor", VERT_RESULT_BFC0 },
+   { "gl_FrontSecondaryColor", VERT_RESULT_COL1 },
+   { "gl_BackSecondaryColor", VERT_RESULT_BFC1 },
+   { "gl_TexCoord", VERT_RESULT_TEX0 },
+   { "gl_FogFragCoord", VERT_RESULT_FOGC },
+   { "gl_PointSize", VERT_RESULT_PSIZ },
+   { NULL, 0 }
+};
+
+
+/** Predefined geometry shader outputs */
+static const struct output_info geomOutputs[] = {
+   { "gl_Position", GEOM_RESULT_POS },
+   { "gl_FrontColor", GEOM_RESULT_COL0 },
+   { "gl_BackColor", GEOM_RESULT_COL1 },
+   { "gl_FrontSecondaryColor", GEOM_RESULT_SCOL0 },
+   { "gl_BackSecondaryColor", GEOM_RESULT_SCOL1 },
+   { "gl_TexCoord", GEOM_RESULT_TEX0 },
+   { "gl_FogFragCoord", GEOM_RESULT_FOGC },
+   { "gl_ClipVertex", GEOM_RESULT_CLPV },
+   { "gl_PointSize", GEOM_RESULT_PSIZ },
+   { "gl_PrimitiveID", GEOM_RESULT_PRID },
+   { "gl_Layer", GEOM_RESULT_LAYR },
+   { NULL, 0 }
+};
+
+/** Predefined fragment shader outputs */
+static const struct output_info fragOutputs[] = {
+   { "gl_FragColor", FRAG_RESULT_COLOR },
+   { "gl_FragDepth", FRAG_RESULT_DEPTH },
+   { "gl_FragData", FRAG_RESULT_DATA0 },
+   { NULL, 0 }
+};
+
+
+/**
+ * Return the VERT_RESULT_*, GEOM_RESULT_* or FRAG_RESULT_* value that corresponds to
+ * a vertex or fragment program output variable.  Return -1 for an invalid
+ * output name.
+ */
+GLint
+_slang_output_index(const char *name, GLenum target)
+{
+   const struct output_info *outputs;
+   GLuint i;
+
+   switch (target) {
+   case GL_VERTEX_PROGRAM_ARB:
+      outputs = vertOutputs;
+      break;
+   case GL_FRAGMENT_PROGRAM_ARB:
+      outputs = fragOutputs;
+      break;
+   case MESA_GEOMETRY_PROGRAM:
+      outputs = geomOutputs;
+      break;
+   default:
+      _mesa_problem(NULL, "bad target in _slang_output_index");
+      return -1;
+   }
+
+   for (i = 0; outputs[i].Name; i++) {
+      if (strcmp(outputs[i].Name, name) == 0) {
+         /* found */
+         return outputs[i].Attrib;
+      }
+   }
+   return -1;
 }

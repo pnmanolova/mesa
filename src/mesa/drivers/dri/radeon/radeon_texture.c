@@ -610,9 +610,17 @@ static void radeon_teximage(
 
 	if (pixels) {
 		radeon_teximage_map(image, GL_TRUE);
-
 		if (compressed) {
-			memcpy(texImage->Data, pixels, imageSize);
+			if (image->mt) {
+				uint32_t srcRowStride, bytesPerRow, rows;
+				srcRowStride = _mesa_compressed_row_stride(texImage->TexFormat->MesaFormat, width);
+				bytesPerRow = srcRowStride;
+				rows = (height + 3) / 4;
+				copy_rows(texImage->Data, image->mt->levels[level].rowstride,
+					  pixels, srcRowStride, rows, bytesPerRow);
+			} else {
+				memcpy(texImage->Data, pixels, imageSize);
+			}
 		} else {
 			GLuint dstRowStride;
 			GLuint *dstImageOffsets;
@@ -756,14 +764,23 @@ static void radeon_texsubimage(GLcontext* ctx, int dims, GLenum target, int leve
 		}
 
 		if (compressed) {
-			uint32_t srcRowStride, bytesPerRow, rows; 
-			dstRowStride = _mesa_compressed_row_stride(texImage->TexFormat->MesaFormat, texImage->Width);
+			uint32_t srcRowStride, bytesPerRow, rows;
+			GLubyte *img_start;
+			if (!image->mt) {
+				dstRowStride = _mesa_compressed_row_stride(texImage->TexFormat->MesaFormat, texImage->Width);
+				img_start = _mesa_compressed_image_address(xoffset, yoffset, 0,
+									   texImage->TexFormat->MesaFormat,
+									   texImage->Width, texImage->Data);
+			}
+			else {
+				uint32_t blocks_x = dstRowStride / (image->mt->bpp * 4);
+				img_start = texImage->Data + image->mt->bpp * 4 * (blocks_x * (yoffset / 4) + xoffset / 4);
+			}
 			srcRowStride = _mesa_compressed_row_stride(texImage->TexFormat->MesaFormat, width);
 			bytesPerRow = srcRowStride;
-			rows = height / 4;
+			rows = (height + 3) / 4;
 
-			copy_rows(texImage->Data, dstRowStride,  image->base.Data, srcRowStride, rows,
-				  bytesPerRow);
+			copy_rows(img_start, dstRowStride,  pixels, srcRowStride, rows,  bytesPerRow);
 			
 		} else {
 			if (!texImage->TexFormat->StoreImage(ctx, dims, texImage->_BaseFormat,
@@ -884,8 +901,8 @@ static void migrate_image_to_miptree(radeon_mipmap_tree *mt, radeon_texture_imag
 		uint32_t height;
 		/* need to confirm this value is correct */
 		if (mt->compressed) {
-			height = image->base.Height / 4;
-			srcrowstride = image->base.RowStride * mt->bpp;
+			height = (image->base.Height + 3) / 4;
+			srcrowstride = _mesa_compressed_row_stride(image->base.TexFormat->MesaFormat, image->base.Width);
 		} else {
 			height = image->base.Height * image->base.Depth;
 			srcrowstride = image->base.Width * image->base.TexFormat->TexelBytes;
@@ -919,7 +936,7 @@ int radeon_validate_texture_miptree(GLcontext * ctx, struct gl_texture_object *t
 	if (t->validated || t->image_override)
 		return GL_TRUE;
 
-	if (RADEON_DEBUG & DEBUG_TEXTURE)
+	if (RADEON_DEBUG & RADEON_TEXTURE)
 		fprintf(stderr, "%s: Validating texture %p now\n", __FUNCTION__, texObj);
 
 	if (baseimage->base.Border > 0)
@@ -947,11 +964,11 @@ int radeon_validate_texture_miptree(GLcontext * ctx, struct gl_texture_object *t
 	}
 
 	if (!t->mt) {
-		if (RADEON_DEBUG & DEBUG_TEXTURE)
+		if (RADEON_DEBUG & RADEON_TEXTURE)
 			fprintf(stderr, " Allocate new miptree\n");
 		radeon_try_alloc_miptree(rmesa, t, &baseimage->base, 0, texObj->BaseLevel);
 		if (!t->mt) {
-			_mesa_problem(ctx, "r300_validate_texture failed to alloc miptree");
+			_mesa_problem(ctx, "radeon_validate_texture failed to alloc miptree");
 			return GL_FALSE;
 		}
 	}
@@ -960,15 +977,16 @@ int radeon_validate_texture_miptree(GLcontext * ctx, struct gl_texture_object *t
 	for(face = 0; face < t->mt->faces; ++face) {
 		for(level = t->mt->firstLevel; level <= t->mt->lastLevel; ++level) {
 			radeon_texture_image *image = get_radeon_texture_image(texObj->Image[face][level]);
-			if (RADEON_DEBUG & DEBUG_TEXTURE)
+			if (RADEON_DEBUG & RADEON_TEXTURE)
 				fprintf(stderr, " face %i, level %i... %p vs %p ", face, level, t->mt, image->mt);
 			if (t->mt == image->mt) {
-				if (RADEON_DEBUG & DEBUG_TEXTURE)
+				if (RADEON_DEBUG & RADEON_TEXTURE)
 					fprintf(stderr, "OK\n");
+
 				continue;
 			}
 
-			if (RADEON_DEBUG & DEBUG_TEXTURE)
+			if (RADEON_DEBUG & RADEON_TEXTURE)
 				fprintf(stderr, "migrating\n");
 			migrate_image_to_miptree(t->mt, image, face, level);
 		}
@@ -999,6 +1017,8 @@ radeon_get_tex_image(GLcontext * ctx, GLenum target, GLint level,
 	}
 
 	if (compressed) {
+		/* FIXME: this can't work for small textures (mips) which
+		         use different hw stride */
 		_mesa_get_compressed_teximage(ctx, target, level, pixels,
 					      texObj, texImage);
 	} else {

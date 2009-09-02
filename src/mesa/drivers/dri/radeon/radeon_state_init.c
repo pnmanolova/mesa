@@ -44,6 +44,7 @@
 #include "radeon_tcl.h"
 #include "radeon_tex.h"
 #include "radeon_swtcl.h"
+#include "radeon_queryobj.h"
 
 #include "../r200/r200_reg.h"
 
@@ -197,55 +198,85 @@ static int cmdscl( int offset, int stride, int count )
    return h.i;
 }
 
-#define CHECK( NM, FLAG )				\
+#define CHECK( NM, FLAG, ADD )				\
 static int check_##NM( GLcontext *ctx, struct radeon_state_atom *atom )	\
 {							\
-   return FLAG ? atom->cmd_size : 0;			\
+   return FLAG ? atom->cmd_size + (ADD) : 0;			\
 }
 
-#define TCL_CHECK( NM, FLAG )				\
+#define TCL_CHECK( NM, FLAG, ADD )				\
 static int check_##NM( GLcontext *ctx, struct radeon_state_atom *atom )	\
 {							\
    r100ContextPtr rmesa = R100_CONTEXT(ctx);	\
-   return (!rmesa->radeon.TclFallback && (FLAG)) ? atom->cmd_size : 0;	\
+   return (!rmesa->radeon.TclFallback && (FLAG)) ? atom->cmd_size + (ADD) : 0;	\
 }
 
 
-CHECK( always, GL_TRUE )
-CHECK( never, GL_FALSE )
-CHECK( tex0, ctx->Texture.Unit[0]._ReallyEnabled )
-CHECK( tex1, ctx->Texture.Unit[1]._ReallyEnabled )
+CHECK( always, GL_TRUE, 0 )
+CHECK( always_add2, GL_TRUE, 2 )
+CHECK( always_add4, GL_TRUE, 4 )
+CHECK( never, GL_FALSE, 0 )
+CHECK( tex0_mm, ctx->Texture.Unit[0]._ReallyEnabled, 3 )
+CHECK( tex1_mm, ctx->Texture.Unit[1]._ReallyEnabled, 3 )
 /* need this for the cubic_map on disabled unit 2 bug, maybe r100 only? */
-CHECK( tex2, ctx->Texture._EnabledUnits )
-CHECK( cube0, (ctx->Texture.Unit[0]._ReallyEnabled & TEXTURE_CUBE_BIT))
-CHECK( cube1, (ctx->Texture.Unit[1]._ReallyEnabled & TEXTURE_CUBE_BIT))
-CHECK( cube2, (ctx->Texture.Unit[2]._ReallyEnabled & TEXTURE_CUBE_BIT))
-CHECK( fog, ctx->Fog.Enabled )
-TCL_CHECK( tcl, GL_TRUE )
-TCL_CHECK( tcl_tex0, ctx->Texture.Unit[0]._ReallyEnabled )
-TCL_CHECK( tcl_tex1, ctx->Texture.Unit[1]._ReallyEnabled )
-TCL_CHECK( tcl_tex2, ctx->Texture.Unit[2]._ReallyEnabled )
-TCL_CHECK( tcl_lighting, ctx->Light.Enabled )
-TCL_CHECK( tcl_eyespace_or_lighting, ctx->_NeedEyeCoords || ctx->Light.Enabled )
-TCL_CHECK( tcl_lit0, ctx->Light.Enabled && ctx->Light.Light[0].Enabled )
-TCL_CHECK( tcl_lit1, ctx->Light.Enabled && ctx->Light.Light[1].Enabled )
-TCL_CHECK( tcl_lit2, ctx->Light.Enabled && ctx->Light.Light[2].Enabled )
-TCL_CHECK( tcl_lit3, ctx->Light.Enabled && ctx->Light.Light[3].Enabled )
-TCL_CHECK( tcl_lit4, ctx->Light.Enabled && ctx->Light.Light[4].Enabled )
-TCL_CHECK( tcl_lit5, ctx->Light.Enabled && ctx->Light.Light[5].Enabled )
-TCL_CHECK( tcl_lit6, ctx->Light.Enabled && ctx->Light.Light[6].Enabled )
-TCL_CHECK( tcl_lit7, ctx->Light.Enabled && ctx->Light.Light[7].Enabled )
-TCL_CHECK( tcl_ucp0, (ctx->Transform.ClipPlanesEnabled & 0x1) )
-TCL_CHECK( tcl_ucp1, (ctx->Transform.ClipPlanesEnabled & 0x2) )
-TCL_CHECK( tcl_ucp2, (ctx->Transform.ClipPlanesEnabled & 0x4) )
-TCL_CHECK( tcl_ucp3, (ctx->Transform.ClipPlanesEnabled & 0x8) )
-TCL_CHECK( tcl_ucp4, (ctx->Transform.ClipPlanesEnabled & 0x10) )
-TCL_CHECK( tcl_ucp5, (ctx->Transform.ClipPlanesEnabled & 0x20) )
-TCL_CHECK( tcl_eyespace_or_fog, ctx->_NeedEyeCoords || ctx->Fog.Enabled ) 
+CHECK( tex2_mm, ctx->Texture._EnabledUnits, 3 )
+CHECK( tex0, ctx->Texture.Unit[0]._ReallyEnabled, 2 )
+CHECK( tex1, ctx->Texture.Unit[1]._ReallyEnabled, 2 )
+CHECK( tex2, ctx->Texture._EnabledUnits, 2 )
+CHECK( cube0, (ctx->Texture.Unit[0]._ReallyEnabled & TEXTURE_CUBE_BIT), 3 + 3*5 - CUBE_STATE_SIZE )
+CHECK( cube1, (ctx->Texture.Unit[1]._ReallyEnabled & TEXTURE_CUBE_BIT), 3 + 3*5 - CUBE_STATE_SIZE )
+CHECK( cube2, (ctx->Texture.Unit[2]._ReallyEnabled & TEXTURE_CUBE_BIT), 3 + 3*5 - CUBE_STATE_SIZE )
+CHECK( cube0_mm, (ctx->Texture.Unit[0]._ReallyEnabled & TEXTURE_CUBE_BIT), 2 + 4*5 - CUBE_STATE_SIZE )
+CHECK( cube1_mm, (ctx->Texture.Unit[1]._ReallyEnabled & TEXTURE_CUBE_BIT), 2 + 4*5 - CUBE_STATE_SIZE )
+CHECK( cube2_mm, (ctx->Texture.Unit[2]._ReallyEnabled & TEXTURE_CUBE_BIT), 2 + 4*5 - CUBE_STATE_SIZE )
+CHECK( fog, ctx->Fog.Enabled, 0 )
+CHECK( fog_add4, ctx->Fog.Enabled, 4 )
+TCL_CHECK( tcl, GL_TRUE, 0 )
+TCL_CHECK( tcl_add4, GL_TRUE, 4 )
+TCL_CHECK( tcl_tex0, ctx->Texture.Unit[0]._ReallyEnabled, 0 )
+TCL_CHECK( tcl_tex1, ctx->Texture.Unit[1]._ReallyEnabled, 0 )
+TCL_CHECK( tcl_tex2, ctx->Texture.Unit[2]._ReallyEnabled, 0 )
+TCL_CHECK( tcl_tex0_add4, ctx->Texture.Unit[0]._ReallyEnabled, 4 )
+TCL_CHECK( tcl_tex1_add4, ctx->Texture.Unit[1]._ReallyEnabled, 4 )
+TCL_CHECK( tcl_tex2_add4, ctx->Texture.Unit[2]._ReallyEnabled, 4 )
+TCL_CHECK( tcl_lighting, ctx->Light.Enabled, 0 )
+TCL_CHECK( tcl_lighting_add4, ctx->Light.Enabled, 4 )
+TCL_CHECK( tcl_eyespace_or_lighting, ctx->_NeedEyeCoords || ctx->Light.Enabled, 0 )
+TCL_CHECK( tcl_eyespace_or_lighting_add4, ctx->_NeedEyeCoords || ctx->Light.Enabled, 4 )
+TCL_CHECK( tcl_lit0, ctx->Light.Enabled && ctx->Light.Light[0].Enabled, 0 )
+TCL_CHECK( tcl_lit1, ctx->Light.Enabled && ctx->Light.Light[1].Enabled, 0 )
+TCL_CHECK( tcl_lit2, ctx->Light.Enabled && ctx->Light.Light[2].Enabled, 0 )
+TCL_CHECK( tcl_lit3, ctx->Light.Enabled && ctx->Light.Light[3].Enabled, 0 )
+TCL_CHECK( tcl_lit4, ctx->Light.Enabled && ctx->Light.Light[4].Enabled, 0 )
+TCL_CHECK( tcl_lit5, ctx->Light.Enabled && ctx->Light.Light[5].Enabled, 0 )
+TCL_CHECK( tcl_lit6, ctx->Light.Enabled && ctx->Light.Light[6].Enabled, 0 )
+TCL_CHECK( tcl_lit7, ctx->Light.Enabled && ctx->Light.Light[7].Enabled, 0 )
+TCL_CHECK( tcl_lit0_add6, ctx->Light.Enabled && ctx->Light.Light[0].Enabled, 6 )
+TCL_CHECK( tcl_lit1_add6, ctx->Light.Enabled && ctx->Light.Light[1].Enabled, 6 )
+TCL_CHECK( tcl_lit2_add6, ctx->Light.Enabled && ctx->Light.Light[2].Enabled, 6 )
+TCL_CHECK( tcl_lit3_add6, ctx->Light.Enabled && ctx->Light.Light[3].Enabled, 6 )
+TCL_CHECK( tcl_lit4_add6, ctx->Light.Enabled && ctx->Light.Light[4].Enabled, 6 )
+TCL_CHECK( tcl_lit5_add6, ctx->Light.Enabled && ctx->Light.Light[5].Enabled, 6 )
+TCL_CHECK( tcl_lit6_add6, ctx->Light.Enabled && ctx->Light.Light[6].Enabled, 6 )
+TCL_CHECK( tcl_lit7_add6, ctx->Light.Enabled && ctx->Light.Light[7].Enabled, 6 )
+TCL_CHECK( tcl_ucp0, (ctx->Transform.ClipPlanesEnabled & 0x1), 0 )
+TCL_CHECK( tcl_ucp1, (ctx->Transform.ClipPlanesEnabled & 0x2), 0 )
+TCL_CHECK( tcl_ucp2, (ctx->Transform.ClipPlanesEnabled & 0x4), 0 )
+TCL_CHECK( tcl_ucp3, (ctx->Transform.ClipPlanesEnabled & 0x8), 0 )
+TCL_CHECK( tcl_ucp4, (ctx->Transform.ClipPlanesEnabled & 0x10), 0 )
+TCL_CHECK( tcl_ucp5, (ctx->Transform.ClipPlanesEnabled & 0x20), 0 )
+TCL_CHECK( tcl_ucp0_add4, (ctx->Transform.ClipPlanesEnabled & 0x1), 4 )
+TCL_CHECK( tcl_ucp1_add4, (ctx->Transform.ClipPlanesEnabled & 0x2), 4 )
+TCL_CHECK( tcl_ucp2_add4, (ctx->Transform.ClipPlanesEnabled & 0x4), 4 )
+TCL_CHECK( tcl_ucp3_add4, (ctx->Transform.ClipPlanesEnabled & 0x8), 4 )
+TCL_CHECK( tcl_ucp4_add4, (ctx->Transform.ClipPlanesEnabled & 0x10), 4 )
+TCL_CHECK( tcl_ucp5_add4, (ctx->Transform.ClipPlanesEnabled & 0x20), 4 )
+TCL_CHECK( tcl_eyespace_or_fog, ctx->_NeedEyeCoords || ctx->Fog.Enabled, 0 )
+TCL_CHECK( tcl_eyespace_or_fog_add4, ctx->_NeedEyeCoords || ctx->Fog.Enabled, 4 )
 
-CHECK( txr0, (ctx->Texture.Unit[0]._ReallyEnabled & TEXTURE_RECT_BIT))
-CHECK( txr1, (ctx->Texture.Unit[1]._ReallyEnabled & TEXTURE_RECT_BIT))
-CHECK( txr2, (ctx->Texture.Unit[2]._ReallyEnabled & TEXTURE_RECT_BIT))
+CHECK( txr0, (ctx->Texture.Unit[0]._ReallyEnabled & TEXTURE_RECT_BIT), 0 )
+CHECK( txr1, (ctx->Texture.Unit[1]._ReallyEnabled & TEXTURE_RECT_BIT), 0 )
+CHECK( txr2, (ctx->Texture.Unit[2]._ReallyEnabled & TEXTURE_RECT_BIT), 0 )
 
 #define OUT_VEC(hdr, data) do {			\
     drm_radeon_cmd_header_t h;					\
@@ -271,9 +302,8 @@ static void scl_emit(GLcontext *ctx, struct radeon_state_atom *atom)
 {
    r100ContextPtr r100 = R100_CONTEXT(ctx);
    BATCH_LOCALS(&r100->radeon);
-   uint32_t dwords = atom->cmd_size;
+   uint32_t dwords = atom->check(ctx, atom);
    
-   dwords += 2;
    BEGIN_BATCH_NO_AUTOSTATE(dwords);
    OUT_SCL(atom->cmd[0], atom->cmd+1);
    END_BATCH();
@@ -284,9 +314,8 @@ static void vec_emit(GLcontext *ctx, struct radeon_state_atom *atom)
 {
    r100ContextPtr r100 = R100_CONTEXT(ctx);
    BATCH_LOCALS(&r100->radeon);
-   uint32_t dwords = atom->cmd_size;
+   uint32_t dwords = atom->check(ctx, atom);
 
-   dwords += 4;
    BEGIN_BATCH_NO_AUTOSTATE(dwords);
    OUT_VEC(atom->cmd[0], atom->cmd+1);
    END_BATCH();
@@ -297,9 +326,8 @@ static void lit_emit(GLcontext *ctx, struct radeon_state_atom *atom)
 {
    r100ContextPtr r100 = R100_CONTEXT(ctx);
    BATCH_LOCALS(&r100->radeon);
-   uint32_t dwords = atom->cmd_size;
+   uint32_t dwords = atom->check(ctx, atom);
 
-   dwords += 6;
    BEGIN_BATCH_NO_AUTOSTATE(dwords);
    OUT_VEC(atom->cmd[LIT_CMD_0], atom->cmd+1);
    OUT_SCL(atom->cmd[LIT_CMD_1], atom->cmd+LIT_CMD_1+1);
@@ -313,10 +341,10 @@ static void ctx_emit(GLcontext *ctx, struct radeon_state_atom *atom)
    struct radeon_renderbuffer *rrb;
    uint32_t cbpitch;
    uint32_t zbpitch, depth_fmt;
-   uint32_t dwords = atom->cmd_size;
+   uint32_t dwords = atom->check(ctx, atom);
 
    /* output the first 7 bytes of context */
-   BEGIN_BATCH_NO_AUTOSTATE(dwords + 4);
+   BEGIN_BATCH_NO_AUTOSTATE(dwords);
    OUT_BATCH_TABLE(atom->cmd, 5);
 
    rrb = radeon_get_depthbuffer(&r100->radeon);
@@ -371,6 +399,28 @@ static void ctx_emit(GLcontext *ctx, struct radeon_state_atom *atom)
    END_BATCH();
 }
 
+static int check_always_ctx( GLcontext *ctx, struct radeon_state_atom *atom)
+{
+   r100ContextPtr r100 = R100_CONTEXT(ctx);
+   struct radeon_renderbuffer *rrb, *drb;
+   uint32_t dwords;
+
+   rrb = radeon_get_colorbuffer(&r100->radeon);
+   if (!rrb || !rrb->bo) {
+      return 0;
+   }
+
+   drb = radeon_get_depthbuffer(&r100->radeon);
+
+   dwords = 10;
+   if (drb)
+     dwords += 6;
+   if (rrb)
+     dwords += 8;
+
+   return dwords;
+}
+
 static void ctx_emit_cs(GLcontext *ctx, struct radeon_state_atom *atom)
 {
    r100ContextPtr r100 = R100_CONTEXT(ctx);
@@ -378,7 +428,7 @@ static void ctx_emit_cs(GLcontext *ctx, struct radeon_state_atom *atom)
    struct radeon_renderbuffer *rrb, *drb;
    uint32_t cbpitch = 0;
    uint32_t zbpitch = 0;
-   uint32_t dwords = atom->cmd_size;
+   uint32_t dwords = atom->check(ctx, atom);
    uint32_t depth_fmt;
 
    rrb = radeon_get_colorbuffer(&r100->radeon);
@@ -390,8 +440,17 @@ static void ctx_emit_cs(GLcontext *ctx, struct radeon_state_atom *atom)
    atom->cmd[CTX_RB3D_CNTL] &= ~(0xf << 10);
    if (rrb->cpp == 4)
 	atom->cmd[CTX_RB3D_CNTL] |= RADEON_COLOR_FORMAT_ARGB8888;
-   else
+   else switch (rrb->base._ActualFormat) {
+   case GL_RGB5:
 	atom->cmd[CTX_RB3D_CNTL] |= RADEON_COLOR_FORMAT_RGB565;
+	break;
+   case GL_RGBA4:
+	atom->cmd[CTX_RB3D_CNTL] |= RADEON_COLOR_FORMAT_ARGB4444;
+	break;
+   case GL_RGB5_A1:
+	atom->cmd[CTX_RB3D_CNTL] |= RADEON_COLOR_FORMAT_ARGB1555;
+	break;
+   }
 
    cbpitch = (rrb->pitch / rrb->cpp);
    if (rrb->bo->flags & RADEON_BO_FLAGS_MACRO_TILE)
@@ -409,12 +468,6 @@ static void ctx_emit_cs(GLcontext *ctx, struct radeon_state_atom *atom)
      
    }
 
-   /* output the first 7 bytes of context */
-   dwords = 10;
-   if (drb)
-     dwords += 6;
-   if (rrb)
-     dwords += 6;
    BEGIN_BATCH_NO_AUTOSTATE(dwords);
 
    /* In the CS case we need to split this up */
@@ -440,7 +493,7 @@ static void ctx_emit_cs(GLcontext *ctx, struct radeon_state_atom *atom)
      OUT_BATCH_RELOC(0, rrb->bo, 0, 0, RADEON_GEM_DOMAIN_VRAM, 0);
 
      OUT_BATCH(CP_PACKET0(RADEON_RB3D_COLORPITCH, 0));
-     OUT_BATCH(cbpitch);
+     OUT_BATCH_RELOC(cbpitch, rrb->bo, cbpitch, 0, RADEON_GEM_DOMAIN_VRAM, 0);
    }
 
    // if (atom->cmd_size == CTX_STATE_SIZE_NEWDRM) {
@@ -465,7 +518,7 @@ static void cube_emit(GLcontext *ctx, struct radeon_state_atom *atom)
 {
    r100ContextPtr r100 = R100_CONTEXT(ctx);
    BATCH_LOCALS(&r100->radeon);
-   uint32_t dwords = 3;
+   uint32_t dwords = atom->check(ctx, atom);
    int i = atom->idx, j;
    radeonTexObj *t = r100->state.texture.unit[i].texobj;
    radeon_mipmap_level *lvl;
@@ -479,7 +532,7 @@ static void cube_emit(GLcontext *ctx, struct radeon_state_atom *atom)
    if (!t->mt)
 	return;
 
-   BEGIN_BATCH_NO_AUTOSTATE(dwords + (5 * 3));
+   BEGIN_BATCH_NO_AUTOSTATE(dwords);
    OUT_BATCH_TABLE(atom->cmd, 3);
    lvl = &t->mt->levels[0];
    for (j = 0; j < 5; j++) {
@@ -493,7 +546,7 @@ static void cube_emit_cs(GLcontext *ctx, struct radeon_state_atom *atom)
 {
    r100ContextPtr r100 = R100_CONTEXT(ctx);
    BATCH_LOCALS(&r100->radeon);
-   uint32_t dwords = 2;
+   uint32_t dwords = atom->check(ctx, atom);
    int i = atom->idx, j;
    radeonTexObj *t = r100->state.texture.unit[i].texobj;
    radeon_mipmap_level *lvl;
@@ -514,13 +567,13 @@ static void cube_emit_cs(GLcontext *ctx, struct radeon_state_atom *atom)
 	default:
 	case 0: base_reg = RADEON_PP_CUBIC_OFFSET_T0_0; break;
    };
-   BEGIN_BATCH_NO_AUTOSTATE(dwords + (5 * 4));
+   BEGIN_BATCH_NO_AUTOSTATE(dwords);
    OUT_BATCH_TABLE(atom->cmd, 2);
    lvl = &t->mt->levels[0];
    for (j = 0; j < 5; j++) {
 	OUT_BATCH(CP_PACKET0(base_reg + (4 * j), 0));
 	OUT_BATCH_RELOC(lvl->faces[j].offset, t->mt->bo, lvl->faces[j].offset,
-			RADEON_GEM_DOMAIN_VRAM, 0, 0);
+			RADEON_GEM_DOMAIN_GTT|RADEON_GEM_DOMAIN_VRAM, 0, 0);
    }
    END_BATCH();
 }
@@ -656,10 +709,11 @@ void radeonInitState( r100ContextPtr rmesa )
 
    /* Allocate state buffers:
     */
-   ALLOC_STATE( ctx, always, CTX_STATE_SIZE, "CTX/context", 0 );
-   if (rmesa->radeon.radeonScreen->kernel_mm)
+   ALLOC_STATE( ctx, always_add4, CTX_STATE_SIZE, "CTX/context", 0 );
+   if (rmesa->radeon.radeonScreen->kernel_mm) {
      rmesa->hw.ctx.emit = ctx_emit_cs;
-   else
+     rmesa->hw.ctx.check = check_always_ctx;
+   } else
      rmesa->hw.ctx.emit = ctx_emit;
    ALLOC_STATE( lin, always, LIN_STATE_SIZE, "LIN/line", 0 );
    ALLOC_STATE( msk, always, MSK_STATE_SIZE, "MSK/mask", 0 );
@@ -669,14 +723,68 @@ void radeonInitState( r100ContextPtr rmesa )
    ALLOC_STATE( zbs, always, ZBS_STATE_SIZE, "ZBS/zbias", 0 );
    ALLOC_STATE( tcl, always, TCL_STATE_SIZE, "TCL/tcl", 1 );
    ALLOC_STATE( mtl, tcl_lighting, MTL_STATE_SIZE, "MTL/material", 1 );
-   ALLOC_STATE( grd, always, GRD_STATE_SIZE, "GRD/guard-band", 1 );
-   ALLOC_STATE( fog, fog, FOG_STATE_SIZE, "FOG/fog", 1 );
-   ALLOC_STATE( glt, tcl_lighting, GLT_STATE_SIZE, "GLT/light-global", 1 );
-   ALLOC_STATE( eye, tcl_lighting, EYE_STATE_SIZE, "EYE/eye-vector", 1 );
-   ALLOC_STATE_IDX( tex[0], tex0, TEX_STATE_SIZE, "TEX/tex-0", 0, 0);
-   ALLOC_STATE_IDX( tex[1], tex1, TEX_STATE_SIZE, "TEX/tex-1", 0, 1);
-   ALLOC_STATE_IDX( tex[2], tex2, TEX_STATE_SIZE, "TEX/tex-2", 0, 2);
+   if (rmesa->radeon.radeonScreen->kernel_mm) {
+      ALLOC_STATE( grd, always_add2, GRD_STATE_SIZE, "GRD/guard-band", 1 );
+      ALLOC_STATE( fog, fog_add4, FOG_STATE_SIZE, "FOG/fog", 1 );
+      ALLOC_STATE( glt, tcl_lighting_add4, GLT_STATE_SIZE, "GLT/light-global", 1 );
+      ALLOC_STATE( eye, tcl_lighting_add4, EYE_STATE_SIZE, "EYE/eye-vector", 1 );
+      ALLOC_STATE_IDX( tex[0], tex0_mm, TEX_STATE_SIZE, "TEX/tex-0", 0, 0);
+      ALLOC_STATE_IDX( tex[1], tex1_mm, TEX_STATE_SIZE, "TEX/tex-1", 0, 1);
+      ALLOC_STATE_IDX( tex[2], tex2_mm, TEX_STATE_SIZE, "TEX/tex-2", 0, 2);
+      ALLOC_STATE( mat[0], tcl_add4, MAT_STATE_SIZE, "MAT/modelproject", 1 );
+      ALLOC_STATE( mat[1], tcl_eyespace_or_fog_add4, MAT_STATE_SIZE, "MAT/modelview", 1 );
+      ALLOC_STATE( mat[2], tcl_eyespace_or_lighting_add4, MAT_STATE_SIZE, "MAT/it-modelview", 1 );
+      ALLOC_STATE( mat[3], tcl_tex0_add4, MAT_STATE_SIZE, "MAT/texmat0", 1 );
+      ALLOC_STATE( mat[4], tcl_tex1_add4, MAT_STATE_SIZE, "MAT/texmat1", 1 );
+      ALLOC_STATE( mat[5], tcl_tex2_add4, MAT_STATE_SIZE, "MAT/texmat2", 1 );
+      ALLOC_STATE( lit[0], tcl_lit0_add6, LIT_STATE_SIZE, "LIT/light-0", 1 );
+      ALLOC_STATE( lit[1], tcl_lit1_add6, LIT_STATE_SIZE, "LIT/light-1", 1 );
+      ALLOC_STATE( lit[2], tcl_lit2_add6, LIT_STATE_SIZE, "LIT/light-2", 1 );
+      ALLOC_STATE( lit[3], tcl_lit3_add6, LIT_STATE_SIZE, "LIT/light-3", 1 );
+      ALLOC_STATE( lit[4], tcl_lit4_add6, LIT_STATE_SIZE, "LIT/light-4", 1 );
+      ALLOC_STATE( lit[5], tcl_lit5_add6, LIT_STATE_SIZE, "LIT/light-5", 1 );
+      ALLOC_STATE( lit[6], tcl_lit6_add6, LIT_STATE_SIZE, "LIT/light-6", 1 );
+      ALLOC_STATE( lit[7], tcl_lit7_add6, LIT_STATE_SIZE, "LIT/light-7", 1 );
+      ALLOC_STATE( ucp[0], tcl_ucp0_add4, UCP_STATE_SIZE, "UCP/userclip-0", 1 );
+      ALLOC_STATE( ucp[1], tcl_ucp1_add4, UCP_STATE_SIZE, "UCP/userclip-1", 1 );
+      ALLOC_STATE( ucp[2], tcl_ucp2_add4, UCP_STATE_SIZE, "UCP/userclip-2", 1 );
+      ALLOC_STATE( ucp[3], tcl_ucp3_add4, UCP_STATE_SIZE, "UCP/userclip-3", 1 );
+      ALLOC_STATE( ucp[4], tcl_ucp4_add4, UCP_STATE_SIZE, "UCP/userclip-4", 1 );
+      ALLOC_STATE( ucp[5], tcl_ucp5_add4, UCP_STATE_SIZE, "UCP/userclip-5", 1 );
+   } else {
+      ALLOC_STATE( grd, always, GRD_STATE_SIZE, "GRD/guard-band", 1 );
+      ALLOC_STATE( fog, fog, FOG_STATE_SIZE, "FOG/fog", 1 );
+      ALLOC_STATE( glt, tcl_lighting, GLT_STATE_SIZE, "GLT/light-global", 1 );
+      ALLOC_STATE( eye, tcl_lighting, EYE_STATE_SIZE, "EYE/eye-vector", 1 );
+      ALLOC_STATE_IDX( tex[0], tex0, TEX_STATE_SIZE, "TEX/tex-0", 0, 0);
+      ALLOC_STATE_IDX( tex[1], tex1, TEX_STATE_SIZE, "TEX/tex-1", 0, 1);
+      ALLOC_STATE_IDX( tex[2], tex2, TEX_STATE_SIZE, "TEX/tex-2", 0, 2);
+      ALLOC_STATE( mat[0], tcl, MAT_STATE_SIZE, "MAT/modelproject", 1 );
+      ALLOC_STATE( mat[1], tcl_eyespace_or_fog, MAT_STATE_SIZE, "MAT/modelview", 1 );
+      ALLOC_STATE( mat[2], tcl_eyespace_or_lighting, MAT_STATE_SIZE, "MAT/it-modelview", 1 );
+      ALLOC_STATE( mat[3], tcl_tex0, MAT_STATE_SIZE, "MAT/texmat0", 1 );
+      ALLOC_STATE( mat[4], tcl_tex1, MAT_STATE_SIZE, "MAT/texmat1", 1 );
+      ALLOC_STATE( mat[5], tcl_tex2, MAT_STATE_SIZE, "MAT/texmat2", 1 );
+      ALLOC_STATE( lit[0], tcl_lit0, LIT_STATE_SIZE, "LIT/light-0", 1 );
+      ALLOC_STATE( lit[1], tcl_lit1, LIT_STATE_SIZE, "LIT/light-1", 1 );
+      ALLOC_STATE( lit[2], tcl_lit2, LIT_STATE_SIZE, "LIT/light-2", 1 );
+      ALLOC_STATE( lit[3], tcl_lit3, LIT_STATE_SIZE, "LIT/light-3", 1 );
+      ALLOC_STATE( lit[4], tcl_lit4, LIT_STATE_SIZE, "LIT/light-4", 1 );
+      ALLOC_STATE( lit[5], tcl_lit5, LIT_STATE_SIZE, "LIT/light-5", 1 );
+      ALLOC_STATE( lit[6], tcl_lit6, LIT_STATE_SIZE, "LIT/light-6", 1 );
+      ALLOC_STATE( lit[7], tcl_lit7, LIT_STATE_SIZE, "LIT/light-7", 1 );
+      ALLOC_STATE( ucp[0], tcl_ucp0, UCP_STATE_SIZE, "UCP/userclip-0", 1 );
+      ALLOC_STATE( ucp[1], tcl_ucp1, UCP_STATE_SIZE, "UCP/userclip-1", 1 );
+      ALLOC_STATE( ucp[2], tcl_ucp2, UCP_STATE_SIZE, "UCP/userclip-2", 1 );
+      ALLOC_STATE( ucp[3], tcl_ucp3, UCP_STATE_SIZE, "UCP/userclip-3", 1 );
+      ALLOC_STATE( ucp[4], tcl_ucp4, UCP_STATE_SIZE, "UCP/userclip-4", 1 );
+      ALLOC_STATE( ucp[5], tcl_ucp5, UCP_STATE_SIZE, "UCP/userclip-5", 1 );
+   }
 
+   if (rmesa->radeon.radeonScreen->kernel_mm) {
+       ALLOC_STATE( stp, always, STP_STATE_SIZE, "STP/stp", 0 );
+   }
+   
    for (i = 0; i < 3; i++) {
       if (rmesa->radeon.radeonScreen->kernel_mm)
           rmesa->hw.tex[i].emit = tex_emit_cs;
@@ -685,14 +793,19 @@ void radeonInitState( r100ContextPtr rmesa )
    }
    if (rmesa->radeon.radeonScreen->drmSupportsCubeMapsR100)
    {
-      ALLOC_STATE_IDX( cube[0], cube0, CUBE_STATE_SIZE, "CUBE/cube-0", 0, 0 );
-      ALLOC_STATE_IDX( cube[1], cube1, CUBE_STATE_SIZE, "CUBE/cube-1", 0, 1 );
-      ALLOC_STATE_IDX( cube[2], cube2, CUBE_STATE_SIZE, "CUBE/cube-2", 0, 2 );
-      for (i = 0; i < 3; i++)
-          if (rmesa->radeon.radeonScreen->kernel_mm)
-              rmesa->hw.cube[i].emit = cube_emit_cs;
-          else
-              rmesa->hw.cube[i].emit = cube_emit;
+      if (rmesa->radeon.radeonScreen->kernel_mm) {
+         ALLOC_STATE_IDX( cube[0], cube0_mm, CUBE_STATE_SIZE, "CUBE/cube-0", 0, 0 );
+         ALLOC_STATE_IDX( cube[1], cube1_mm, CUBE_STATE_SIZE, "CUBE/cube-1", 0, 1 );
+         ALLOC_STATE_IDX( cube[2], cube2_mm, CUBE_STATE_SIZE, "CUBE/cube-2", 0, 2 );
+         for (i = 0; i < 3; i++)
+            rmesa->hw.cube[i].emit = cube_emit_cs;
+      } else {
+         ALLOC_STATE_IDX( cube[0], cube0, CUBE_STATE_SIZE, "CUBE/cube-0", 0, 0 );
+         ALLOC_STATE_IDX( cube[1], cube1, CUBE_STATE_SIZE, "CUBE/cube-1", 0, 1 );
+         ALLOC_STATE_IDX( cube[2], cube2, CUBE_STATE_SIZE, "CUBE/cube-2", 0, 2 );
+         for (i = 0; i < 3; i++)
+            rmesa->hw.cube[i].emit = cube_emit;
+      }
    }
    else
    {
@@ -700,26 +813,6 @@ void radeonInitState( r100ContextPtr rmesa )
       ALLOC_STATE_IDX( cube[1], never, CUBE_STATE_SIZE, "CUBE/cube-1", 0, 1 );
       ALLOC_STATE_IDX( cube[2], never, CUBE_STATE_SIZE, "CUBE/cube-2", 0, 2 );
    }
-   ALLOC_STATE( mat[0], tcl, MAT_STATE_SIZE, "MAT/modelproject", 1 );
-   ALLOC_STATE( mat[1], tcl_eyespace_or_fog, MAT_STATE_SIZE, "MAT/modelview", 1 );
-   ALLOC_STATE( mat[2], tcl_eyespace_or_lighting, MAT_STATE_SIZE, "MAT/it-modelview", 1 );
-   ALLOC_STATE( mat[3], tcl_tex0, MAT_STATE_SIZE, "MAT/texmat0", 1 );
-   ALLOC_STATE( mat[4], tcl_tex1, MAT_STATE_SIZE, "MAT/texmat1", 1 );
-   ALLOC_STATE( mat[5], tcl_tex2, MAT_STATE_SIZE, "MAT/texmat2", 1 );
-   ALLOC_STATE( ucp[0], tcl_ucp0, UCP_STATE_SIZE, "UCP/userclip-0", 1 );
-   ALLOC_STATE( ucp[1], tcl_ucp1, UCP_STATE_SIZE, "UCP/userclip-1", 1 );
-   ALLOC_STATE( ucp[2], tcl_ucp2, UCP_STATE_SIZE, "UCP/userclip-2", 1 );
-   ALLOC_STATE( ucp[3], tcl_ucp3, UCP_STATE_SIZE, "UCP/userclip-3", 1 );
-   ALLOC_STATE( ucp[4], tcl_ucp4, UCP_STATE_SIZE, "UCP/userclip-4", 1 );
-   ALLOC_STATE( ucp[5], tcl_ucp5, UCP_STATE_SIZE, "UCP/userclip-5", 1 );
-   ALLOC_STATE( lit[0], tcl_lit0, LIT_STATE_SIZE, "LIT/light-0", 1 );
-   ALLOC_STATE( lit[1], tcl_lit1, LIT_STATE_SIZE, "LIT/light-1", 1 );
-   ALLOC_STATE( lit[2], tcl_lit2, LIT_STATE_SIZE, "LIT/light-2", 1 );
-   ALLOC_STATE( lit[3], tcl_lit3, LIT_STATE_SIZE, "LIT/light-3", 1 );
-   ALLOC_STATE( lit[4], tcl_lit4, LIT_STATE_SIZE, "LIT/light-4", 1 );
-   ALLOC_STATE( lit[5], tcl_lit5, LIT_STATE_SIZE, "LIT/light-5", 1 );
-   ALLOC_STATE( lit[6], tcl_lit6, LIT_STATE_SIZE, "LIT/light-6", 1 );
-   ALLOC_STATE( lit[7], tcl_lit7, LIT_STATE_SIZE, "LIT/light-7", 1 );
    ALLOC_STATE_IDX( txr[0], txr0, TXR_STATE_SIZE, "TXR/txr-0", 0, 0 );
    ALLOC_STATE_IDX( txr[1], txr1, TXR_STATE_SIZE, "TXR/txr-1", 0, 1 );
    ALLOC_STATE_IDX( txr[2], txr2, TXR_STATE_SIZE, "TXR/txr-2", 0, 2 );
@@ -784,12 +877,16 @@ void radeonInitState( r100ContextPtr rmesa )
    }
 
    if (rmesa->radeon.radeonScreen->kernel_mm) {
+      rmesa->hw.stp.cmd[STP_CMD_0] = CP_PACKET0(RADEON_RE_STIPPLE_ADDR, 0);
+      rmesa->hw.stp.cmd[STP_DATA_0] = 0;
+      rmesa->hw.stp.cmd[STP_CMD_1] = CP_PACKET0_ONE(RADEON_RE_STIPPLE_DATA, 31);
+
       rmesa->hw.grd.emit = scl_emit;
       rmesa->hw.fog.emit = vec_emit;
       rmesa->hw.glt.emit = vec_emit;
       rmesa->hw.eye.emit = vec_emit;
       
-      for (i = 0; i <= 6; i++)
+      for (i = 0; i < 6; i++)
 	 rmesa->hw.mat[i].emit = vec_emit;
 
       for (i = 0; i < 8; i++)
@@ -1054,7 +1151,13 @@ void radeonInitState( r100ContextPtr rmesa )
    rmesa->hw.eye.cmd[EYE_Y] = 0;
    rmesa->hw.eye.cmd[EYE_Z] = IEEE_ONE;
    rmesa->hw.eye.cmd[EYE_RESCALE_FACTOR] = IEEE_ONE;
-   
+
+   if (rmesa->radeon.radeonScreen->kernel_mm) {
+      radeon_init_query_stateobj(&rmesa->radeon, R100_QUERYOBJ_CMDSIZE);
+      rmesa->radeon.query.queryobj.cmd[R100_QUERYOBJ_CMD_0] = CP_PACKET0(RADEON_RB3D_ZPASS_DATA, 0);
+      rmesa->radeon.query.queryobj.cmd[R100_QUERYOBJ_DATA_0] = 0;
+   }
+     
    rmesa->radeon.hw.all_dirty = GL_TRUE;
 
    rcommonInitCmdBuf(&rmesa->radeon);

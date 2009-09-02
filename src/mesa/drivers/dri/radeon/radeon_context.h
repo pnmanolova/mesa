@@ -295,6 +295,15 @@ struct radeon_texture_state {
 #define SHN_SHININESS      1
 #define SHN_STATE_SIZE     2
 
+#define R100_QUERYOBJ_CMD_0  0
+#define R100_QUERYOBJ_DATA_0 1
+#define R100_QUERYOBJ_CMDSIZE  2
+
+#define STP_CMD_0 0
+#define STP_DATA_0 1
+#define STP_CMD_1 2
+#define STP_STATE_SIZE 35
+
 struct r100_hw_state {
 	/* Hardware state, stored as cmdbuf commands:  
 	 *   -- Need to doublebuffer for
@@ -319,12 +328,11 @@ struct r100_hw_state {
 	struct radeon_state_atom fog;
 	struct radeon_state_atom glt;
 	struct radeon_state_atom txr[3];	/* for NPOT */
-
+	struct radeon_state_atom stp;
 };
 
 
 struct r100_state {
-	struct radeon_stipple_state stipple;
 	struct radeon_texture_state texture;
 };
 

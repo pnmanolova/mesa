@@ -59,6 +59,7 @@
 #include "util/u_tile.h"
 #include "util/u_blit.h"
 #include "util/u_surface.h"
+#include "util/u_math.h"
 
 
 #define DBG if (0) printf
@@ -237,18 +238,6 @@ do_memcpy(void *dest, const void *src, size_t n)
 }
 
 
-static int
-logbase2(int n)
-{
-   GLint i = 1, log2 = 0;
-   while (n > i) {
-      i *= 2;
-      log2++;
-   }
-   return log2;
-}
-
-
 /**
  * Return default texture usage bitmask for the given texture format.
  */
@@ -342,9 +331,9 @@ guess_and_alloc_texture(struct st_context *st,
       lastLevel = firstLevel;
    }
    else {
-      GLuint l2width = logbase2(width);
-      GLuint l2height = logbase2(height);
-      GLuint l2depth = logbase2(depth);
+      GLuint l2width = util_logbase2(width);
+      GLuint l2height = util_logbase2(height);
+      GLuint l2depth = util_logbase2(depth);
       lastLevel = firstLevel + MAX2(MAX2(l2width, l2height), l2depth);
    }
 
@@ -533,6 +522,12 @@ st_TexImage(GLcontext * ctx,
 
    DBG("%s target %s level %d %dx%dx%d border %d\n", __FUNCTION__,
        _mesa_lookup_enum_by_nr(target), level, width, height, depth, border);
+
+   /* switch to "normal" */
+   if (stObj->surface_based) {
+      _mesa_clear_texture_object(ctx, texObj);
+      stObj->surface_based = GL_FALSE;
+   }
 
    /* gallium does not support texture borders, strip it off */
    if (border) {
@@ -950,8 +945,9 @@ st_get_tex_image(GLcontext * ctx, GLenum target, GLint level,
       /* Image is stored in hardware format in a buffer managed by the
        * kernel.  Need to explicitly map and unmap it.
        */
+      unsigned face = _mesa_tex_target_to_face(target);
 
-      st_teximage_flush_before_map(ctx->st, stImage->pt, 0, level,
+      st_teximage_flush_before_map(ctx->st, stImage->pt, face, level,
 				   PIPE_TRANSFER_READ);
 
       texImage->Data = st_texture_image_map(ctx->st, stImage, 0,
@@ -1048,7 +1044,8 @@ st_TexSubimage(GLcontext *ctx, GLint dims, GLenum target, GLint level,
       _mesa_image_image_stride(packing, width, height, format, type);
    GLint i;
    const GLubyte *src;
-   enum pipe_transfer_usage transfer_usage;
+   /* init to silence warning only: */
+   enum pipe_transfer_usage transfer_usage = PIPE_TRANSFER_WRITE;
 
    DBG("%s target %s level %d offset %d,%d %dx%d\n", __FUNCTION__,
        _mesa_lookup_enum_by_nr(target),
@@ -1080,13 +1077,15 @@ st_TexSubimage(GLcontext *ctx, GLint dims, GLenum target, GLint level,
     * from uploading the buffer under us.
     */
    if (stImage->pt) {
+      unsigned face = _mesa_tex_target_to_face(target);
+
       if (format == GL_DEPTH_COMPONENT &&
           pf_is_depth_and_stencil(stImage->pt->format))
          transfer_usage = PIPE_TRANSFER_READ_WRITE;
       else
          transfer_usage = PIPE_TRANSFER_WRITE;
 
-      st_teximage_flush_before_map(ctx->st, stImage->pt, 0, level,
+      st_teximage_flush_before_map(ctx->st, stImage->pt, face, level,
 				   transfer_usage);
       texImage->Data = st_texture_image_map(ctx->st, stImage, zoffset, 
                                             transfer_usage,
@@ -1213,7 +1212,9 @@ st_CompressedTexSubImage2D(GLcontext *ctx, GLenum target, GLint level,
    int y;
 
    if (stImage->pt) {
-      st_teximage_flush_before_map(ctx->st, stImage->pt, 0, level,
+      unsigned face = _mesa_tex_target_to_face(target);
+
+      st_teximage_flush_before_map(ctx->st, stImage->pt, face, level,
 				   PIPE_TRANSFER_WRITE);
       texImage->Data = st_texture_image_map(ctx->st, stImage, 0, 
                                             PIPE_TRANSFER_WRITE,

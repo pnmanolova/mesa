@@ -286,6 +286,18 @@ choose_pixel_format(XMesaVisual v)
          return PIPE_FORMAT_B8G8R8A8_UNORM;
       }
    }
+   else if (   GET_REDMASK(v)   == 0x0000ff00
+            && GET_GREENMASK(v) == 0x00ff0000
+            && GET_BLUEMASK(v)  == 0xff000000
+            && v->BitsPerPixel == 32) {
+      if (native_byte_order) {
+         /* no byteswapping needed */
+         return PIPE_FORMAT_B8G8R8A8_UNORM;
+      }
+      else {
+         return PIPE_FORMAT_A8R8G8B8_UNORM;
+      }
+   }
    else if (   GET_REDMASK(v)   == 0xf800
             && GET_GREENMASK(v) == 0x07e0
             && GET_BLUEMASK(v)  == 0x001f
@@ -742,7 +754,7 @@ PUBLIC
 XMesaContext XMesaCreateContext( XMesaVisual v, XMesaContext share_list )
 {
    static GLboolean firstTime = GL_TRUE;
-   struct pipe_screen *screen;
+   static struct pipe_screen *screen = NULL;
    struct pipe_context *pipe;
    XMesaContext c;
    GLcontext *mesaCtx;
@@ -750,6 +762,7 @@ XMesaContext XMesaCreateContext( XMesaVisual v, XMesaContext share_list )
 
    if (firstTime) {
       pipe_mutex_init(_xmesa_lock);
+      screen = driver.create_pipe_screen();
       firstTime = GL_FALSE;
    }
 
@@ -765,9 +778,6 @@ XMesaContext XMesaCreateContext( XMesaVisual v, XMesaContext share_list )
    c->xm_buffer = NULL;   /* set later by XMesaMakeCurrent */
    c->xm_read_buffer = NULL;
 
-   /* XXX: create once per Xlib Display.
-    */
-   screen = driver.create_pipe_screen();
    if (screen == NULL)
       goto fail;
 
@@ -800,9 +810,6 @@ XMesaContext XMesaCreateContext( XMesaVisual v, XMesaContext share_list )
       st_destroy_context(c->st);
    else if (pipe)
       pipe->destroy(pipe);
-
-   if (screen)
-      screen->destroy( screen );
 
    FREE(c);
    return NULL;

@@ -39,6 +39,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "main/image.h"
 #include "main/imports.h"
 #include "main/macros.h"
+#include "main/simple_list.h"
 
 #include "swrast/s_context.h"
 #include "swrast/s_fog.h"
@@ -200,10 +201,32 @@ static void r200SetVertexFormat( GLcontext *ctx )
    }
 }
 
+static void r200_predict_emit_size( r200ContextPtr rmesa )
+{
+   if (RADEON_DEBUG & RADEON_VERTS)
+      fprintf(stderr, "%s\n", __func__);
+   const int vertex_array_size = 7;
+   const int prim_size = 3;
+   if (!rmesa->radeon.swtcl.emit_prediction) {
+      const int state_size = radeonCountStateEmitSize(&rmesa->radeon);
+      if (rcommonEnsureCmdBufSpace(&rmesa->radeon,
+	       state_size +
+	       vertex_array_size + prim_size,
+	       __FUNCTION__))
+	 rmesa->radeon.swtcl.emit_prediction = radeonCountStateEmitSize(&rmesa->radeon);
+      else
+	 rmesa->radeon.swtcl.emit_prediction = state_size;
+      rmesa->radeon.swtcl.emit_prediction += vertex_array_size + prim_size
+	 + rmesa->radeon.cmdbuf.cs->cdw;
+   }
+}
+
 
 static void r200RenderStart( GLcontext *ctx )
 {
    r200SetVertexFormat( ctx );
+   if (RADEON_DEBUG & RADEON_VERTS)
+      fprintf(stderr, "%s\n", __func__);
 }
 
 
@@ -267,21 +290,26 @@ void r200ChooseVertexState( GLcontext *ctx )
 void r200_swtcl_flush(GLcontext *ctx, uint32_t current_offset)
 {
    r200ContextPtr rmesa = R200_CONTEXT(ctx);
-   rcommonEnsureCmdBufSpace(&rmesa->radeon,
-			    rmesa->radeon.hw.max_state_size + (12*sizeof(int)),
-			    __FUNCTION__);
+   if (RADEON_DEBUG & RADEON_VERTS)
+      fprintf(stderr, "%s\n", __func__);
 
 
    radeonEmitState(&rmesa->radeon);
    r200EmitVertexAOS( rmesa,
 		      rmesa->radeon.swtcl.vertex_size,
-		      rmesa->radeon.dma.current,
+		      first_elem(&rmesa->radeon.dma.reserved)->bo,
 		      current_offset);
 
 
    r200EmitVbufPrim( rmesa,
 		     rmesa->radeon.swtcl.hw_primitive,
 		     rmesa->radeon.swtcl.numverts);
+   if ( rmesa->radeon.swtcl.emit_prediction < rmesa->radeon.cmdbuf.cs->cdw )
+      WARN_ONCE("Rendering was %d commands larger than predicted size."
+	    " We might overflow  command buffer.\n",
+	    rmesa->radeon.cmdbuf.cs->cdw - rmesa->radeon.swtcl.emit_prediction );
+
+   rmesa->radeon.swtcl.emit_prediction = 0;
 
 }
 
@@ -329,17 +357,27 @@ static void r200ResetLineStipple( GLcontext *ctx );
 #define HAVE_POLYGONS    1
 #define HAVE_ELTS        0
 
+static void* r200_alloc_verts( r200ContextPtr rmesa, GLuint n, GLuint size)
+{
+   void *rv;
+   do {
+      r200_predict_emit_size( rmesa );
+      rv = rcommonAllocDmaLowVerts( &rmesa->radeon, n, size * 4 );
+   } while(!rv);
+   return rv;
+}
+
 #undef LOCAL_VARS
 #undef ALLOC_VERTS
 #define CTX_ARG r200ContextPtr rmesa
 #define GET_VERTEX_DWORDS() rmesa->radeon.swtcl.vertex_size
-#define ALLOC_VERTS( n, size ) rcommonAllocDmaLowVerts( &rmesa->radeon, n, size * 4 )
+#define ALLOC_VERTS( n, size ) r200_alloc_verts(rmesa, n, size)
 #define LOCAL_VARS						\
    r200ContextPtr rmesa = R200_CONTEXT(ctx);		\
    const char *r200verts = (char *)rmesa->radeon.swtcl.verts;
 #define VERT(x) (radeonVertex *)(r200verts + ((x) * vertsize * sizeof(int)))
 #define VERTEX radeonVertex
-#define DO_DEBUG_VERTS (1 && (R200_DEBUG & DEBUG_VERTS))
+#define DO_DEBUG_VERTS (1 && (R200_DEBUG & RADEON_VERTS))
 
 #undef TAG
 #define TAG(x) r200_##x
@@ -443,7 +481,7 @@ do {							\
 
 #define LOCAL_VARS(n)							\
    r200ContextPtr rmesa = R200_CONTEXT(ctx);			\
-   GLuint color[n], spec[n];						\
+   GLuint color[n] = {0}, spec[n] = {0};						\
    GLuint coloroffset = rmesa->swtcl.coloroffset;	\
    GLuint specoffset = rmesa->swtcl.specoffset;			\
    (void) color; (void) spec; (void) coloroffset; (void) specoffset;
@@ -650,7 +688,7 @@ void r200Fallback( GLcontext *ctx, GLuint bit, GLboolean mode )
 	 TCL_FALLBACK( ctx, R200_TCL_FALLBACK_RASTER, GL_TRUE );
 	 _swsetup_Wakeup( ctx );
 	 rmesa->radeon.swtcl.RenderIndex = ~0;
-         if (R200_DEBUG & DEBUG_FALLBACKS) {
+         if (R200_DEBUG & RADEON_FALLBACKS) {
             fprintf(stderr, "R200 begin rasterization fallback: 0x%x %s\n",
                     bit, getFallbackString(bit));
          }
@@ -682,7 +720,7 @@ void r200Fallback( GLcontext *ctx, GLuint bit, GLboolean mode )
 	    r200ChooseVertexState( ctx );
 	    r200ChooseRenderState( ctx );
 	 }
-         if (R200_DEBUG & DEBUG_FALLBACKS) {
+         if (R200_DEBUG & RADEON_FALLBACKS) {
             fprintf(stderr, "R200 end rasterization fallback: 0x%x %s\n",
                     bit, getFallbackString(bit));
          }
@@ -889,6 +927,7 @@ void r200InitSwtcl( GLcontext *ctx )
       init_rast_tab();
       firsttime = 0;
    }
+   rmesa->radeon.swtcl.emit_prediction = 0;
 
    tnl->Driver.Render.Start = r200RenderStart;
    tnl->Driver.Render.Finish = r200RenderFinish;

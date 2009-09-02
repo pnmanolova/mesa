@@ -100,7 +100,6 @@ void
 dri_destroy_context(__DRIcontextPrivate * cPriv)
 {
    struct dri_context *ctx = dri_context(cPriv);
-   struct dri_screen *screen = dri_screen(cPriv->driScreenPriv);
 
    /* No particular reason to wait for command completion before
     * destroying a context, but it is probably worthwhile flushing it
@@ -108,9 +107,6 @@ dri_destroy_context(__DRIcontextPrivate * cPriv)
     * partially destroyed context.
     */
    st_flush(ctx->st, 0, NULL);
-
-   if (screen->dummyContext == ctx)
-      screen->dummyContext = NULL;
 
    /* Also frees ctx->pipe?
     */
@@ -143,7 +139,6 @@ dri_make_current(__DRIcontextPrivate * cPriv,
 {
    if (cPriv) {
       struct dri_context *ctx = dri_context(cPriv);
-      struct dri_screen *screen = dri_screen(cPriv->driScreenPriv);
       struct dri_drawable *draw = dri_drawable(driDrawPriv);
       struct dri_drawable *read = dri_drawable(driReadPriv);
       struct st_context *old_st = st_get_current();
@@ -152,11 +147,6 @@ dri_make_current(__DRIcontextPrivate * cPriv,
 	 st_flush(old_st, PIPE_FLUSH_RENDER_CACHE, NULL);
 
       ++ctx->bind_count;
-
-      /* This is for situations in which we need a rendering context but
-       * there may not be any currently bound.
-       */
-      screen->dummyContext = ctx;
 
       if (ctx->dPriv != driDrawPriv) {
 	 ctx->dPriv = driDrawPriv;

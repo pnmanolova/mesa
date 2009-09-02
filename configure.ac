@@ -126,6 +126,7 @@ AC_ARG_ENABLE([32-bit],
 if test "x$enable_32bit" = xyes; then
     if test "x$GCC" = xyes; then
         CFLAGS="$CFLAGS -m32"
+        ARCH_FLAGS="$ARCH_FLAGS -m32"
     fi
     if test "x$GXX" = xyes; then
         CXXFLAGS="$CXXFLAGS -m32"
@@ -713,7 +714,7 @@ if test "$mesa_driver" = dri; then
             # because there is no x86-64 system where they could *ever*
             # be used.
             if test "x$DRI_DIRS" = "xyes"; then
-                DRI_DIRS="i915 i965 mach64 mga r128 r200 r300 radeon \
+                DRI_DIRS="i915 i965 mach64 mga r128 r200 r300 r600 radeon \
                     savage tdfx unichrome swrast"
             fi
             ;;
@@ -721,13 +722,13 @@ if test "$mesa_driver" = dri; then
             # Build only the drivers for cards that exist on PowerPC.
             # At some point MGA will be added, but not yet.
             if test "x$DRI_DIRS" = "xyes"; then
-                DRI_DIRS="mach64 r128 r200 r300 radeon tdfx swrast"
+                DRI_DIRS="mach64 r128 r200 r300 r600 radeon tdfx swrast"
             fi
             ;;
         sparc*)
             # Build only the drivers for cards that exist on sparc`
             if test "x$DRI_DIRS" = "xyes"; then
-                DRI_DIRS="mach64 r128 r200 r300 radeon ffb swrast"
+                DRI_DIRS="mach64 r128 r200 r300 r600 radeon ffb swrast"
             fi
             ;;
         esac
@@ -746,7 +747,7 @@ if test "$mesa_driver" = dri; then
         # ffb and gamma are missing because they have not been converted
         # to use the new interface.
         if test "x$DRI_DIRS" = "xyes"; then
-            DRI_DIRS="i810 i915 i965 mach64 mga r128 r200 r300 radeon tdfx \
+            DRI_DIRS="i810 i915 i965 mach64 mga r128 r200 r300 r600 radeon tdfx \
                 unichrome savage sis swrast"
         fi
         ;;
@@ -765,7 +766,7 @@ if test "$mesa_driver" = dri; then
 
     # default drivers
     if test "x$DRI_DIRS" = "xyes"; then
-        DRI_DIRS="i810 i915 i965 mach64 mga r128 r200 r300 radeon s3v \
+        DRI_DIRS="i810 i915 i965 mach64 mga r128 r200 r300 r600 radeon s3v \
             savage sis tdfx trident unichrome ffb swrast"
     fi
 
@@ -1158,6 +1159,21 @@ AC_ARG_WITH([xorg-driver-dir],
     [XORG_DRIVER_INSTALL_DIR="$withval"],
     [XORG_DRIVER_INSTALL_DIR="${libdir}/xorg/modules/drivers"])
 AC_SUBST([XORG_DRIVER_INSTALL_DIR])
+
+AC_ARG_WITH([max-width],
+    [AS_HELP_STRING([--with-max-width=N],
+                    [Maximum framebuffer width (4096)])],
+    [DEFINES="${DEFINES} -DMAX_WIDTH=${withval}";
+     AS_IF([test "${withval}" -gt "4096"],
+           [AC_MSG_WARN([Large framebuffer: see s_tritemp.h comments.])])]
+)
+AC_ARG_WITH([max-height],
+    [AS_HELP_STRING([--with-max-height=N],
+                    [Maximum framebuffer height (4096)])],
+    [DEFINES="${DEFINES} -DMAX_HEIGHT=${withval}";
+     AS_IF([test "${withval}" -gt "4096"],
+           [AC_MSG_WARN([Large framebuffer: see s_tritemp.h comments.])])]
+)
 
 dnl
 dnl Gallium Intel configuration

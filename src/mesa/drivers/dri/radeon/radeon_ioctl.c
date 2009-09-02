@@ -113,7 +113,7 @@ void radeonSetUpAtomList( r100ContextPtr rmesa )
    insert_at_tail(&rmesa->radeon.hw.atomlist, &rmesa->hw.glt);
 }
 
-void radeonEmitScissor(r100ContextPtr rmesa)
+static void radeonEmitScissor(r100ContextPtr rmesa)
 {
     BATCH_LOCALS(&rmesa->radeon);
     if (!rmesa->radeon.radeonScreen->kernel_mm) {
@@ -127,8 +127,8 @@ void radeonEmitScissor(r100ContextPtr rmesa)
         OUT_BATCH((rmesa->radeon.state.scissor.rect.y1 << 16) |
                   rmesa->radeon.state.scissor.rect.x1);
         OUT_BATCH(CP_PACKET0(RADEON_RE_WIDTH_HEIGHT, 0));
-        OUT_BATCH(((rmesa->radeon.state.scissor.rect.y2 - 1) << 16) |
-                  (rmesa->radeon.state.scissor.rect.x2 - 1));
+        OUT_BATCH(((rmesa->radeon.state.scissor.rect.y2) << 16) |
+                  (rmesa->radeon.state.scissor.rect.x2));
         END_BATCH();
     } else {
         BEGIN_BATCH(2);
@@ -200,7 +200,7 @@ void radeonFlushElts( GLcontext *ctx )
    uint32_t *cmd = (uint32_t *)(rmesa->radeon.cmdbuf.cs->packets + rmesa->tcl.elt_cmd_start);
    int dwords = (rmesa->radeon.cmdbuf.cs->section_ndw - rmesa->radeon.cmdbuf.cs->section_cdw);
 
-   if (RADEON_DEBUG & DEBUG_IOCTL)
+   if (RADEON_DEBUG & RADEON_IOCTL)
       fprintf(stderr, "%s\n", __FUNCTION__);
 
    assert( rmesa->radeon.dma.flush == radeonFlushElts );
@@ -236,7 +236,7 @@ void radeonFlushElts( GLcontext *ctx )
 
    END_BATCH();
 
-   if (RADEON_DEBUG & DEBUG_SYNC) {
+   if (RADEON_DEBUG & RADEON_SYNC) {
       fprintf(stderr, "%s: Syncing\n", __FUNCTION__);
       radeonFinish( rmesa->radeon.glCtx );
    }
@@ -252,7 +252,7 @@ GLushort *radeonAllocEltsOpenEnded( r100ContextPtr rmesa,
    int align_min_nr;
    BATCH_LOCALS(&rmesa->radeon);
 
-   if (RADEON_DEBUG & DEBUG_IOCTL)
+   if (RADEON_DEBUG & RADEON_IOCTL)
       fprintf(stderr, "%s %d prim %x\n", __FUNCTION__, min_nr, primitive);
 
    assert((primitive & RADEON_CP_VC_CNTL_PRIM_WALK_IND));
@@ -273,7 +273,7 @@ GLushort *radeonAllocEltsOpenEnded( r100ContextPtr rmesa,
    } else {
      OUT_BATCH(rmesa->ioctl.vertex_offset);
    }
-   OUT_BATCH(0xffff);
+   OUT_BATCH(rmesa->ioctl.vertex_max);
    OUT_BATCH(vertex_format);
    OUT_BATCH(primitive |
 	     RADEON_CP_VC_CNTL_PRIM_WALK_IND |
@@ -296,7 +296,7 @@ GLushort *radeonAllocEltsOpenEnded( r100ContextPtr rmesa,
 
    retval = (GLushort *)(rmesa->radeon.cmdbuf.cs->packets + rmesa->tcl.elt_cmd_offset);
 
-   if (RADEON_DEBUG & DEBUG_PRIMS)
+   if (RADEON_DEBUG & RADEON_RENDER)
       fprintf(stderr, "%s: header prim %x \n",
 	      __FUNCTION__, primitive);
 
@@ -318,7 +318,7 @@ void radeonEmitVertexAOS( r100ContextPtr rmesa,
 #else
    BATCH_LOCALS(&rmesa->radeon);
 
-   if (RADEON_DEBUG & (DEBUG_PRIMS|DEBUG_IOCTL))
+   if (RADEON_DEBUG & (RADEON_PRIMS|DEBUG_IOCTL))
       fprintf(stderr, "%s:  vertex_size 0x%x offset 0x%x \n",
 	      __FUNCTION__, vertex_size, offset);
 
@@ -342,6 +342,7 @@ void radeonEmitAOS( r100ContextPtr rmesa,
    rmesa->ioctl.bo = rmesa->radeon.tcl.aos[0].bo;
    rmesa->ioctl.vertex_offset =
      (rmesa->radeon.tcl.aos[0].offset + offset * rmesa->radeon.tcl.aos[0].stride * 4);
+   rmesa->ioctl.vertex_max = rmesa->radeon.tcl.aos[0].count;
 #else
    BATCH_LOCALS(&rmesa->radeon);
    uint32_t voffset;
@@ -349,7 +350,7 @@ void radeonEmitAOS( r100ContextPtr rmesa,
    int sz = 1 + (nr >> 1) * 3 + (nr & 1) * 2;
    int i;
 
-   if (RADEON_DEBUG & DEBUG_IOCTL)
+   if (RADEON_DEBUG & RADEON_IOCTL)
       fprintf(stderr, "%s\n", __FUNCTION__);
 
    BEGIN_BATCH(sz+2+(nr * 2));
@@ -444,11 +445,6 @@ void radeonEmitAOS( r100ContextPtr rmesa,
  * Buffer clear
  */
 #define RADEON_MAX_CLEARS	256
-
-static void radeonUserClear(GLcontext *ctx, GLuint mask)
-{
-   radeon_clear_tris(ctx, mask);
-}
 
 static void radeonKernelClear(GLcontext *ctx, GLuint flags)
 {
@@ -579,7 +575,7 @@ static void radeonClear( GLcontext *ctx, GLbitfield mask )
    GLuint color_mask = 0;
    GLuint orig_mask = mask;
 
-   if ( RADEON_DEBUG & DEBUG_IOCTL ) {
+   if ( RADEON_DEBUG & RADEON_IOCTL ) {
       fprintf( stderr, "radeonClear\n");
    }
 
@@ -615,7 +611,7 @@ static void radeonClear( GLcontext *ctx, GLbitfield mask )
    }
 
    if ( mask ) {
-      if (RADEON_DEBUG & DEBUG_FALLBACKS)
+      if (RADEON_DEBUG & RADEON_FALLBACKS)
 	 fprintf(stderr, "%s: swrast clear, mask: %x\n", __FUNCTION__, mask);
       _swrast_Clear( ctx, mask );
    }

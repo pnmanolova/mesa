@@ -143,6 +143,7 @@ struct brw_context;
 #define BRW_NEW_DEPTH_BUFFER		0x20000
 #define BRW_NEW_NR_WM_SURFACES		0x40000
 #define BRW_NEW_NR_VS_SURFACES		0x80000
+#define BRW_NEW_INDEX_BUFFER		0x100000
 
 struct brw_state_flags {
    /** State update flags signalled by mesa internals */
@@ -173,6 +174,9 @@ struct brw_fragment_program {
 
    dri_bo *const_buffer;    /** Program constant buffer/surface */
    GLboolean use_const_buffer;
+
+   /** for debugging, which texture units are referenced */
+   GLbitfield tex_units_used;
 };
 
 
@@ -438,9 +442,13 @@ struct brw_query_object {
    unsigned int count;
 };
 
+
+/**
+ * brw_context is derived from intel_context.
+ */
 struct brw_context 
 {
-   struct intel_context intel;
+   struct intel_context intel;  /**< base class, must be first field */
    GLuint primitive;
 
    GLboolean emit_state_always;
@@ -475,6 +483,9 @@ struct brw_context
    struct {
       struct brw_vertex_element inputs[VERT_ATTRIB_MAX];
 
+      struct brw_vertex_element *enabled[VERT_ATTRIB_MAX];
+      GLuint nr_enabled;
+
 #define BRW_NR_UPLOAD_BUFS 17
 #define BRW_UPLOAD_INIT_SIZE (128*1024)
 
@@ -498,8 +509,15 @@ struct brw_context
        */
       const struct _mesa_index_buffer *ib;
 
+      /* Updates to these fields are signaled by BRW_NEW_INDEX_BUFFER. */
       dri_bo *bo;
       unsigned int offset;
+      unsigned int size;
+      /* Offset to index buffer index to use in CMD_3D_PRIM so that we can
+       * avoid re-uploading the IB packet over and over if we're actually
+       * referencing the same index buffer.
+       */
+      unsigned int start_vertex_offset;
    } ib;
 
    /* Active vertex program: 
@@ -706,6 +724,8 @@ void brw_upload_urb_fence(struct brw_context *brw);
  */
 void brw_upload_cs_urb_state(struct brw_context *brw);
 
+/* brw_disasm.c */
+int brw_disasm (FILE *file, struct brw_instruction *inst);
 
 /*======================================================================
  * Inline conversion functions.  These are better-typed than the

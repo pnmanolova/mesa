@@ -38,6 +38,7 @@
 #include "swrast_setup/swrast_setup.h"
 #include "tnl/tnl.h"
 #include "drivers/common/driverfuncs.h"
+#include "drivers/common/meta.h"
 
 #include "i830_dri.h"
 
@@ -404,7 +405,7 @@ intel_viewport(GLcontext *ctx, GLint x, GLint y, GLsizei w, GLsizei h)
     if (!driContext->driScreenPriv->dri2.enabled)
 	return;
 
-    if (!intel->internal_viewport_call && ctx->DrawBuffer->Name == 0) {
+    if (!intel->meta.internal_viewport_call && ctx->DrawBuffer->Name == 0) {
        /* If we're rendering to the fake front buffer, make sure all the pending
 	* drawing has landed on the real front buffer.  Otherwise when we
 	* eventually get to DRI2GetBuffersWithFormat the stale real front
@@ -513,7 +514,7 @@ intel_flush(GLcontext *ctx, GLboolean needs_mi_flush)
 	  * each of N places that do rendering.  This has worse performances,
 	  * but it is much easier to get correct.
 	  */
-	 if (intel->is_front_buffer_rendering) {
+	 if (!intel->is_front_buffer_rendering) {
 	    intel->front_buffer_dirty = GL_FALSE;
 	 }
       }
@@ -529,7 +530,27 @@ intelFlush(GLcontext * ctx)
 static void
 intel_glFlush(GLcontext *ctx)
 {
+   struct intel_context *intel = intel_context(ctx);
+
    intel_flush(ctx, GL_TRUE);
+
+   /* We're using glFlush as an indicator that a frame is done, which is
+    * what DRI2 does before calling SwapBuffers (and means we should catch
+    * people doing front-buffer rendering, as well)..
+    *
+    * Wait for the swapbuffers before the one we just emitted, so we don't
+    * get too many swaps outstanding for apps that are GPU-heavy but not
+    * CPU-heavy.
+    *
+    * Unfortunately, we don't have a handle to the batch containing the swap,
+    * and getting our hands on that doesn't seem worth it, so we just us the
+    * first batch we emitted after the last swap.
+    */
+   if (intel->first_post_swapbuffers_batch != NULL) {
+      drm_intel_bo_wait_rendering(intel->first_post_swapbuffers_batch);
+      drm_intel_bo_unreference(intel->first_post_swapbuffers_batch);
+      intel->first_post_swapbuffers_batch = NULL;
+   }
 }
 
 void
@@ -672,6 +693,7 @@ intelInitContext(struct intel_context *intel,
     */
    _mesa_init_point(ctx);
 
+   meta_init_metaops(ctx, &intel->meta);
    ctx->Const.MaxColorAttachments = 4;  /* XXX FBO: review this */
    if (IS_965(intelScreen->deviceID)) {
       if (MAX_WIDTH > 8192)
@@ -690,6 +712,8 @@ intelInitContext(struct intel_context *intel,
    /* Configure swrast to match hardware characteristics: */
    _swrast_allow_pixel_fog(ctx, GL_FALSE);
    _swrast_allow_vertex_fog(ctx, GL_TRUE);
+
+   _mesa_meta_init(ctx);
 
    intel->hw_stencil = mesaVis->stencilBits && mesaVis->depthBits == 24;
    intel->hw_stipple = 1;
@@ -751,7 +775,7 @@ intelInitContext(struct intel_context *intel,
    if (intel->use_texture_tiling &&
        !intel->intelScreen->kernel_exec_fencing) {
       fprintf(stderr, "No kernel support for execution fencing, "
-	      "disabling texture tiling");
+	      "disabling texture tiling\n");
       intel->use_texture_tiling = GL_FALSE;
    }
    intel->use_early_z = driQueryOptionb(&intel->optionCache, "early_z");
@@ -794,8 +818,9 @@ intelDestroyContext(__DRIcontextPrivate * driContextPriv)
 
       INTEL_FIREVERTICES(intel);
 
-      if (intel->clear.arrayObj)
-         _mesa_delete_array_object(&intel->ctx, intel->clear.arrayObj);
+      _mesa_meta_free(&intel->ctx);
+
+      meta_destroy_metaops(&intel->meta);
 
       intel->vtbl.destroy(intel);
 
@@ -814,6 +839,8 @@ intelDestroyContext(__DRIcontextPrivate * driContextPriv)
       intel->prim.vb = NULL;
       dri_bo_unreference(intel->prim.vb_bo);
       intel->prim.vb_bo = NULL;
+      dri_bo_unreference(intel->first_post_swapbuffers_batch);
+      intel->first_post_swapbuffers_batch = NULL;
 
       if (release_texture_heaps) {
          /* Nothing is currently done here to free texture heaps;

@@ -99,6 +99,7 @@ typedef struct radeon_screen {
    GLboolean drmSupportsPointSprites;   /* need radeon kernel module >= 1.13 */
    GLboolean drmSupportsCubeMapsR100;   /* need radeon kernel module >= 1.15 */
    GLboolean drmSupportsVertexProgram;  /* need radeon kernel module >= 1.25 */
+   GLboolean drmSupportsOcclusionQueries; /* need radeon kernel module >= 1.30 */
    GLboolean depthHasSurface;
 
    /* Configuration cache with default values for all contexts */
@@ -107,6 +108,7 @@ typedef struct radeon_screen {
    const __DRIextension *extensions[16];
 
    int num_gb_pipes;
+   int num_z_pipes;
    int kernel_mm;
    drm_radeon_sarea_t *sarea;	/* Private SAREA data */
    struct radeon_bo_manager *bom;
@@ -118,6 +120,8 @@ typedef struct radeon_screen {
 	((screen->chip_flags & RADEON_CLASS_MASK) == RADEON_CLASS_R200)
 #define IS_R300_CLASS(screen) \
 	((screen->chip_flags & RADEON_CLASS_MASK) == RADEON_CLASS_R300)
+#define IS_R600_CLASS(screen) \
+	((screen->chip_flags & RADEON_CLASS_MASK) == RADEON_CLASS_R600)
 
 extern void radeonDestroyBuffer(__DRIdrawablePrivate *driDrawPriv);
 #endif /* __RADEON_SCREEN_H__ */

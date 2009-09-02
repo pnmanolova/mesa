@@ -156,7 +156,7 @@ buffer_object_subdata_range_good( GLcontext * ctx, GLenum target,
       _mesa_error(ctx, GL_INVALID_ENUM, "%s(target)", caller);
       return NULL;
    }
-   if (bufObj->Name == 0) {
+   if (!_mesa_is_bufferobj(bufObj)) {
       _mesa_error(ctx, GL_INVALID_OPERATION, "%s", caller);
       return NULL;
    }
@@ -165,7 +165,7 @@ buffer_object_subdata_range_good( GLcontext * ctx, GLenum target,
 		  "%s(size + offset > buffer size)", caller);
       return NULL;
    }
-   if (bufObj->Pointer) {
+   if (_mesa_bufferobj_mapped(bufObj)) {
       /* Buffer is currently mapped */
       _mesa_error(ctx, GL_INVALID_OPERATION, "%s", caller);
       return NULL;
@@ -423,11 +423,13 @@ _mesa_buffer_map( GLcontext *ctx, GLenum target, GLenum access,
    (void) target;
    (void) access;
    /* Just return a direct pointer to the data */
-   if (bufObj->Pointer) {
+   if (_mesa_bufferobj_mapped(bufObj)) {
       /* already mapped! */
       return NULL;
    }
    bufObj->Pointer = bufObj->Data;
+   bufObj->Length = bufObj->Size;
+   bufObj->Offset = 0;
    return bufObj->Pointer;
 }
 
@@ -443,11 +445,13 @@ _mesa_buffer_map_range( GLcontext *ctx, GLenum target, GLintptr offset,
 {
    (void) ctx;
    (void) target;
-   (void) access;
-   (void) length;
-   assert(!bufObj->Pointer);
+   assert(!_mesa_bufferobj_mapped(bufObj));
    /* Just return a direct pointer to the data */
-   return bufObj->Data + offset;
+   bufObj->Pointer = bufObj->Data + offset;
+   bufObj->Length = length;
+   bufObj->Offset = offset;
+   bufObj->AccessFlags = access;
+   return bufObj->Pointer;
 }
 
 
@@ -484,6 +488,9 @@ _mesa_buffer_unmap( GLcontext *ctx, GLenum target,
    (void) target;
    /* XXX we might assert here that bufObj->Pointer is non-null */
    bufObj->Pointer = NULL;
+   bufObj->Length = 0;
+   bufObj->Offset = 0;
+   bufObj->AccessFlags = 0x0;
    return GL_TRUE;
 }
 
@@ -502,8 +509,8 @@ _mesa_copy_buffer_subdata(GLcontext *ctx,
    GLubyte *srcPtr, *dstPtr;
 
    /* buffer should not already be mapped */
-   assert(!src->Pointer);
-   assert(!dst->Pointer);
+   assert(!_mesa_bufferobj_mapped(src));
+   assert(!_mesa_bufferobj_mapped(dst));
 
    srcPtr = (GLubyte *) ctx->Driver.MapBuffer(ctx, GL_COPY_READ_BUFFER,
                                               GL_READ_ONLY, src);
@@ -663,7 +670,7 @@ _mesa_validate_pbo_access(GLuint dimensions,
    GLvoid *start, *end;
    const GLubyte *sizeAddr; /* buffer size, cast to a pointer */
 
-   ASSERT(pack->BufferObj->Name != 0);
+   ASSERT(_mesa_is_bufferobj(pack->BufferObj));
 
    if (pack->BufferObj->Size == 0)
       /* no buffer! */
@@ -709,7 +716,7 @@ _mesa_map_bitmap_pbo(GLcontext *ctx,
 {
    const GLubyte *buf;
 
-   if (unpack->BufferObj->Name) {
+   if (_mesa_is_bufferobj(unpack->BufferObj)) {
       /* unpack from PBO */
       buf = (GLubyte *) ctx->Driver.MapBuffer(ctx, GL_PIXEL_UNPACK_BUFFER_EXT,
                                               GL_READ_ONLY_ARB,
@@ -736,7 +743,7 @@ void
 _mesa_unmap_bitmap_pbo(GLcontext *ctx,
                        const struct gl_pixelstore_attrib *unpack)
 {
-   if (unpack->BufferObj->Name) {
+   if (_mesa_is_bufferobj(unpack->BufferObj)) {
       ctx->Driver.UnmapBuffer(ctx, GL_PIXEL_UNPACK_BUFFER_EXT,
                               unpack->BufferObj);
    }
@@ -753,7 +760,7 @@ _mesa_map_drawpix_pbo(GLcontext *ctx,
 {
    const GLvoid *buf;
 
-   if (unpack->BufferObj->Name) {
+   if (_mesa_is_bufferobj(unpack->BufferObj)) {
       /* unpack from PBO */
       buf = (GLubyte *) ctx->Driver.MapBuffer(ctx, GL_PIXEL_UNPACK_BUFFER_EXT,
                                               GL_READ_ONLY_ARB,
@@ -779,7 +786,7 @@ void
 _mesa_unmap_drawpix_pbo(GLcontext *ctx,
                         const struct gl_pixelstore_attrib *unpack)
 {
-   if (unpack->BufferObj->Name) {
+   if (_mesa_is_bufferobj(unpack->BufferObj)) {
       ctx->Driver.UnmapBuffer(ctx, GL_PIXEL_UNPACK_BUFFER_EXT,
                               unpack->BufferObj);
    }
@@ -798,7 +805,7 @@ _mesa_map_readpix_pbo(GLcontext *ctx,
 {
    void *buf;
 
-   if (pack->BufferObj->Name) {
+   if (_mesa_is_bufferobj(pack->BufferObj)) {
       /* pack into PBO */
       buf = (GLubyte *) ctx->Driver.MapBuffer(ctx, GL_PIXEL_PACK_BUFFER_EXT,
                                               GL_WRITE_ONLY_ARB,
@@ -824,7 +831,7 @@ void
 _mesa_unmap_readpix_pbo(GLcontext *ctx,
                         const struct gl_pixelstore_attrib *pack)
 {
-   if (pack->BufferObj->Name) {
+   if (_mesa_is_bufferobj(pack->BufferObj)) {
       ctx->Driver.UnmapBuffer(ctx, GL_PIXEL_PACK_BUFFER_EXT, pack->BufferObj);
    }
 }
@@ -932,7 +939,7 @@ _mesa_DeleteBuffersARB(GLsizei n, const GLuint *ids)
 
          ASSERT(bufObj->Name == ids[i]);
 
-         if (bufObj->Pointer) {
+         if (_mesa_bufferobj_mapped(bufObj)) {
             /* if mapped, unmap it now */
             ctx->Driver.UnmapBuffer(ctx, 0, bufObj);
             bufObj->AccessFlags = DEFAULT_ACCESS;
@@ -1086,16 +1093,16 @@ _mesa_BufferDataARB(GLenum target, GLsizeiptrARB size,
       _mesa_error(ctx, GL_INVALID_ENUM, "glBufferDataARB(target)" );
       return;
    }
-   if (bufObj->Name == 0) {
+   if (!_mesa_is_bufferobj(bufObj)) {
       _mesa_error(ctx, GL_INVALID_OPERATION, "glBufferDataARB(buffer 0)" );
       return;
    }
    
-   if (bufObj->Pointer) {
+   if (_mesa_bufferobj_mapped(bufObj)) {
       /* Unmap the existing buffer.  We'll replace it now.  Not an error. */
       ctx->Driver.UnmapBuffer(ctx, target, bufObj);
       bufObj->AccessFlags = DEFAULT_ACCESS;
-      bufObj->Pointer = NULL;
+      ASSERT(bufObj->Pointer == NULL);
    }  
 
    FLUSH_VERTICES(ctx, _NEW_BUFFER_OBJECT);
@@ -1165,6 +1172,8 @@ _mesa_MapBufferARB(GLenum target, GLenum access)
    GET_CURRENT_CONTEXT(ctx);
    struct gl_buffer_object * bufObj;
    GLbitfield accessFlags;
+   void *map;
+
    ASSERT_OUTSIDE_BEGIN_END_WITH_RETVAL(ctx, NULL);
 
    switch (access) {
@@ -1187,24 +1196,31 @@ _mesa_MapBufferARB(GLenum target, GLenum access)
       _mesa_error(ctx, GL_INVALID_ENUM, "glMapBufferARB(target)" );
       return NULL;
    }
-   if (bufObj->Name == 0) {
+   if (!_mesa_is_bufferobj(bufObj)) {
       _mesa_error(ctx, GL_INVALID_OPERATION, "glMapBufferARB(buffer 0)" );
       return NULL;
    }
-   if (bufObj->Pointer) {
+   if (_mesa_bufferobj_mapped(bufObj)) {
       _mesa_error(ctx, GL_INVALID_OPERATION, "glMapBufferARB(already mapped)");
       return NULL;
    }
 
    ASSERT(ctx->Driver.MapBuffer);
-   bufObj->Pointer = ctx->Driver.MapBuffer( ctx, target, access, bufObj );
-   if (!bufObj->Pointer) {
+   map = ctx->Driver.MapBuffer( ctx, target, access, bufObj );
+   if (!map) {
       _mesa_error(ctx, GL_OUT_OF_MEMORY, "glMapBufferARB(access)");
    }
 
-   bufObj->AccessFlags = accessFlags;
-   bufObj->Offset = 0;
-   bufObj->Length = bufObj->Size;
+   if (map) {
+      /* The driver callback should have set these fields.
+       * This is important because other modules (like VBO) might call
+       * the driver function directly.
+       */
+      ASSERT(bufObj->Pointer == map);
+      ASSERT(bufObj->Length == bufObj->Size);
+      ASSERT(bufObj->Offset == 0);
+      bufObj->AccessFlags = accessFlags;
+   }
 
    if (access == GL_WRITE_ONLY_ARB || access == GL_READ_WRITE_ARB)
       bufObj->Written = GL_TRUE;
@@ -1248,11 +1264,11 @@ _mesa_UnmapBufferARB(GLenum target)
       _mesa_error(ctx, GL_INVALID_ENUM, "glUnmapBufferARB(target)" );
       return GL_FALSE;
    }
-   if (bufObj->Name == 0) {
+   if (!_mesa_is_bufferobj(bufObj)) {
       _mesa_error(ctx, GL_INVALID_OPERATION, "glUnmapBufferARB" );
       return GL_FALSE;
    }
-   if (!bufObj->Pointer) {
+   if (!_mesa_bufferobj_mapped(bufObj)) {
       _mesa_error(ctx, GL_INVALID_OPERATION, "glUnmapBufferARB");
       return GL_FALSE;
    }
@@ -1295,9 +1311,9 @@ _mesa_UnmapBufferARB(GLenum target)
 
    status = ctx->Driver.UnmapBuffer( ctx, target, bufObj );
    bufObj->AccessFlags = DEFAULT_ACCESS;
-   bufObj->Pointer = NULL;
-   bufObj->Offset = 0;
-   bufObj->Length = 0;
+   ASSERT(bufObj->Pointer == NULL);
+   ASSERT(bufObj->Offset == 0);
+   ASSERT(bufObj->Length == 0);
 
    return status;
 }
@@ -1315,7 +1331,7 @@ _mesa_GetBufferParameterivARB(GLenum target, GLenum pname, GLint *params)
       _mesa_error(ctx, GL_INVALID_ENUM, "GetBufferParameterivARB(target)" );
       return;
    }
-   if (bufObj->Name == 0) {
+   if (!_mesa_is_bufferobj(bufObj)) {
       _mesa_error(ctx, GL_INVALID_OPERATION, "GetBufferParameterivARB" );
       return;
    }
@@ -1331,7 +1347,7 @@ _mesa_GetBufferParameterivARB(GLenum target, GLenum pname, GLint *params)
          *params = simplified_access_mode(bufObj->AccessFlags);
          break;
       case GL_BUFFER_MAPPED_ARB:
-         *params = (bufObj->Pointer != NULL);
+         *params = _mesa_bufferobj_mapped(bufObj);
          break;
       default:
          _mesa_error(ctx, GL_INVALID_ENUM, "glGetBufferParameterivARB(pname)");
@@ -1357,7 +1373,7 @@ _mesa_GetBufferPointervARB(GLenum target, GLenum pname, GLvoid **params)
       _mesa_error(ctx, GL_INVALID_ENUM, "glGetBufferPointervARB(target)" );
       return;
    }
-   if (bufObj->Name == 0) {
+   if (!_mesa_is_bufferobj(bufObj)) {
       _mesa_error(ctx, GL_INVALID_OPERATION, "glGetBufferPointervARB" );
       return;
    }
@@ -1376,26 +1392,26 @@ _mesa_CopyBufferSubData(GLenum readTarget, GLenum writeTarget,
    ASSERT_OUTSIDE_BEGIN_END(ctx);
 
    src = get_buffer(ctx, readTarget);
-   if (!src || src->Name == 0) {
+   if (!src || !_mesa_is_bufferobj(src)) {
       _mesa_error(ctx, GL_INVALID_ENUM,
                   "glCopyBuffserSubData(readTarget = 0x%x)", readTarget);
       return;
    }
 
    dst = get_buffer(ctx, writeTarget);
-   if (!dst || dst->Name == 0) {
+   if (!dst || !_mesa_is_bufferobj(dst)) {
       _mesa_error(ctx, GL_INVALID_ENUM,
                   "glCopyBuffserSubData(writeTarget = 0x%x)", writeTarget);
       return;
    }
 
-   if (src->Pointer) {
+   if (_mesa_bufferobj_mapped(src)) {
       _mesa_error(ctx, GL_INVALID_OPERATION,
                   "glCopyBuffserSubData(readBuffer is mapped)");
       return;
    }
 
-   if (dst->Pointer) {
+   if (_mesa_bufferobj_mapped(dst)) {
       _mesa_error(ctx, GL_INVALID_OPERATION,
                   "glCopyBuffserSubData(writeBuffer is mapped)");
       return;
@@ -1455,6 +1471,8 @@ _mesa_MapBufferRange(GLenum target, GLintptr offset, GLsizeiptr length,
 {
    GET_CURRENT_CONTEXT(ctx);
    struct gl_buffer_object *bufObj;
+   void *map;
+
    ASSERT_OUTSIDE_BEGIN_END_WITH_RETVAL(ctx, NULL);
 
    if (!ctx->Extensions.ARB_map_buffer_range) {
@@ -1499,7 +1517,7 @@ _mesa_MapBufferRange(GLenum target, GLintptr offset, GLsizeiptr length,
    }
 
    bufObj = get_buffer(ctx, target);
-   if (!bufObj || bufObj->Name == 0) {
+   if (!bufObj || !_mesa_is_bufferobj(bufObj)) {
       _mesa_error(ctx, GL_INVALID_ENUM,
                   "glMapBufferRange(target = 0x%x)", target);
       return NULL;
@@ -1511,21 +1529,27 @@ _mesa_MapBufferRange(GLenum target, GLintptr offset, GLsizeiptr length,
       return NULL;
    }
 
-   if (bufObj->Pointer) {
+   if (_mesa_bufferobj_mapped(bufObj)) {
       _mesa_error(ctx, GL_INVALID_OPERATION,
                   "glMapBufferRange(buffer already mapped)");
       return NULL;
    }
       
    ASSERT(ctx->Driver.MapBufferRange);
-   bufObj->Pointer = ctx->Driver.MapBufferRange(ctx, target, offset, length,
-                                                access, bufObj);
+   map = ctx->Driver.MapBufferRange(ctx, target, offset, length,
+                                    access, bufObj);
+   if (map) {
+      /* The driver callback should have set all these fields.
+       * This is important because other modules (like VBO) might call
+       * the driver function directly.
+       */
+      ASSERT(bufObj->Pointer == map);
+      ASSERT(bufObj->Length == length);
+      ASSERT(bufObj->Offset == offset);
+      ASSERT(bufObj->AccessFlags == access);
+   }
 
-   bufObj->Offset = offset;
-   bufObj->Length = length;
-   bufObj->AccessFlags = access;
-
-   return bufObj->Pointer;
+   return map;
 }
 
 
@@ -1564,13 +1588,13 @@ _mesa_FlushMappedBufferRange(GLenum target, GLintptr offset, GLsizeiptr length)
       return;
    }
 
-   if (bufObj->Name == 0) {
+   if (!_mesa_is_bufferobj(bufObj)) {
       _mesa_error(ctx, GL_INVALID_OPERATION,
                   "glMapBufferRange(current buffer is 0)");
       return;
    }
 
-   if (!bufObj->Pointer) {
+   if (!_mesa_bufferobj_mapped(bufObj)) {
       /* buffer is not mapped */
       _mesa_error(ctx, GL_INVALID_OPERATION,
                   "glMapBufferRange(buffer is not mapped)");

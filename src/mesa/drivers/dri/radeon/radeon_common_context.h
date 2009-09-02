@@ -8,11 +8,13 @@
 #include "tnl/t_context.h"
 #include "main/colormac.h"
 
+#include "radeon_debug.h"
 #include "radeon_screen.h"
 #include "radeon_drm.h"
 #include "dri_util.h"
 #include "tnl/t_vertex.h"
 
+#include "dri_metaops.h"
 struct radeon_context;
 
 #include "radeon_bocs_wrapper.h"
@@ -141,10 +143,6 @@ struct radeon_stencilbuffer_state {
 	GLuint clear;		/* rb3d_stencilrefmask value */
 };
 
-struct radeon_stipple_state {
-	GLuint mask[32];
-};
-
 struct radeon_state_atom {
 	struct radeon_state_atom *next, *prev;
 	const char *name;	/* for debug */
@@ -162,6 +160,7 @@ struct radeon_hw_state {
   	/* Head of the linked list of state atoms. */
 	struct radeon_state_atom atomlist;
 	int max_state_size;	/* Number of bytes necessary for a full state emit. */
+	int max_post_flush_size; /* Number of bytes necessary for post flushing emits */
 	GLboolean is_dirty, all_dirty;
 };
 
@@ -225,6 +224,24 @@ struct radeon_tex_obj {
 
         GLuint pp_txfilter_1;	/*  r300 */
 
+	/* r700 texture states */
+	GLuint SQ_TEX_RESOURCE0;
+	GLuint SQ_TEX_RESOURCE1;
+	GLuint SQ_TEX_RESOURCE2;
+	GLuint SQ_TEX_RESOURCE3;
+	GLuint SQ_TEX_RESOURCE4;
+	GLuint SQ_TEX_RESOURCE5;
+	GLuint SQ_TEX_RESOURCE6;
+
+	GLuint SQ_TEX_SAMPLER0;
+	GLuint SQ_TEX_SAMPLER1;
+	GLuint SQ_TEX_SAMPLER2;
+
+	GLuint TD_PS_SAMPLER0_BORDER_RED;
+	GLuint TD_PS_SAMPLER0_BORDER_GREEN;
+	GLuint TD_PS_SAMPLER0_BORDER_BLUE;
+	GLuint TD_PS_SAMPLER0_BORDER_ALPHA;
+
 	GLboolean border_fallback;
 
 
@@ -234,6 +251,17 @@ static INLINE radeonTexObj* radeon_tex_obj(struct gl_texture_object *texObj)
 {
 	return (radeonTexObj*)texObj;
 }
+
+/* occlusion query */
+struct radeon_query_object {
+	struct gl_query_object Base;
+	struct radeon_bo *bo;
+	int curr_offset;
+	GLboolean emitted_begin;
+
+	/* Double linked list of not flushed query objects */
+	struct radeon_query_object *prev, *next;
+};
 
 /* Need refcounting on dma buffers:
  */
@@ -250,14 +278,25 @@ struct radeon_aos {
 	int count; /** Number of vertices */
 };
 
+#define DMA_BO_FREE_TIME 100
+
+struct radeon_dma_bo {
+  struct radeon_dma_bo *next, *prev;
+  struct radeon_bo *bo;
+  int expire_counter;
+};
+
 struct radeon_dma {
         /* Active dma region.  Allocations for vertices and retained
          * regions come from here.  Also used for emitting random vertices,
          * these may be flushed by calling flush_current();
          */
-        struct radeon_bo *current; /** Buffer that DMA memory is allocated from */
-        int current_used; /** Number of bytes allocated and forgotten about */
-        int current_vertexptr; /** End of active vertex region */
+	struct radeon_dma_bo free;
+	struct radeon_dma_bo wait;
+	struct radeon_dma_bo reserved;
+        size_t current_used; /** Number of bytes allocated and forgotten about */
+        size_t current_vertexptr; /** End of active vertex region */
+        size_t minimum_size;
 
         /**
          * If current_vertexptr != current_used then flush must be non-zero.
@@ -265,12 +304,6 @@ struct radeon_dma {
          * performed.
          */
         void (*flush) (GLcontext *);
-
-        /* Number of "in-flight" DMA buffers, i.e. the number of buffers
-         * for which a DISCARD command is currently queued in the command buffer
-.
-         */
-        GLuint nr_released_bufs;
 };
 
 /* radeon_swtcl.c
@@ -290,6 +323,7 @@ struct radeon_swtcl_info {
 	struct tnl_attr_map vertex_attrs[VERT_ATTRIB_MAX];
 	GLuint vertex_attr_count;
 
+	GLuint emit_prediction;
 };
 
 #define RADEON_MAX_AOS_ARRAYS		16
@@ -302,7 +336,8 @@ struct radeon_tcl_info {
 
 struct radeon_ioctl {
 	GLuint vertex_offset;
-        struct radeon_bo *bo;
+	GLuint vertex_max;
+	struct radeon_bo *bo;
 	GLuint vertex_size;
 };
 
@@ -346,26 +381,10 @@ struct radeon_dri_mirror {
 
 	drm_context_t hwContext;
 	drm_hw_lock_t *hwLock;
+	int hwLockCount;
 	int fd;
 	int drmMinor;
 };
-
-#define DEBUG_TEXTURE	0x001
-#define DEBUG_STATE	0x002
-#define DEBUG_IOCTL	0x004
-#define DEBUG_PRIMS	0x008
-#define DEBUG_VERTS	0x010
-#define DEBUG_FALLBACKS	0x020
-#define DEBUG_VFMT	0x040
-#define DEBUG_CODEGEN	0x080
-#define DEBUG_VERBOSE	0x100
-#define DEBUG_DRI       0x200
-#define DEBUG_DMA       0x400
-#define DEBUG_SANITY    0x800
-#define DEBUG_SYNC      0x1000
-#define DEBUG_PIXEL     0x2000
-#define DEBUG_MEMORY    0x4000
-
 
 typedef void (*radeon_tri_func) (radeonContextPtr,
 				 radeonVertex *,
@@ -410,6 +429,8 @@ struct radeon_context {
    int                   texture_depth;
    float                 initialMaxAnisotropy;
    uint32_t              texture_row_align;
+   uint32_t              texture_rect_row_align;
+   uint32_t              texture_compressed_row_align;
 
   struct radeon_dma dma;
   struct radeon_hw_state hw;
@@ -424,7 +445,6 @@ struct radeon_context {
    GLuint numClipRects;	/* Cliprects for the draw buffer */
    drm_clip_rect_t *pClipRects;
    unsigned int lastStamp;
-   GLboolean lost_context;
    drm_radeon_sarea_t *sarea;	/* Private SAREA data */
 
    /* Mirrors of some DRI state */
@@ -446,6 +466,8 @@ struct radeon_context {
    driOptionCache optionCache;
 
    struct radeon_cmdbuf cmdbuf;
+
+   struct radeon_debug debug;
 
   drm_clip_rect_t fboRect;
   GLboolean constant_cliprect; /* use for FBO or DRI2 rendering */
@@ -476,27 +498,13 @@ struct radeon_context {
     */
    GLboolean is_front_buffer_reading;
 
-   /* info for radeon_clear_tris() */
+   struct dri_metaops meta;
+
    struct {
-      struct gl_array_object *arrayObj;
-      GLfloat vertices[4][3];
-      GLfloat color[4][4];
-   } clear;
-   GLboolean internal_viewport_call;
-
-  struct {
-      struct gl_fragment_program *bitmap_fp;
-      struct gl_vertex_program *passthrough_vp;
-
-      struct gl_fragment_program *saved_fp;
-      GLboolean saved_fp_enable;
-      struct gl_vertex_program *saved_vp;
-      GLboolean saved_vp_enable;
-
-      GLint saved_vp_x, saved_vp_y;
-      GLsizei saved_vp_width, saved_vp_height;
-      GLenum saved_matrix_mode;
-   } meta;
+	struct radeon_query_object *current;
+	struct radeon_query_object not_flushed_head;
+	struct radeon_state_atom queryobj;
+   } query;
 
    struct {
 	   void (*get_lock)(radeonContextPtr radeon);
@@ -507,6 +515,8 @@ struct radeon_context {
 	   void (*pre_emit_state)(radeonContextPtr rmesa);
 	   void (*fallback)(GLcontext *ctx, GLuint bit, GLboolean mode);
 	   void (*free_context)(GLcontext *ctx);
+	   void (*emit_query_finish)(radeonContextPtr radeon);
+	   void (*update_scissor)(GLcontext *ctx);
    } vtbl;
 };
 
@@ -521,7 +531,6 @@ static inline __DRIdrawablePrivate* radeon_get_readable(radeonContextPtr radeon)
 {
 	return radeon->dri.context->driReadablePriv;
 }
-
 
 /**
  * This function takes a float and packs it into a uint32_t
@@ -581,16 +590,5 @@ GLboolean radeonMakeCurrent(__DRIcontextPrivate * driContextPriv,
 			    __DRIdrawablePrivate * driDrawPriv,
 			    __DRIdrawablePrivate * driReadPriv);
 extern void radeonDestroyContext(__DRIcontextPrivate * driContextPriv);
-
-/* ================================================================
- * Debugging:
- */
-#define DO_DEBUG		1
-
-#if DO_DEBUG
-extern int RADEON_DEBUG;
-#else
-#define RADEON_DEBUG		0
-#endif
 
 #endif

@@ -33,20 +33,26 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef RADEON_DMA_H
 #define RADEON_DMA_H
 
-void radeonEmitVec8(uint32_t *out, GLvoid * data, int stride, int count);
-void radeonEmitVec12(uint32_t *out, GLvoid * data, int stride, int count);
+void radeonEmitVec4(uint32_t *out, const GLvoid * data, int stride, int count);
+void radeonEmitVec8(uint32_t *out, const GLvoid * data, int stride, int count);
+void radeonEmitVec12(uint32_t *out, const GLvoid * data, int stride, int count);
+void radeonEmitVec16(uint32_t *out, const GLvoid * data, int stride, int count);
 
 void rcommon_emit_vector(GLcontext * ctx, struct radeon_aos *aos,
-			 GLvoid * data, int size, int stride, int count);
+			 const GLvoid * data, int size, int stride, int count);
 
+void radeonReturnDmaRegion(radeonContextPtr rmesa, int return_bytes);
 void radeonRefillCurrentDmaRegion(radeonContextPtr rmesa, int size);
+void radeon_init_dma(radeonContextPtr rmesa);
+void radeonReturnDmaRegion(radeonContextPtr rmesa, int return_bytes);
 void radeonAllocDmaRegion(radeonContextPtr rmesa,
 			  struct radeon_bo **pbo, int *poffset,
 			  int bytes, int alignment);
-void radeonReleaseDmaRegion(radeonContextPtr rmesa);
+void radeonReleaseDmaRegions(radeonContextPtr rmesa);
 
 void rcommon_flush_last_swtcl_prim(GLcontext *ctx);
 
 void *rcommonAllocDmaLowVerts(radeonContextPtr rmesa, int nverts, int vsize);
+void radeonFreeDmaRegions(radeonContextPtr rmesa);
 void radeonReleaseArrays( GLcontext *ctx, GLuint newinputs );
 #endif

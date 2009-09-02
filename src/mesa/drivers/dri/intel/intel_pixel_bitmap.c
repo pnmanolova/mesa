@@ -42,6 +42,7 @@
 #include "main/varray.h"
 #include "main/attrib.h"
 #include "main/enable.h"
+#include "main/viewport.h"
 #include "shader/arbprogram.h"
 #include "glapi/dispatch.h"
 #include "swrast/swrast.h"
@@ -475,14 +476,17 @@ intel_texture_bitmap(GLcontext * ctx,
 		    GL_ALPHA, GL_UNSIGNED_BYTE, a8_bitmap);
    _mesa_free(a8_bitmap);
 
-   intel_meta_set_fragment_program(intel, &intel->meta.bitmap_fp, fp);
+   meta_set_fragment_program(&intel->meta, &intel->meta.bitmap_fp, fp);
    _mesa_ProgramLocalParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, 0,
 				     ctx->Current.RasterColor);
-   intel_meta_set_passthrough_vertex_program(intel);
-   intel_meta_set_passthrough_transform(intel);
+   meta_set_passthrough_vertex_program(&intel->meta);
+   meta_set_passthrough_transform(&intel->meta);
 
    /* convert rasterpos Z from [0,1] to NDC coord in [-1,1] */
    dst_z = -1.0 + 2.0 * ctx->Current.RasterPos[2];
+
+   /* RasterPos[2] already takes into account the DepthRange mapping. */
+   _mesa_DepthRange(0.0, 1.0);
 
    vertices[0][0] = dst_x;
    vertices[0][1] = dst_y;
@@ -503,13 +507,13 @@ intel_texture_bitmap(GLcontext * ctx,
 
    _mesa_VertexPointer(4, GL_FLOAT, 4 * sizeof(GLfloat), &vertices);
    _mesa_Enable(GL_VERTEX_ARRAY);
-   intel_meta_set_default_texrect(intel);
+   meta_set_default_texrect(&intel->meta);
    _mesa_DrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-   intel_meta_restore_texcoords(intel);
-   intel_meta_restore_transform(intel);
-   intel_meta_restore_fragment_program(intel);
-   intel_meta_restore_vertex_program(intel);
+   meta_restore_texcoords(&intel->meta);
+   meta_restore_transform(&intel->meta);
+   meta_restore_fragment_program(&intel->meta);
+   meta_restore_vertex_program(&intel->meta);
 
    _mesa_PopClientAttrib();
    _mesa_Disable(GL_TEXTURE_2D); /* asserted that it was disabled at entry */

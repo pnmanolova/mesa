@@ -35,11 +35,12 @@
 #include "main/context.h"
 #include "main/texformat.h"
 #include "main/texrender.h"
+#include "drivers/common/meta.h"
 
 #include "radeon_common.h"
 #include "radeon_mipmap_tree.h"
 
-#define FILE_DEBUG_FLAG DEBUG_TEXTURE
+#define FILE_DEBUG_FLAG RADEON_TEXTURE
 #define DBG(...) do {                                           \
         if (RADEON_DEBUG & FILE_DEBUG_FLAG)                      \
                 _mesa_printf(__VA_ARGS__);                      \
@@ -165,7 +166,8 @@ radeon_alloc_renderbuffer_storage(GLcontext * ctx, struct gl_renderbuffer *rb,
       return GL_FALSE;
    }
 
-  radeonFlush(ctx);
+  if (ctx->Driver.Flush)
+	  ctx->Driver.Flush(ctx); /* +r6/r7 */
 
   if (rrb->bo)
     radeon_bo_unref(rrb->bo);
@@ -176,12 +178,13 @@ radeon_alloc_renderbuffer_storage(GLcontext * ctx, struct gl_renderbuffer *rb,
                                              width, height);
    }
    else {
-     uint32_t size = width * height * cpp;
+     uint32_t size;
      uint32_t pitch = ((cpp * width + 63) & ~63) / cpp;
 
      fprintf(stderr,"Allocating %d x %d radeon RBO (pitch %d)\n", width,
 	  height, pitch);
 
+     size = pitch * height * cpp;
      rrb->pitch = pitch * cpp;
      rrb->cpp = cpp;
      rrb->bo = radeon_bo_open(radeon->radeonScreen->bom,
@@ -280,7 +283,7 @@ radeon_create_renderbuffer(GLenum format, __DRIdrawablePrivate *driDrawPriv)
 	    rrb->base.RedBits = 8;
 	    rrb->base.GreenBits = 8;
 	    rrb->base.BlueBits = 8;
-	    rrb->base.AlphaBits = 8;
+	    rrb->base.AlphaBits = 0;
 	    rrb->base.DataType = GL_UNSIGNED_BYTE;
 	    break;
 	case GL_RGBA8:
@@ -371,7 +374,8 @@ radeon_framebuffer_renderbuffer(GLcontext * ctx,
                                GLenum attachment, struct gl_renderbuffer *rb)
 {
 
-   radeonFlush(ctx);
+	if (ctx->Driver.Flush)
+		ctx->Driver.Flush(ctx); /* +r6/r7 */
 
    _mesa_framebuffer_renderbuffer(ctx, fb, attachment, rb);
    radeon_draw_buffer(ctx, fb);
@@ -395,7 +399,7 @@ restart:
 		rrb->cpp = 2;
 		rrb->base._ActualFormat = GL_RGB5;
 		rrb->base._BaseFormat = GL_RGB;
-		rrb->base.DataType = GL_UNSIGNED_SHORT;
+		rrb->base.DataType = GL_UNSIGNED_BYTE;
 		DBG("Render to RGB5 texture OK\n");
 	}
 	else if (texImage->TexFormat == &_mesa_texformat_argb1555) {
@@ -569,14 +573,6 @@ radeon_validate_framebuffer(GLcontext *ctx, struct gl_framebuffer *fb)
 {
 }
 
-static void
-radeon_blit_framebuffer(GLcontext *ctx,
-                       GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1,
-                       GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,
-                       GLbitfield mask, GLenum filter)
-{
-}
-
 void radeon_fbo_init(struct radeon_context *radeon)
 {
   radeon->glCtx->Driver.NewFramebuffer = radeon_new_framebuffer;
@@ -587,7 +583,7 @@ void radeon_fbo_init(struct radeon_context *radeon)
   radeon->glCtx->Driver.FinishRenderTexture = radeon_finish_render_texture;
   radeon->glCtx->Driver.ResizeBuffers = radeon_resize_buffers;
   radeon->glCtx->Driver.ValidateFramebuffer = radeon_validate_framebuffer;
-  radeon->glCtx->Driver.BlitFramebuffer = radeon_blit_framebuffer;
+  radeon->glCtx->Driver.BlitFramebuffer = _mesa_meta_blit_framebuffer;
 }
 
   

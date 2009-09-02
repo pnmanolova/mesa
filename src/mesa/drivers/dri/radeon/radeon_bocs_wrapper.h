@@ -15,6 +15,12 @@
 #define RADEON_GEM_DOMAIN_GTT 0x2   // GTT or cache flushed
 #define RADEON_GEM_DOMAIN_VRAM 0x4  // VRAM domain
 
+#define RADEON_TILING_MACRO 0x1
+#define RADEON_TILING_MICRO 0x2
+#define RADEON_TILING_SWAP 0x4
+#define RADEON_TILING_SURFACE 0x8 /* this object requires a surface
+				   * when mapped - i.e. front buffer */
+
 /* to be used to build locally in mesa with no libdrm bits */
 #include "../radeon/radeon_bo_drm.h"
 #include "../radeon/radeon_cs_drm.h"
@@ -39,11 +45,19 @@ struct drm_radeon_info {
 #define RADEON_PARAM_DEVICE_ID 16
 #endif
 
+#ifndef RADEON_PARAM_NUM_Z_PIPES
+#define RADEON_PARAM_NUM_Z_PIPES 17
+#endif
+
 #ifndef RADEON_INFO_DEVICE_ID
 #define RADEON_INFO_DEVICE_ID 0
 #endif
 #ifndef RADEON_INFO_NUM_GB_PIPES
 #define RADEON_INFO_NUM_GB_PIPES 0
+#endif
+
+#ifndef RADEON_INFO_NUM_Z_PIPES
+#define RADEON_INFO_NUM_Z_PIPES 0
 #endif
 
 #ifndef DRM_RADEON_INFO

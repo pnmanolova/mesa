@@ -64,21 +64,23 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "r300_ioctl.h"
 #include "r300_tex.h"
 #include "r300_emit.h"
-#include "r300_render.h"
 #include "r300_swtcl.h"
 #include "radeon_bocs_wrapper.h"
-
+#include "radeon_buffer_objects.h"
+#include "radeon_queryobj.h"
 
 #include "vblank.h"
 #include "utils.h"
 #include "xmlpool.h"		/* for symbolic values of enum-type options */
 
 #define need_GL_VERSION_2_0
+#define need_GL_ARB_occlusion_query
 #define need_GL_ARB_point_parameters
 #define need_GL_ARB_vertex_program
 #define need_GL_EXT_blend_equation_separate
 #define need_GL_EXT_blend_func_separate
 #define need_GL_EXT_blend_minmax
+#define need_GL_EXT_framebuffer_blit
 #define need_GL_EXT_framebuffer_object
 #define need_GL_EXT_fog_coord
 #define need_GL_EXT_gpu_program_parameters
@@ -94,6 +96,7 @@ const struct dri_extension card_extensions[] = {
   /* *INDENT-OFF* */
   {"GL_ARB_depth_texture",		NULL},
   {"GL_ARB_fragment_program",		NULL},
+  {"GL_ARB_occlusion_query",		GL_ARB_occlusion_query_functions},
   {"GL_ARB_multitexture",		NULL},
   {"GL_ARB_point_parameters",		GL_ARB_point_parameters_functions},
   {"GL_ARB_shadow",			NULL},
@@ -141,6 +144,7 @@ const struct dri_extension card_extensions[] = {
 
 
 const struct dri_extension mm_extensions[] = {
+  { "GL_EXT_framebuffer_blit",	GL_EXT_framebuffer_blit_functions },
   { "GL_EXT_framebuffer_object", GL_EXT_framebuffer_object_functions },
   { NULL, NULL }
 };
@@ -154,7 +158,6 @@ const struct dri_extension gl_20_extension[] = {
 };
 
 static const struct tnl_pipeline_stage *r300_pipeline[] = {
-
 	/* Catch any t&l fallbacks
 	 */
 	&_tnl_vertex_transform_stage,
@@ -165,21 +168,7 @@ static const struct tnl_pipeline_stage *r300_pipeline[] = {
 	&_tnl_texture_transform_stage,
 	&_tnl_point_attenuation_stage,
 	&_tnl_vertex_program_stage,
-
-	/* Try again to go to tcl?
-	 *     - no good for asymmetric-twoside (do with multipass)
-	 *     - no good for asymmetric-unfilled (do with multipass)
-	 *     - good for material
-	 *     - good for texgen
-	 *     - need to manipulate a bit of state
-	 *
-	 * - worth it/not worth it?
-	 */
-
-	/* Else do them here.
-	 */
-	&_r300_render_stage,
-	&_tnl_render_stage,	/* FALLBACK  */
+	&_tnl_render_stage,
 	0,
 };
 
@@ -225,10 +214,7 @@ static void r300_vtbl_emit_cs_header(struct radeon_cs *cs, radeonContextPtr rmes
 
 static void r300_vtbl_pre_emit_atoms(radeonContextPtr radeon)
 {
-	r300ContextPtr r300 = (r300ContextPtr)radeon;
 	BATCH_LOCALS(radeon);
-
-	r300->vap_flush_needed = GL_TRUE;
 
 	cp_wait(radeon, R300_WAIT_3D | R300_WAIT_3D_CLEAN);
 	BEGIN_BATCH_NO_AUTOSTATE(2);
@@ -246,6 +232,81 @@ static void r300_fallback(GLcontext *ctx, GLuint bit, GLboolean mode)
 		r300->radeon.Fallback &= ~bit;
 }
 
+static void r300_emit_query_finish(radeonContextPtr radeon)
+{
+	r300ContextPtr r300 = (r300ContextPtr)radeon;
+	struct radeon_query_object *query = radeon->query.current;
+	BATCH_LOCALS(radeon);
+
+	BEGIN_BATCH_NO_AUTOSTATE(3 * 2 *r300->radeon.radeonScreen->num_gb_pipes + 2);
+	switch (r300->radeon.radeonScreen->num_gb_pipes) {
+	case 4:
+		OUT_BATCH_REGVAL(R300_SU_REG_DEST, R300_RASTER_PIPE_SELECT_3);
+		OUT_BATCH_REGSEQ(R300_ZB_ZPASS_ADDR, 1);
+		OUT_BATCH_RELOC(0, query->bo, query->curr_offset+3*sizeof(uint32_t), 0, RADEON_GEM_DOMAIN_GTT, 0);
+	case 3:
+		OUT_BATCH_REGVAL(R300_SU_REG_DEST, R300_RASTER_PIPE_SELECT_2);
+		OUT_BATCH_REGSEQ(R300_ZB_ZPASS_ADDR, 1);
+		OUT_BATCH_RELOC(0, query->bo, query->curr_offset+2*sizeof(uint32_t), 0, RADEON_GEM_DOMAIN_GTT, 0);
+	case 2:
+		if (r300->radeon.radeonScreen->chip_family <= CHIP_FAMILY_RV380) {
+			OUT_BATCH_REGVAL(R300_SU_REG_DEST, R300_RASTER_PIPE_SELECT_3);
+		} else {
+			OUT_BATCH_REGVAL(R300_SU_REG_DEST, R300_RASTER_PIPE_SELECT_1);
+		}
+		OUT_BATCH_REGSEQ(R300_ZB_ZPASS_ADDR, 1);
+		OUT_BATCH_RELOC(0, query->bo, query->curr_offset+1*sizeof(uint32_t), 0, RADEON_GEM_DOMAIN_GTT, 0);
+	case 1:
+	default:
+		OUT_BATCH_REGVAL(R300_SU_REG_DEST, R300_RASTER_PIPE_SELECT_0);
+		OUT_BATCH_REGSEQ(R300_ZB_ZPASS_ADDR, 1);
+		OUT_BATCH_RELOC(0, query->bo, query->curr_offset, 0, RADEON_GEM_DOMAIN_GTT, 0);
+		break;
+	}
+	OUT_BATCH_REGVAL(R300_SU_REG_DEST, R300_RASTER_PIPE_SELECT_ALL);
+	END_BATCH();
+	query->curr_offset += r300->radeon.radeonScreen->num_gb_pipes * sizeof(uint32_t);
+	assert(query->curr_offset < RADEON_QUERY_PAGE_SIZE);
+	query->emitted_begin = GL_FALSE;
+}
+
+static void rv530_emit_query_finish_single_z(radeonContextPtr radeon)
+{
+	BATCH_LOCALS(radeon);
+	struct radeon_query_object *query = radeon->query.current;
+
+	BEGIN_BATCH_NO_AUTOSTATE(8);
+	OUT_BATCH_REGVAL(RV530_FG_ZBREG_DEST, RV530_FG_ZBREG_DEST_PIPE_SELECT_0);
+	OUT_BATCH_REGSEQ(R300_ZB_ZPASS_ADDR, 1);
+	OUT_BATCH_RELOC(0, query->bo, query->curr_offset, 0, RADEON_GEM_DOMAIN_GTT, 0);
+	OUT_BATCH_REGVAL(RV530_FG_ZBREG_DEST, RV530_FG_ZBREG_DEST_PIPE_SELECT_ALL);
+	END_BATCH();
+
+	query->curr_offset += sizeof(uint32_t);
+	assert(query->curr_offset < RADEON_QUERY_PAGE_SIZE);
+	query->emitted_begin = GL_FALSE;
+}
+
+static void rv530_emit_query_finish_double_z(radeonContextPtr radeon)
+{
+	BATCH_LOCALS(radeon);
+	struct radeon_query_object *query = radeon->query.current;
+
+	BEGIN_BATCH_NO_AUTOSTATE(14);
+	OUT_BATCH_REGVAL(RV530_FG_ZBREG_DEST, RV530_FG_ZBREG_DEST_PIPE_SELECT_0);
+	OUT_BATCH_REGSEQ(R300_ZB_ZPASS_ADDR, 1);
+	OUT_BATCH_RELOC(0, query->bo, query->curr_offset, 0, RADEON_GEM_DOMAIN_GTT, 0);
+	OUT_BATCH_REGVAL(RV530_FG_ZBREG_DEST, RV530_FG_ZBREG_DEST_PIPE_SELECT_1);
+	OUT_BATCH_REGSEQ(R300_ZB_ZPASS_ADDR, 1);
+	OUT_BATCH_RELOC(0, query->bo, query->curr_offset + sizeof(uint32_t), 0, RADEON_GEM_DOMAIN_GTT, 0);
+	OUT_BATCH_REGVAL(RV530_FG_ZBREG_DEST, RV530_FG_ZBREG_DEST_PIPE_SELECT_ALL);
+	END_BATCH();
+
+	query->curr_offset += 2 * sizeof(uint32_t);
+	assert(query->curr_offset < RADEON_QUERY_PAGE_SIZE);
+	query->emitted_begin = GL_FALSE;
+}
+
 static void r300_init_vtbl(radeonContextPtr radeon)
 {
 	radeon->vtbl.get_lock = r300_get_lock;
@@ -254,6 +315,13 @@ static void r300_init_vtbl(radeonContextPtr radeon)
 	radeon->vtbl.swtcl_flush = r300_swtcl_flush;
 	radeon->vtbl.pre_emit_atoms = r300_vtbl_pre_emit_atoms;
 	radeon->vtbl.fallback = r300_fallback;
+	if (radeon->radeonScreen->chip_family == CHIP_FAMILY_RV530) {
+		if (radeon->radeonScreen->num_z_pipes == 2)
+			radeon->vtbl.emit_query_finish = rv530_emit_query_finish_double_z;
+		else
+			radeon->vtbl.emit_query_finish = rv530_emit_query_finish_single_z;
+	} else
+		radeon->vtbl.emit_query_finish = r300_emit_query_finish;
 }
 
 static void r300InitConstValues(GLcontext *ctx, radeonScreenPtr screen)
@@ -295,13 +363,10 @@ static void r300InitConstValues(GLcontext *ctx, radeonScreenPtr screen)
 
 	/* currently bogus data */
 	if (r300->options.hw_tcl_enabled) {
-		ctx->Const.VertexProgram.MaxInstructions = VSF_MAX_FRAGMENT_LENGTH / 4;
-		ctx->Const.VertexProgram.MaxNativeInstructions =
-		  VSF_MAX_FRAGMENT_LENGTH / 4;
+		ctx->Const.VertexProgram.MaxNativeInstructions = VSF_MAX_FRAGMENT_LENGTH / 4;
+		ctx->Const.VertexProgram.MaxNativeAluInstructions = VSF_MAX_FRAGMENT_LENGTH / 4;
 		ctx->Const.VertexProgram.MaxNativeAttribs = 16;	/* r420 */
-		ctx->Const.VertexProgram.MaxTemps = 32;
-		ctx->Const.VertexProgram.MaxNativeTemps =
-		  /*VSF_MAX_FRAGMENT_TEMPS */ 32;
+		ctx->Const.VertexProgram.MaxNativeTemps = 32;
 		ctx->Const.VertexProgram.MaxNativeParameters = 256;	/* r420 */
 		ctx->Const.VertexProgram.MaxNativeAddressRegs = 1;
 	}
@@ -325,6 +390,7 @@ static void r300InitConstValues(GLcontext *ctx, radeonScreenPtr screen)
 		ctx->Const.FragmentProgram.MaxNativeTexIndirections = R300_PFS_MAX_TEX_INDIRECT;
 		ctx->Const.FragmentProgram.MaxNativeAddressRegs = 0;
 	}
+
 }
 
 static void r300ParseOptions(r300ContextPtr r300, radeonScreenPtr screen)
@@ -361,11 +427,15 @@ static void r300InitGLExtensions(GLcontext *ctx)
 	if (r300->options.stencil_two_side_disabled)
 		_mesa_disable_extension(ctx, "GL_EXT_stencil_two_side");
 
-	if (ctx->Mesa_DXTn && !r300->options.s3tc_force_enabled) {
+	if (r300->options.s3tc_force_enabled) {
 		_mesa_enable_extension(ctx, "GL_EXT_texture_compression_s3tc");
 		_mesa_enable_extension(ctx, "GL_S3_s3tc");
 	} else if (r300->options.s3tc_force_disabled) {
 		_mesa_disable_extension(ctx, "GL_EXT_texture_compression_s3tc");
+	}
+
+	if (!r300->radeon.radeonScreen->drmSupportsOcclusionQueries) {
+		_mesa_disable_extension(ctx, "GL_ARB_occlusion_query");
 	}
 }
 
@@ -391,6 +461,7 @@ GLboolean r300CreateContext(const __GLcontextModes * glVisual,
 
 	r300ParseOptions(r300, screen);
 
+	r300->radeon.radeonScreen = screen;
 	r300_init_vtbl(&r300->radeon);
 
 	_mesa_init_driver_functions(&functions);
@@ -398,6 +469,8 @@ GLboolean r300CreateContext(const __GLcontextModes * glVisual,
 	r300InitStateFuncs(&functions);
 	r300InitTextureFuncs(&functions);
 	r300InitShaderFuncs(&functions);
+	radeonInitQueryObjFunctions(&functions);
+	radeonInitBufferObjectFuncs(&functions);
 
 	if (!radeonInitContext(&r300->radeon, &functions,
 			       glVisual, driContextPriv,
@@ -450,11 +523,6 @@ GLboolean r300CreateContext(const __GLcontextModes * glVisual,
 	r300InitCmdBuf(r300);
 	r300InitState(r300);
 	r300InitShaderFunctions(r300);
-
-	if (screen->chip_family == CHIP_FAMILY_RS600 ||	screen->chip_family == CHIP_FAMILY_RS690 ||
-		screen->chip_family == CHIP_FAMILY_RS740) {
-		r300->radeon.texture_row_align = 64;
-	}
 
 	r300InitGLExtensions(ctx);
 

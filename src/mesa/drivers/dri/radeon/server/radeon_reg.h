@@ -1601,6 +1601,8 @@
 #       define RADEON_STENCIL_VALUE_MASK      (0xff << 16)
 #       define RADEON_STENCIL_WRITEMASK_SHIFT 24
 #       define RADEON_STENCIL_WRITE_MASK      (0xff << 24)
+#define RADEON_RB3D_ZPASS_DATA              0x3290
+#define RADEON_RB3D_ZPASS_ADDR              0x3294
 #define RADEON_RB3D_ZSTENCILCNTL            0x1c2c
 #       define RADEON_DEPTH_FORMAT_MASK          (0xf << 0)
 #       define RADEON_DEPTH_FORMAT_16BIT_INT_Z   (0  <<  0)
@@ -1661,6 +1663,9 @@
 #       define RADEON_FORCE_Z_DIRTY              (1  << 29)
 #       define RADEON_Z_WRITE_ENABLE             (1  << 30)
 #       define RADEON_Z_DECOMPRESSION_ENABLE     (1  << 31)
+
+#define RADEON_RE_STIPPLE_ADDR              0x1cc8
+#define RADEON_RE_STIPPLE_DATA              0x1ccc
 #define RADEON_RE_LINE_PATTERN              0x1cd0
 #       define RADEON_LINE_PATTERN_MASK             0x0000ffff
 #       define RADEON_LINE_REPEAT_COUNT_SHIFT       16

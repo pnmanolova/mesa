@@ -83,8 +83,15 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "radeon_lock.h"
 #include "radeon_drm.h"
 #include "radeon_mipmap_tree.h"
+#include "radeon_queryobj.h"
 
-#define DEBUG_CMDBUF         0
+/**
+ * Enable verbose debug output for emit code.
+ * 0 no output
+ * 1 most output
+ * 2 also print state alues
+ */
+#define RADEON_CMDBUF         0
 
 /* =============================================================
  * Scissoring
@@ -147,6 +154,9 @@ void radeonRecalcScissorRects(radeonContextPtr radeon)
 			out++;
 		}
 	}
+
+	if (radeon->vtbl.update_scissor)
+	   radeon->vtbl.update_scissor(radeon->glCtx);
 }
 
 void radeon_get_cliprects(radeonContextPtr radeon,
@@ -221,25 +231,47 @@ void radeonSetCliprects(radeonContextPtr radeon)
 void radeonUpdateScissor( GLcontext *ctx )
 {
 	radeonContextPtr rmesa = RADEON_CONTEXT(ctx);
+	GLint x = ctx->Scissor.X, y = ctx->Scissor.Y;
+	GLsizei w = ctx->Scissor.Width, h = ctx->Scissor.Height;
+	int x1, y1, x2, y2;
+	int min_x, min_y, max_x, max_y;
+
+	if (!ctx->DrawBuffer)
+	    return;
+	min_x = min_y = 0;
+	max_x = ctx->DrawBuffer->Width - 1;
+	max_y = ctx->DrawBuffer->Height - 1;
 
 	if ( !ctx->DrawBuffer->Name ) {
-		__DRIdrawablePrivate *dPriv = radeon_get_drawable(rmesa);
-
-		int x = ctx->Scissor.X;
-		int y = dPriv->h - ctx->Scissor.Y - ctx->Scissor.Height;
-		int w = ctx->Scissor.X + ctx->Scissor.Width - 1;
-		int h = dPriv->h - ctx->Scissor.Y - 1;
-
-		rmesa->state.scissor.rect.x1 = x + dPriv->x;
-		rmesa->state.scissor.rect.y1 = y + dPriv->y;
-		rmesa->state.scissor.rect.x2 = w + dPriv->x + 1;
-		rmesa->state.scissor.rect.y2 = h + dPriv->y + 1;
+		x1 = x;
+		y1 = ctx->DrawBuffer->Height - (y + h);
+		x2 = x + w - 1;
+		y2 = y1 + h - 1;
 	} else {
-		rmesa->state.scissor.rect.x1 = ctx->Scissor.X;
-		rmesa->state.scissor.rect.y1 = ctx->Scissor.Y;
-		rmesa->state.scissor.rect.x2 = ctx->Scissor.X + ctx->Scissor.Width;
-		rmesa->state.scissor.rect.y2 = ctx->Scissor.Y + ctx->Scissor.Height;
+		x1 = x;
+		y1 = y;
+		x2 = x + w - 1;
+		y2 = y + h - 1;
+
 	}
+	if (!rmesa->radeonScreen->kernel_mm) {
+	   /* Fix scissors for dri 1 */
+
+	   __DRIdrawablePrivate *dPriv = radeon_get_drawable(rmesa);
+	   x1 += dPriv->x;
+	   x2 += dPriv->x + 1;
+	   min_x += dPriv->x;
+	   max_x += dPriv->x + 1;
+	   y1 += dPriv->y;
+	   y2 += dPriv->y + 1;
+	   min_y += dPriv->y;
+	   max_y += dPriv->y + 1;
+	}
+
+	rmesa->state.scissor.rect.x1 = CLAMP(x1,  min_x, max_x);
+	rmesa->state.scissor.rect.y1 = CLAMP(y1,  min_y, max_y);
+	rmesa->state.scissor.rect.x2 = CLAMP(x2,  min_x, max_x);
+	rmesa->state.scissor.rect.y2 = CLAMP(y2,  min_y, max_y);
 
 	radeonRecalcScissorRects( rmesa );
 }
@@ -256,6 +288,28 @@ void radeonScissor(GLcontext* ctx, GLint x, GLint y, GLsizei w, GLsizei h)
 		radeon_firevertices(radeon);
 		radeonUpdateScissor(ctx);
 	}
+}
+
+void radeonPolygonStipplePreKMS( GLcontext *ctx, const GLubyte *mask )
+{
+   radeonContextPtr radeon = RADEON_CONTEXT(ctx);
+   GLuint i;
+   drm_radeon_stipple_t stipple;
+
+   /* Must flip pattern upside down.
+   */
+   for ( i = 0 ; i < 32 ; i++ ) {
+      stipple.mask[31 - i] = ((GLuint *) mask)[i];
+   }
+
+   /* TODO: push this into cmd mechanism
+   */
+   radeon_firevertices(radeon);
+   LOCK_HARDWARE( radeon );
+
+   drmCommandWrite( radeon->dri.fd, DRM_RADEON_STIPPLE,
+	 &stipple, sizeof(stipple) );
+   UNLOCK_HARDWARE( radeon );
 }
 
 
@@ -442,7 +496,7 @@ void radeonCopyBuffer( __DRIdrawablePrivate *dPriv,
 
 	rfb = dPriv->driverPrivate;
 
-	if ( RADEON_DEBUG & DEBUG_IOCTL ) {
+	if ( RADEON_DEBUG & RADEON_IOCTL ) {
 		fprintf( stderr, "\n%s( %p )\n\n", __FUNCTION__, (void *) rmesa->glCtx );
 	}
 
@@ -536,7 +590,7 @@ static GLboolean radeonPageFlip( __DRIdrawablePrivate *dPriv )
 
 	LOCK_HARDWARE(radeon);
 
-	if ( RADEON_DEBUG & DEBUG_IOCTL ) {
+	if ( RADEON_DEBUG & RADEON_IOCTL ) {
 		fprintf(stderr, "%s: pfCurrentPage: %d %d\n", __FUNCTION__,
 			radeon->sarea->pfCurrentPage, radeon->sarea->pfState);
 	}
@@ -796,7 +850,7 @@ void radeon_draw_buffer(GLcontext *ctx, struct gl_framebuffer *fb)
  */
 void radeonDrawBuffer( GLcontext *ctx, GLenum mode )
 {
-	if (RADEON_DEBUG & DEBUG_DRI)
+	if (RADEON_DEBUG & RADEON_DRI)
 		fprintf(stderr, "%s %s\n", __FUNCTION__,
 			_mesa_lookup_enum_by_nr( mode ));
 
@@ -861,10 +915,11 @@ void radeonUpdatePageFlipping(radeonContextPtr radeon)
 
 void radeon_window_moved(radeonContextPtr radeon)
 {
+	/* Cliprects has to be updated before doing anything else */
+	radeonSetCliprects(radeon);
 	if (!radeon->radeonScreen->driScreen->dri2.enabled) {
 		radeonUpdatePageFlipping(radeon);
 	}
-	radeonSetCliprects(radeon);
 }
 
 void radeon_viewport(GLcontext *ctx, GLint x, GLint y, GLsizei width, GLsizei height)
@@ -877,9 +932,9 @@ void radeon_viewport(GLcontext *ctx, GLint x, GLint y, GLsizei width, GLsizei he
 	if (!driContext->driScreenPriv->dri2.enabled)
 		return;
 
-	if (!radeon->internal_viewport_call && ctx->DrawBuffer->Name == 0) {
+	if (!radeon->meta.internal_viewport_call && ctx->DrawBuffer->Name == 0) {
 		if (radeon->is_front_buffer_rendering) {
-			radeonFlush(ctx);
+			ctx->Driver.Flush(ctx);
 		}
 		radeon_update_renderbuffers(driContext, driContext->driDrawablePriv);
 		if (driContext->driDrawablePriv != driContext->driReadablePriv)
@@ -893,7 +948,7 @@ void radeon_viewport(GLcontext *ctx, GLint x, GLint y, GLsizei width, GLsizei he
 	ctx->Driver.Viewport = old_viewport;
 }
 
-static void radeon_print_state_atom(radeonContextPtr radeon, struct radeon_state_atom *state)
+static void radeon_print_state_atom_prekmm(radeonContextPtr radeon, struct radeon_state_atom *state)
 {
 	int i, j, reg;
 	int dwords = (*state->check) (radeon->glCtx, state);
@@ -901,7 +956,10 @@ static void radeon_print_state_atom(radeonContextPtr radeon, struct radeon_state
 
 	fprintf(stderr, "  emit %s %d/%d\n", state->name, dwords, state->cmd_size);
 
-	if (RADEON_DEBUG & DEBUG_VERBOSE) {
+	if (radeon_is_debug_enabled(RADEON_STATE, RADEON_TRACE)) {
+		if (dwords > state->cmd_size)
+			dwords = state->cmd_size;
+
 		for (i = 0; i < dwords;) {
 			cmd = *((drm_r300_cmd_header_t *) &state->cmd[i]);
 			reg = (cmd.packet0.reghi << 8) | cmd.packet0.reglo;
@@ -918,15 +976,26 @@ static void radeon_print_state_atom(radeonContextPtr radeon, struct radeon_state
 	}
 }
 
-static void radeon_print_state_atom_kmm(radeonContextPtr radeon, struct radeon_state_atom *state)
+static void radeon_print_state_atom(radeonContextPtr radeon, struct radeon_state_atom *state)
 {
 	int i, j, reg, count;
-	int dwords = (*state->check) (radeon->glCtx, state);
+	int dwords;
 	uint32_t packet0;
+	if (!radeon_is_debug_enabled(RADEON_STATE, RADEON_VERBOSE) )
+		return;
+
+	if (!radeon->radeonScreen->kernel_mm) {
+		radeon_print_state_atom_prekmm(radeon, state);
+		return;
+	}
+
+	dwords = (*state->check) (radeon->glCtx, state);
 
 	fprintf(stderr, "  emit %s %d/%d\n", state->name, dwords, state->cmd_size);
 
-	if (RADEON_DEBUG & DEBUG_VERBOSE) {
+	if (radeon_is_debug_enabled(RADEON_STATE, RADEON_TRACE)) {
+		if (dwords > state->cmd_size)
+			dwords = state->cmd_size;
 		for (i = 0; i < dwords;) {
 			packet0 = state->cmd[i];
 			reg = (packet0 & 0x1FFF) << 2;
@@ -944,40 +1013,81 @@ static void radeon_print_state_atom_kmm(radeonContextPtr radeon, struct radeon_s
 	}
 }
 
-static INLINE void radeonEmitAtoms(radeonContextPtr radeon, GLboolean dirty)
+/**
+ * Count total size for next state emit.
+ **/
+GLuint radeonCountStateEmitSize(radeonContextPtr radeon)
+{
+	struct radeon_state_atom *atom;
+	GLuint dwords = 0;
+	/* check if we are going to emit full state */
+
+	if (radeon->cmdbuf.cs->cdw && !radeon->hw.all_dirty) {
+		if (!radeon->hw.is_dirty)
+			goto out;
+		foreach(atom, &radeon->hw.atomlist) {
+			if (atom->dirty) {
+				const GLuint atom_size = atom->check(radeon->glCtx, atom);
+				dwords += atom_size;
+				if (RADEON_CMDBUF && atom_size) {
+					radeon_print_state_atom(radeon, atom);
+				}
+			}
+		}
+	} else {
+		foreach(atom, &radeon->hw.atomlist) {
+			const GLuint atom_size = atom->check(radeon->glCtx, atom);
+			dwords += atom_size;
+			if (RADEON_CMDBUF && atom_size) {
+				radeon_print_state_atom(radeon, atom);
+			}
+
+		}
+	}
+out:
+	radeon_print(RADEON_STATE, RADEON_NORMAL, "%s %u\n", __func__, dwords);
+	return dwords;
+}
+
+static INLINE void radeon_emit_atom(radeonContextPtr radeon, struct radeon_state_atom *atom)
 {
 	BATCH_LOCALS(radeon);
-	struct radeon_state_atom *atom;
 	int dwords;
+
+	dwords = (*atom->check) (radeon->glCtx, atom);
+	if (dwords) {
+
+		radeon_print_state_atom(radeon, atom);
+
+		if (atom->emit) {
+			(*atom->emit)(radeon->glCtx, atom);
+		} else {
+			BEGIN_BATCH_NO_AUTOSTATE(dwords);
+			OUT_BATCH_TABLE(atom->cmd, dwords);
+			END_BATCH();
+		}
+	} else {
+		radeon_print(RADEON_STATE, RADEON_VERBOSE, "  skip state %s\n", atom->name);
+	}
+	atom->dirty = GL_FALSE;
+
+}
+
+static INLINE void radeonEmitAtoms(radeonContextPtr radeon, GLboolean emitAll)
+{
+	struct radeon_state_atom *atom;
 
 	if (radeon->vtbl.pre_emit_atoms)
 		radeon->vtbl.pre_emit_atoms(radeon);
 
 	/* Emit actual atoms */
-	foreach(atom, &radeon->hw.atomlist) {
-		if ((atom->dirty || radeon->hw.all_dirty) == dirty) {
-			dwords = (*atom->check) (radeon->glCtx, atom);
-			if (dwords) {
-				if (DEBUG_CMDBUF && RADEON_DEBUG & DEBUG_STATE) {
-					if (radeon->radeonScreen->kernel_mm)
-						radeon_print_state_atom_kmm(radeon, atom);
-					else
-						radeon_print_state_atom(radeon, atom);
-				}
-				if (atom->emit) {
-					(*atom->emit)(radeon->glCtx, atom);
-				} else {
-					BEGIN_BATCH_NO_AUTOSTATE(dwords);
-					OUT_BATCH_TABLE(atom->cmd, dwords);
-					END_BATCH();
-				}
-				atom->dirty = GL_FALSE;
-			} else {
-				if (DEBUG_CMDBUF && RADEON_DEBUG & DEBUG_STATE) {
-					fprintf(stderr, "  skip state %s\n",
-						atom->name);
-				}
-			}
+	if (radeon->hw.all_dirty || emitAll) {
+		foreach(atom, &radeon->hw.atomlist)
+			radeon_emit_atom( radeon, atom );
+	} else {
+		foreach(atom, &radeon->hw.atomlist) {
+			if ( atom->dirty )
+				radeon_emit_atom( radeon, atom );
 		}
 	}
 
@@ -997,8 +1107,7 @@ static GLboolean radeon_revalidate_bos(GLcontext *ctx)
 
 void radeonEmitState(radeonContextPtr radeon)
 {
-	if (RADEON_DEBUG & (DEBUG_STATE|DEBUG_PRIMS))
-		fprintf(stderr, "%s\n", __FUNCTION__);
+	radeon_print(RADEON_STATE, RADEON_NORMAL, "%s\n", __FUNCTION__);
 
 	if (radeon->vtbl.pre_emit_state)
 		radeon->vtbl.pre_emit_state(radeon);
@@ -1007,33 +1116,28 @@ void radeonEmitState(radeonContextPtr radeon)
 	if (radeon->cmdbuf.cs->cdw && !radeon->hw.is_dirty && !radeon->hw.all_dirty)
 		return;
 
-	/* To avoid going across the entire set of states multiple times, just check
-	 * for enough space for the case of emitting all state, and inline the
-	 * radeonAllocCmdBuf code here without all the checks.
-	 */
-	rcommonEnsureCmdBufSpace(radeon, radeon->hw.max_state_size, __FUNCTION__);
-
 	if (!radeon->cmdbuf.cs->cdw) {
-		if (RADEON_DEBUG & DEBUG_STATE)
+		if (RADEON_DEBUG & RADEON_STATE)
 			fprintf(stderr, "Begin reemit state\n");
+
+		radeonEmitAtoms(radeon, GL_TRUE);
+	} else {
+
+		if (RADEON_DEBUG & RADEON_STATE)
+			fprintf(stderr, "Begin dirty state\n");
 
 		radeonEmitAtoms(radeon, GL_FALSE);
 	}
 
-	if (RADEON_DEBUG & DEBUG_STATE)
-		fprintf(stderr, "Begin dirty state\n");
-
-	radeonEmitAtoms(radeon, GL_TRUE);
 	radeon->hw.is_dirty = GL_FALSE;
 	radeon->hw.all_dirty = GL_FALSE;
-
 }
 
 
 void radeonFlush(GLcontext *ctx)
 {
 	radeonContextPtr radeon = RADEON_CONTEXT(ctx);
-	if (RADEON_DEBUG & DEBUG_IOCTL)
+	if (RADEON_DEBUG & RADEON_IOCTL)
 		fprintf(stderr, "%s %d\n", __FUNCTION__, radeon->cmdbuf.cs->cdw);
 
 	/* okay if we have no cmds in the buffer &&
@@ -1041,7 +1145,7 @@ void radeonFlush(GLcontext *ctx)
 	   we have no DMA buffer allocated.
 	   then no point flushing anything at all.
 	*/
-	if (!radeon->dma.flush && !radeon->cmdbuf.cs->cdw && !radeon->dma.current)
+	if (!radeon->dma.flush && !radeon->cmdbuf.cs->cdw && is_empty_list(&radeon->dma.reserved))
 		return;
 
 	if (radeon->dma.flush)
@@ -1066,11 +1170,14 @@ void radeonFlush(GLcontext *ctx)
 			 * each of N places that do rendering.  This has worse performances,
 			 * but it is much easier to get correct.
 			 */
-			if (radeon->is_front_buffer_rendering) {
+			if (!radeon->is_front_buffer_rendering) {
 				radeon->front_buffer_dirty = GL_FALSE;
 			}
 		}
 	}
+
+	make_empty_list(&radeon->query.not_flushed_head);
+
 }
 
 /* Make sure all commands have been sent to the hardware and have
@@ -1082,7 +1189,8 @@ void radeonFinish(GLcontext * ctx)
 	struct gl_framebuffer *fb = ctx->DrawBuffer;
 	int i;
 
-	radeonFlush(ctx);
+	if (ctx->Driver.Flush)
+		ctx->Driver.Flush(ctx); /* +r6/r7 */
 
 	if (radeon->radeonScreen->kernel_mm) {
 		for (i = 0; i < fb->_NumColorDrawBuffers; i++) {
@@ -1121,10 +1229,12 @@ int rcommonFlushCmdBufLocked(radeonContextPtr rmesa, const char *caller)
 	}
 	rmesa->cmdbuf.flushing = 1;
 
-	if (RADEON_DEBUG & DEBUG_IOCTL) {
+	if (RADEON_DEBUG & RADEON_IOCTL) {
 		fprintf(stderr, "%s from %s - %i cliprects\n",
 			__FUNCTION__, caller, rmesa->numClipRects);
 	}
+
+	radeonEmitQueryEnd(rmesa->glCtx);
 
 	if (rmesa->cmdbuf.cs->cdw) {
 		ret = radeon_cs_emit(rmesa->cmdbuf.cs);
@@ -1144,7 +1254,7 @@ int rcommonFlushCmdBuf(radeonContextPtr rmesa, const char *caller)
 {
 	int ret;
 
-	radeonReleaseDmaRegion(rmesa);
+	radeonReleaseDmaRegions(rmesa);
 
 	LOCK_HARDWARE(rmesa);
 	ret = rcommonFlushCmdBufLocked(rmesa, caller);
@@ -1164,12 +1274,16 @@ int rcommonFlushCmdBuf(radeonContextPtr rmesa, const char *caller)
  *
  * \param dwords The number of dwords we need to be free on the command buffer
  */
-void rcommonEnsureCmdBufSpace(radeonContextPtr rmesa, int dwords, const char *caller)
+GLboolean rcommonEnsureCmdBufSpace(radeonContextPtr rmesa, int dwords, const char *caller)
 {
-	if ((rmesa->cmdbuf.cs->cdw + dwords + 128) > rmesa->cmdbuf.size ||
-	    radeon_cs_need_flush(rmesa->cmdbuf.cs)) {
-		rcommonFlushCmdBuf(rmesa, caller);
-	}
+   if ((rmesa->cmdbuf.cs->cdw + dwords + 128) > rmesa->cmdbuf.size
+	 || radeon_cs_need_flush(rmesa->cmdbuf.cs)) {
+      /* If we try to flush empty buffer there is too big rendering operation. */
+      assert(rmesa->cmdbuf.cs->cdw);
+      rcommonFlushCmdBuf(rmesa, caller);
+      return GL_TRUE;
+   }
+   return GL_FALSE;
 }
 
 void rcommonInitCmdBuf(radeonContextPtr rmesa)
@@ -1184,15 +1298,13 @@ void rcommonInitCmdBuf(radeonContextPtr rmesa)
 	if (size > 64 * 256)
 		size = 64 * 256;
 
-	if (RADEON_DEBUG & (DEBUG_IOCTL | DEBUG_DMA)) {
-		fprintf(stderr, "sizeof(drm_r300_cmd_header_t)=%zd\n",
-			sizeof(drm_r300_cmd_header_t));
-		fprintf(stderr, "sizeof(drm_radeon_cmd_buffer_t)=%zd\n",
-			sizeof(drm_radeon_cmd_buffer_t));
-		fprintf(stderr,
+	radeon_print(RADEON_CS, RADEON_VERBOSE,
+			"sizeof(drm_r300_cmd_header_t)=%zd\n", sizeof(drm_r300_cmd_header_t));
+	radeon_print(RADEON_CS, RADEON_VERBOSE,
+			"sizeof(drm_radeon_cmd_buffer_t)=%zd\n", sizeof(drm_radeon_cmd_buffer_t));
+	radeon_print(RADEON_CS, RADEON_VERBOSE,
 			"Allocating %d bytes command buffer (max state is %d bytes)\n",
 			size * 4, rmesa->hw.max_state_size * 4);
-	}
 
 	if (rmesa->radeonScreen->kernel_mm) {
 		int fd = rmesa->radeonScreen->driScreen->fd;
@@ -1209,7 +1321,7 @@ void rcommonInitCmdBuf(radeonContextPtr rmesa)
 	rmesa->cmdbuf.size = size;
 
 	radeon_cs_space_set_flush(rmesa->cmdbuf.cs,
-				  (void (*)(void *))radeonFlush, rmesa->glCtx);
+				  (void (*)(void *))rmesa->glCtx->Driver.Flush, rmesa->glCtx);
 
 	if (!rmesa->radeonScreen->kernel_mm) {
 		radeon_cs_set_limit(rmesa->cmdbuf.cs, RADEON_GEM_DOMAIN_VRAM, rmesa->radeonScreen->texSize[0]);
@@ -1244,268 +1356,20 @@ void rcommonBeginBatch(radeonContextPtr rmesa, int n,
 		       const char *function,
 		       int line)
 {
-	rcommonEnsureCmdBufSpace(rmesa, n, function);
 	if (!rmesa->cmdbuf.cs->cdw && dostate) {
-		if (RADEON_DEBUG & DEBUG_IOCTL)
-			fprintf(stderr, "Reemit state after flush (from %s)\n", function);
+		radeon_print(RADEON_STATE, RADEON_NORMAL,
+				"Reemit state after flush (from %s)\n", function);
 		radeonEmitState(rmesa);
 	}
 	radeon_cs_begin(rmesa->cmdbuf.cs, n, file, function, line);
 
-        if (DEBUG_CMDBUF && RADEON_DEBUG & DEBUG_IOCTL)
-                fprintf(stderr, "BEGIN_BATCH(%d) at %d, from %s:%i\n",
+    radeon_print(RADEON_CS, RADEON_VERBOSE, "BEGIN_BATCH(%d) at %d, from %s:%i\n",
                         n, rmesa->cmdbuf.cs->cdw, function, line);
 
 }
 
-
-
-static void
-radeon_meta_set_passthrough_transform(radeonContextPtr radeon)
-{
-   GLcontext *ctx = radeon->glCtx;
-
-   radeon->meta.saved_vp_x = ctx->Viewport.X;
-   radeon->meta.saved_vp_y = ctx->Viewport.Y;
-   radeon->meta.saved_vp_width = ctx->Viewport.Width;
-   radeon->meta.saved_vp_height = ctx->Viewport.Height;
-   radeon->meta.saved_matrix_mode = ctx->Transform.MatrixMode;
-
-   radeon->internal_viewport_call = GL_TRUE;
-   _mesa_Viewport(0, 0, ctx->DrawBuffer->Width, ctx->DrawBuffer->Height);
-   radeon->internal_viewport_call = GL_FALSE;
-
-   _mesa_MatrixMode(GL_PROJECTION);
-   _mesa_PushMatrix();
-   _mesa_LoadIdentity();
-   _mesa_Ortho(0, ctx->DrawBuffer->Width, 0, ctx->DrawBuffer->Height, 1, -1);
-
-   _mesa_MatrixMode(GL_MODELVIEW);
-   _mesa_PushMatrix();
-   _mesa_LoadIdentity();
-}
-
-static void
-radeon_meta_restore_transform(radeonContextPtr radeon)
-{
-   _mesa_MatrixMode(GL_PROJECTION);
-   _mesa_PopMatrix();
-   _mesa_MatrixMode(GL_MODELVIEW);
-   _mesa_PopMatrix();
-
-   _mesa_MatrixMode(radeon->meta.saved_matrix_mode);
-
-   radeon->internal_viewport_call = GL_TRUE;
-   _mesa_Viewport(radeon->meta.saved_vp_x, radeon->meta.saved_vp_y,
-		  radeon->meta.saved_vp_width, radeon->meta.saved_vp_height);
-   radeon->internal_viewport_call = GL_FALSE;
-}
-
-
-/**
- * Perform glClear where mask contains only color, depth, and/or stencil.
- *
- * The implementation is based on calling into Mesa to set GL state and
- * performing normal triangle rendering.  The intent of this path is to
- * have as generic a path as possible, so that any driver could make use of
- * it.
- */
-
-static void radeon_clear_init(GLcontext *ctx)
-{
-    radeonContextPtr rmesa = RADEON_CONTEXT(ctx);
-    struct gl_array_object *arraySave = NULL;
-    const GLuint arrayBuffer = ctx->Array.ArrayBufferObj->Name;
-    const GLuint elementBuffer = ctx->Array.ElementArrayBufferObj->Name;
-
-    /* create new array object */
-    rmesa->clear.arrayObj = _mesa_new_array_object(ctx, ~0);
-    _mesa_reference_array_object(ctx, &arraySave, ctx->Array.ArrayObj);
-    _mesa_reference_array_object(ctx, &ctx->Array.ArrayObj, rmesa->clear.arrayObj);
-
-    /* one time setup of vertex arrays (pos, color) */
-    _mesa_BindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-    _mesa_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-    _mesa_ColorPointer(4, GL_FLOAT, 4 * sizeof(GLfloat), rmesa->clear.color);
-    _mesa_VertexPointer(3, GL_FLOAT, 3 * sizeof(GLfloat), rmesa->clear.vertices);
-    _mesa_Enable(GL_COLOR_ARRAY);
-    _mesa_Enable(GL_VERTEX_ARRAY);
-
-    /* restore original array object */
-    _mesa_reference_array_object(ctx, &ctx->Array.ArrayObj, arraySave);
-    _mesa_reference_array_object(ctx, &arraySave, NULL);
-
-    /* restore original buffer objects */
-    _mesa_BindBufferARB(GL_ARRAY_BUFFER_ARB, arrayBuffer);
-    _mesa_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, elementBuffer);
-}
-
-
-void radeon_clear_tris(GLcontext *ctx, GLbitfield mask)
+void radeonUserClear(GLcontext *ctx, GLuint mask)
 {
    radeonContextPtr rmesa = RADEON_CONTEXT(ctx);
-   GLfloat dst_z;
-   struct gl_framebuffer *fb = ctx->DrawBuffer;
-   int i;
-   GLboolean saved_fp_enable = GL_FALSE, saved_vp_enable = GL_FALSE;
-   GLboolean saved_shader_program = 0;
-   unsigned int saved_active_texture;
-   struct gl_array_object *arraySave = NULL;
-
-   if (!rmesa->clear.arrayObj)
-       radeon_clear_init(ctx);
-
-   assert((mask & ~(TRI_CLEAR_COLOR_BITS | BUFFER_BIT_DEPTH |
-		    BUFFER_BIT_STENCIL)) == 0);
-
-   _mesa_PushAttrib(GL_COLOR_BUFFER_BIT |
-		    GL_DEPTH_BUFFER_BIT |
-		    GL_ENABLE_BIT |
-		    GL_POLYGON_BIT |
-		    GL_STENCIL_BUFFER_BIT |
-		    GL_TRANSFORM_BIT |
-		    GL_CURRENT_BIT);
-   saved_active_texture = ctx->Texture.CurrentUnit;
-
-  /* Disable existing GL state we don't want to apply to a clear. */
-   _mesa_Disable(GL_ALPHA_TEST);
-   _mesa_Disable(GL_BLEND);
-   _mesa_Disable(GL_CULL_FACE);
-   _mesa_Disable(GL_FOG);
-   _mesa_Disable(GL_POLYGON_SMOOTH);
-   _mesa_Disable(GL_POLYGON_STIPPLE);
-   _mesa_Disable(GL_POLYGON_OFFSET_FILL);
-   _mesa_Disable(GL_LIGHTING);
-   _mesa_Disable(GL_CLIP_PLANE0);
-   _mesa_Disable(GL_CLIP_PLANE1);
-   _mesa_Disable(GL_CLIP_PLANE2);
-   _mesa_Disable(GL_CLIP_PLANE3);
-   _mesa_Disable(GL_CLIP_PLANE4);
-   _mesa_Disable(GL_CLIP_PLANE5);
-   _mesa_PolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-   if (ctx->Extensions.ARB_fragment_program && ctx->FragmentProgram.Enabled) {
-      saved_fp_enable = GL_TRUE;
-      _mesa_Disable(GL_FRAGMENT_PROGRAM_ARB);
-   }
-   if (ctx->Extensions.ARB_vertex_program && ctx->VertexProgram.Enabled) {
-      saved_vp_enable = GL_TRUE;
-      _mesa_Disable(GL_VERTEX_PROGRAM_ARB);
-   }
-   if (ctx->Extensions.ARB_shader_objects && ctx->Shader.CurrentProgram) {
-      saved_shader_program = ctx->Shader.CurrentProgram->Name;
-      _mesa_UseProgramObjectARB(0);
-   }
-
-   if (ctx->Texture._EnabledUnits != 0) {
-      int i;
-
-      for (i = 0; i < ctx->Const.MaxTextureUnits; i++) {
-	 _mesa_ActiveTextureARB(GL_TEXTURE0 + i);
-	 _mesa_Disable(GL_TEXTURE_1D);
-	 _mesa_Disable(GL_TEXTURE_2D);
-	 _mesa_Disable(GL_TEXTURE_3D);
-	 if (ctx->Extensions.ARB_texture_cube_map)
-	    _mesa_Disable(GL_TEXTURE_CUBE_MAP_ARB);
-	 if (ctx->Extensions.NV_texture_rectangle)
-	    _mesa_Disable(GL_TEXTURE_RECTANGLE_NV);
-	 if (ctx->Extensions.MESA_texture_array) {
-	    _mesa_Disable(GL_TEXTURE_1D_ARRAY_EXT);
-	    _mesa_Disable(GL_TEXTURE_2D_ARRAY_EXT);
-	 }
-      }
-   }
-
-   /* save current array object, bind our private one */
-   _mesa_reference_array_object(ctx, &arraySave, ctx->Array.ArrayObj);
-   _mesa_reference_array_object(ctx, &ctx->Array.ArrayObj, rmesa->clear.arrayObj);
-
-   radeon_meta_set_passthrough_transform(rmesa);
-
-   for (i = 0; i < 4; i++) {
-      COPY_4FV(rmesa->clear.color[i], ctx->Color.ClearColor);
-   }
-
-   /* convert clear Z from [0,1] to NDC coord in [-1,1] */
-
-   dst_z = -1.0 + 2.0 * ctx->Depth.Clear;
-   /* Prepare the vertices, which are the same regardless of which buffer we're
-    * drawing to.
-    */
-   rmesa->clear.vertices[0][0] = fb->_Xmin;
-   rmesa->clear.vertices[0][1] = fb->_Ymin;
-   rmesa->clear.vertices[0][2] = dst_z;
-   rmesa->clear.vertices[1][0] = fb->_Xmax;
-   rmesa->clear.vertices[1][1] = fb->_Ymin;
-   rmesa->clear.vertices[1][2] = dst_z;
-   rmesa->clear.vertices[2][0] = fb->_Xmax;
-   rmesa->clear.vertices[2][1] = fb->_Ymax;
-   rmesa->clear.vertices[2][2] = dst_z;
-   rmesa->clear.vertices[3][0] = fb->_Xmin;
-   rmesa->clear.vertices[3][1] = fb->_Ymax;
-   rmesa->clear.vertices[3][2] = dst_z;
-
-   while (mask != 0) {
-      GLuint this_mask = 0;
-      GLuint color_bit;
-
-      color_bit = _mesa_ffs(mask & TRI_CLEAR_COLOR_BITS);
-      if (color_bit != 0)
-	 this_mask |= (1 << (color_bit - 1));
-
-      /* Clear depth/stencil in the same pass as color. */
-      this_mask |= (mask & (BUFFER_BIT_DEPTH | BUFFER_BIT_STENCIL));
-
-      /* Select the current color buffer and use the color write mask if
-       * we have one, otherwise don't write any color channels.
-       */
-      if (this_mask & BUFFER_BIT_FRONT_LEFT)
-	 _mesa_DrawBuffer(GL_FRONT_LEFT);
-      else if (this_mask & BUFFER_BIT_BACK_LEFT)
-	 _mesa_DrawBuffer(GL_BACK_LEFT);
-      else if (color_bit != 0)
-	 _mesa_DrawBuffer(GL_COLOR_ATTACHMENT0 +
-			  (color_bit - BUFFER_COLOR0 - 1));
-      else
-	 _mesa_ColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-
-      /* Control writing of the depth clear value to depth. */
-      if (this_mask & BUFFER_BIT_DEPTH) {
-	 _mesa_DepthFunc(GL_ALWAYS);
-	 _mesa_DepthMask(GL_TRUE);
-	 _mesa_Enable(GL_DEPTH_TEST);
-      } else {
-	 _mesa_Disable(GL_DEPTH_TEST);
-	 _mesa_DepthMask(GL_FALSE);
-      }
-
-      /* Control writing of the stencil clear value to stencil. */
-      if (this_mask & BUFFER_BIT_STENCIL) {
-	 _mesa_Enable(GL_STENCIL_TEST);
-	 _mesa_StencilOp(GL_REPLACE, GL_REPLACE, GL_REPLACE);
-	 _mesa_StencilFuncSeparate(GL_FRONT_AND_BACK, GL_ALWAYS, ctx->Stencil.Clear,
-				   ctx->Stencil.WriteMask[0]);
-      } else {
-	 _mesa_Disable(GL_STENCIL_TEST);
-      }
-
-      _mesa_DrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-      mask &= ~this_mask;
-   }
-
-   radeon_meta_restore_transform(rmesa);
-
-   _mesa_ActiveTextureARB(GL_TEXTURE0 + saved_active_texture);
-   if (saved_fp_enable)
-      _mesa_Enable(GL_FRAGMENT_PROGRAM_ARB);
-   if (saved_vp_enable)
-      _mesa_Enable(GL_VERTEX_PROGRAM_ARB);
-
-   if (saved_shader_program)
-      _mesa_UseProgramObjectARB(saved_shader_program);
-
-   _mesa_PopAttrib();
-     /* restore current array object */
-   _mesa_reference_array_object(ctx, &ctx->Array.ArrayObj, arraySave);
-   _mesa_reference_array_object(ctx, &arraySave, NULL);
+   meta_clear_tris(&rmesa->meta, mask);
 }

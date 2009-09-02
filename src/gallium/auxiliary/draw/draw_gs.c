@@ -31,6 +31,8 @@
 #include "draw_context.h"
 
 #include "tgsi/tgsi_parse.h"
+#include "tgsi/tgsi_exec.h"
+
 #include "pipe/p_shader_tokens.h"
 
 #include "util/u_math.h"
@@ -43,28 +45,15 @@
 boolean
 draw_gs_init( struct draw_context *draw )
 {
-   tgsi_exec_machine_init(&draw->gs.machine);
-
-   draw->gs.machine.MaxGeometryShaderOutputs
-      = MAX_PRIM_VERTICES * MAX_PRIMITIVES * PIPE_MAX_ATTRIBS;
-
-   draw->gs.machine.Inputs =
-      align_malloc(MAX_PRIM_VERTICES * PIPE_MAX_ATTRIBS *
-                   sizeof(struct tgsi_exec_vector), 16);
-   if (!draw->gs.machine.Inputs)
+   draw->gs.machine = tgsi_exec_machine_create();
+   if (!draw->vs.machine)
       return FALSE;
 
-   draw->gs.machine.Outputs =
-      align_malloc(draw->gs.machine.MaxGeometryShaderOutputs
-                   * sizeof(struct tgsi_exec_vector), 16);
-   if (!draw->gs.machine.Outputs)
-      return FALSE;
-
-   draw->gs.machine.Primitives = align_malloc(
+   draw->gs.machine->Primitives = align_malloc(
       MAX_PRIMITIVES * sizeof(struct tgsi_exec_vector), 16);
-   if (!draw->gs.machine.Primitives)
+   if (!draw->gs.machine->Primitives)
       return FALSE;
-   memset(draw->gs.machine.Primitives, 0,
+   memset(draw->gs.machine->Primitives, 0,
           MAX_PRIMITIVES * sizeof(struct tgsi_exec_vector));
 
    return TRUE;
@@ -98,7 +87,7 @@ draw_create_geometry_shader(struct draw_context *draw,
 
    tgsi_scan_shader(state->shader.tokens, &gs->info);
 
-   gs->machine = &draw->gs.machine;
+   gs->machine = draw->gs.machine;
 
    return gs;
 }

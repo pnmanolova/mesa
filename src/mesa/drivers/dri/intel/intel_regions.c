@@ -181,6 +181,21 @@ intel_region_alloc(struct intel_context *intel,
    dri_bo *buffer;
    struct intel_region *region;
 
+   /* If we're tiled, our allocations are in 8 or 32-row blocks, so
+    * failure to align our height means that we won't allocate enough pages.
+    *
+    * If we're untiled, we still have to align to 2 rows high because the
+    * data port accesses 2x2 blocks even if the bottom row isn't to be
+    * rendered, so failure to align means we could walk off the end of the
+    * GTT and fault.
+    */
+   if (tiling == I915_TILING_X)
+      height = ALIGN(height, 8);
+   else if (tiling == I915_TILING_Y)
+      height = ALIGN(height, 32);
+   else
+      height = ALIGN(height, 2);
+
    if (expect_accelerated_upload) {
       buffer = drm_intel_bo_alloc_for_render(intel->bufmgr, "region",
 					     pitch * cpp * height, 64);
@@ -452,6 +467,7 @@ void
 intel_region_cow(struct intel_context *intel, struct intel_region *region)
 {
    struct intel_buffer_object *pbo = region->pbo;
+   GLboolean ok;
 
    intel_region_release_pbo(intel, region);
 
@@ -463,13 +479,14 @@ intel_region_cow(struct intel_context *intel, struct intel_region *region)
     */
 
    LOCK_HARDWARE(intel);
-   assert(intelEmitCopyBlit(intel,
-			    region->cpp,
-			    region->pitch, pbo->buffer, 0, region->tiling,
-			    region->pitch, region->buffer, 0, region->tiling,
-			    0, 0, 0, 0,
-			    region->pitch, region->height,
-			    GL_COPY));
+   ok = intelEmitCopyBlit(intel,
+                          region->cpp,
+                          region->pitch, pbo->buffer, 0, region->tiling,
+                          region->pitch, region->buffer, 0, region->tiling,
+                          0, 0, 0, 0,
+                          region->pitch, region->height,
+                          GL_COPY);
+   assert(ok);
    UNLOCK_HARDWARE(intel);
 }
 
