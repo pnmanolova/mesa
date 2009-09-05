@@ -42,6 +42,7 @@
 struct cso_fragment_shader;
 struct cso_vertex_shader;
 struct translated_vertex_program;
+struct translated_geometry_program;
 
 
 /**
@@ -55,7 +56,7 @@ struct st_fragment_program
    GLuint input_to_slot[FRAG_ATTRIB_MAX];  /**< Maps FRAG_ATTRIB_x to slot */
    GLuint num_input_slots;
 
-   /** map FP input back to VP output */
+   /** map FP input back to VP/GP output */
    GLuint input_map[PIPE_MAX_SHADER_INPUTS];
 
    ubyte input_semantic_name[PIPE_MAX_SHADER_INPUTS];
@@ -70,6 +71,7 @@ struct st_fragment_program
     * outputs match this fragment program's inputs.
     */
    struct translated_vertex_program *vertex_programs;
+   struct translated_geometry_program *geometry_programs;
 
    /** Program prefixed with glBitmap prologue */
    struct st_fragment_program *bitmap_program;
@@ -110,9 +112,12 @@ struct st_geometry_program
    struct gl_geometry_program Base;  /**< The Mesa geometry program */
    GLuint serialNo;
 
-   /** maps a Mesa VERT_ATTRIB_x to a packed TGSI input index */
+   /** map GP input back to VP output */
+   GLuint input_map[PIPE_MAX_SHADER_INPUTS];
+
+   /** maps a Mesa GEOM_ATTRIB_x to a packed TGSI input index */
    GLuint input_to_index[GEOM_ATTRIB_MAX];
-   /** maps a TGSI input index back to a Mesa VERT_ATTRIB_x */
+   /** maps a TGSI input index back to a Mesa GEOM_ATTRIB_x */
    GLuint index_to_input[PIPE_MAX_SHADER_INPUTS];
 
    GLuint num_inputs;
@@ -120,12 +125,10 @@ struct st_geometry_program
    GLuint input_to_slot[GEOM_ATTRIB_MAX];  /**< Maps GEOM_ATTRIB_x to slot */
    GLuint num_input_slots;
 
-   /** map FP input back to VP output */
-   GLuint input_map[PIPE_MAX_SHADER_INPUTS];
-
    ubyte input_semantic_name[PIPE_MAX_SHADER_INPUTS];
    ubyte input_semantic_index[PIPE_MAX_SHADER_INPUTS];
 
+   struct translated_vertex_program *vertex_programs;
 
    struct pipe_geometry_shader_state state;
    void *driver_shader;
@@ -192,10 +195,14 @@ st_translate_fragment_program(struct st_context *st,
                               struct st_fragment_program *fp,
                               const GLuint inputMapping[]);
 
+
 extern void
 st_translate_geometry_program(struct st_context *st,
-                              struct st_geometry_program *fp,
-                              const GLuint inputMapping[]);
+                              struct st_geometry_program *stgp,
+                              const GLuint inputMapping[],
+                              const GLuint outputMapping[],
+                              const ubyte *outputSemanticName,
+                              const ubyte *outputSemanticIndex);
 
 extern void
 st_translate_vertex_program(struct st_context *st,

@@ -125,9 +125,9 @@ static void fillConvolution(GLint *k,
 {
    switch(filter) {
    case GAUSSIAN_BLUR:
-      k[0] = 1; k[1] = 2; k[2] = 1;
-      k[3] = 2; k[4] = 4; k[5] = 2;
-      k[6] = 1; k[7] = 2; k[8] = 1;
+      k[0] = 10; k[1] = 20; k[2] = 10;
+      k[3] = 20; k[4] = 40; k[5] = 20;
+      k[6] = 10; k[7] = 20; k[8] = 10;
 
       *scale = 1./16.;
       break;
@@ -184,6 +184,7 @@ static void setupConvolution()
    GLint *kernel = (GLint*)malloc(sizeof(GLint) * 9);
    GLfloat scale;
    GLfloat *vecKer = (GLfloat*)malloc(sizeof(GLfloat) * 9 * 4);
+   GLfloat *kerScale = (GLfloat*)malloc(sizeof(GLfloat) * 9 * 4);
    GLuint loc;
    GLuint i;
    GLfloat baseColor[4];
@@ -193,6 +194,14 @@ static void setupConvolution()
    baseColor[3] = 0;
 
    fillConvolution(kernel, &scale, baseColor);
+
+   for (i = 0; i < 9; ++i) {
+      kerScale[i*4 + 0] = 01.f / kernel[i];
+      kerScale[i*4 + 1] = 0;
+      kerScale[i*4 + 2] = 0;
+      kerScale[i*4 + 3] = 01.f / kernel[i];
+   }
+
    /*vector of 4*/
    for (i = 0; i < 9; ++i) {
       vecKer[i*4 + 0] = kernel[i];
@@ -203,6 +212,10 @@ static void setupConvolution()
 
    loc = glGetUniformLocationARB(program, "KernelValue");
    glUniform4fv(loc, 9, vecKer);
+   loc = glGetUniformLocationARB(program, "KernelScale");
+   glUniform4fv(loc, 9, kerScale);
+   loc = glGetUniformLocationARB(program, "KernelCount");
+   glUniform1i(loc, 9);
    loc = glGetUniformLocationARB(program, "ScaleFactor");
    glUniform4f(loc, scale, scale, scale, scale);
    loc = glGetUniformLocationARB(program, "BaseColor");

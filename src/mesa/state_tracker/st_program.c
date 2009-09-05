@@ -581,15 +581,16 @@ st_translate_fragment_program(struct st_context *st,
 void
 st_translate_geometry_program(struct st_context *st,
                               struct st_geometry_program *stgp,
-                              const GLuint inputMapping[])
+                              const GLuint inputMapping[],
+                              const GLuint outputMapping[],
+                              const ubyte *outputSemanticName,
+                              const ubyte *outputSemanticIndex)
 {
    struct pipe_context *pipe = st->pipe;
    struct tgsi_token *tokens;
-   GLuint *outputMapping;
    GLuint defaultInputMapping[GEOM_ATTRIB_MAX];
    GLuint defaultOutputMapping[GEOM_RESULT_MAX];
    struct pipe_geometry_shader_state gs;
-   GLuint interpMode[16];  /* XXX size? */
    GLuint attr;
    const GLbitfield inputsRead = stgp->Base.Base.InputsRead;
    GLuint vslot = 0;
@@ -631,59 +632,68 @@ st_translate_geometry_program(struct st_context *st,
       if (inputsRead & (1 << attr)) {
          const GLuint slot = gs_num_inputs;
 
+         gs_num_inputs++;
+
          defaultInputMapping[attr] = slot;
 
-         stgp->input_map[slot] = vslot++;
-
-         gs_num_inputs++;
+         stgp->input_map[slot] = vslot;
+         stgp->input_to_index[attr] = vslot;
+         stgp->index_to_input[vslot] = attr;
+         ++vslot;
 
          switch (attr) {
          case GEOM_ATTRIB_VERTICES:
             stgp->input_semantic_name[slot] = TGSI_SEMANTIC_VERTICES;
             stgp->input_semantic_index[slot] = 0;
-            interpMode[slot] = TGSI_INTERPOLATE_CONSTANT;
             break;
          case GEOM_ATTRIB_PRIMITIVE_ID:
             stgp->input_semantic_name[slot] = TGSI_SEMANTIC_PRIMID;
             stgp->input_semantic_index[slot] = 0;
-            interpMode[slot] = TGSI_INTERPOLATE_CONSTANT;
             break;
          case GEOM_ATTRIB_POSITION:
             stgp->input_semantic_name[slot] = TGSI_SEMANTIC_POSITION;
             stgp->input_semantic_index[slot] = 0;
-            interpMode[slot] = TGSI_INTERPOLATE_LINEAR;
             break;
          case GEOM_ATTRIB_COLOR0:
             stgp->input_semantic_name[slot] = TGSI_SEMANTIC_COLOR;
             stgp->input_semantic_index[slot] = 0;
-            interpMode[slot] = TGSI_INTERPOLATE_LINEAR;
             break;
          case GEOM_ATTRIB_COLOR1:
             stgp->input_semantic_name[slot] = TGSI_SEMANTIC_COLOR;
             stgp->input_semantic_index[slot] = 1;
-            interpMode[slot] = TGSI_INTERPOLATE_LINEAR;
             break;
          case GEOM_ATTRIB_FOG_FRAG_COORD:
             stgp->input_semantic_name[slot] = TGSI_SEMANTIC_FOG;
             stgp->input_semantic_index[slot] = 0;
-            interpMode[slot] = TGSI_INTERPOLATE_PERSPECTIVE;
             break;
          case GEOM_ATTRIB_TEX_COORD:
             stgp->input_semantic_name[slot] = TGSI_SEMANTIC_GENERIC;
             stgp->input_semantic_index[slot] = num_generic++;
-            interpMode[slot] = TGSI_INTERPOLATE_PERSPECTIVE;
             break;
          case GEOM_ATTRIB_VAR0:
             /* fall-through */
          default:
             stgp->input_semantic_name[slot] = TGSI_SEMANTIC_GENERIC;
             stgp->input_semantic_index[slot] = num_generic++;
-            interpMode[slot] = TGSI_INTERPOLATE_PERSPECTIVE;
          }
 
          input_flags[slot] = stgp->Base.Base.InputFlags[attr];
       }
    }
+
+#if 1
+   if (outputMapping && outputSemanticName) {
+      printf("GEOM_RESULT  written  out_slot  semantic_name  semantic_index\n");
+      for (attr = 0; attr < GEOM_RESULT_MAX; attr++) {
+         printf("    %-2d          %c       %3d          %2d              %2d\n",
+                attr,
+                ((stgp->Base.Base.OutputsWritten & (1 << attr)) ? 'Y' : ' '),
+                outputMapping[attr],
+                outputSemanticName[attr],
+                outputSemanticIndex[attr]);
+      }
+   }
+#endif
 
    /* initialize output semantics to defaults */
    for (i = 0; i < PIPE_MAX_SHADER_OUTPUTS; i++) {
@@ -706,10 +716,15 @@ st_translate_geometry_program(struct st_context *st,
           * Use the generic semantic indexes from there, instead of
           * guessing below.
           */
-
-         slot = gs_num_outputs;
-         gs_num_outputs++;
-         defaultOutputMapping[attr] = slot;
+         if (outputMapping) {
+            slot = outputMapping[attr];
+            assert(slot != ~0);
+         }
+         else {
+            slot = gs_num_outputs;
+            gs_num_outputs++;
+            defaultOutputMapping[attr] = slot;
+         }
 
          switch (attr) {
          case GEOM_RESULT_POS:
@@ -753,18 +768,59 @@ st_translate_geometry_program(struct st_context *st,
          case GEOM_RESULT_VAR0:
             /* fall-through */
          default:
-            /* use default semantic info */
-            gs_output_semantic_name[slot] = TGSI_SEMANTIC_GENERIC;
-            gs_output_semantic_index[slot] = num_generic++;
+            assert(slot < Elements(gs_output_semantic_name));
+            if (outputSemanticName) {
+               /* use provided semantic into */
+               assert(outputSemanticName[attr] != TGSI_SEMANTIC_COUNT);
+               gs_output_semantic_name[slot] = outputSemanticName[attr];
+               gs_output_semantic_index[slot] = outputSemanticIndex[attr];
+            }
+            else {
+               /* use default semantic info */
+               gs_output_semantic_name[slot] = TGSI_SEMANTIC_GENERIC;
+               gs_output_semantic_index[slot] = num_generic++;
+            }
          }
 
+         assert(slot < Elements(output_flags));
          output_flags[slot] = stgp->Base.Base.OutputFlags[attr];
       }
    }
 
    assert(gs_output_semantic_name[0] == TGSI_SEMANTIC_POSITION);
 
-   outputMapping = defaultOutputMapping;
+   if (outputMapping) {
+      /* find max output slot referenced to compute gs_num_outputs */
+      GLuint maxSlot = 0;
+      for (attr = 0; attr < GEOM_RESULT_MAX; attr++) {
+         if (outputMapping[attr] != ~0 && outputMapping[attr] > maxSlot)
+            maxSlot = outputMapping[attr];
+      }
+      gs_num_outputs = maxSlot + 1;
+   }
+   else {
+      outputMapping = defaultOutputMapping;
+   }
+
+#if 1 /* debug */
+   {
+      GLuint i;
+      printf("outputMapping? %d\n", outputMapping ? 1 : 0);
+      if (outputMapping) {
+         printf("attr -> slot\n");
+         for (i = 0; i < 16;  i++) {
+            printf(" %2d       %3d\n", i, outputMapping[i]);
+         }
+      }
+      printf("slot    sem_name  sem_index\n");
+      for (i = 0; i < gs_num_outputs; i++) {
+         printf(" %2d         %d         %d\n",
+                i,
+                gs_output_semantic_name[i],
+                gs_output_semantic_index[i]);
+      }
+   }
+#endif
 
    /* free old shader state, if any */
    if (stgp->state.shader.tokens) {

@@ -64,8 +64,9 @@ struct translated_vertex_program
 {
    struct st_vertex_program *master;
 
-   /** The fragment shader "signature" this vertex shader is meant for: */
-   GLbitfield frag_inputs;
+   /** The fragment/geometry shader "signature" this vertex
+    * shader is meant for: */
+   GLbitfield linked_inputs;
 
    /** Compared against master vertex program's serialNo: */
    GLuint serialNo;
@@ -81,6 +82,27 @@ struct translated_vertex_program
    struct translated_vertex_program *next;  /**< next in linked list */
 };
 
+struct translated_geometry_program
+{
+   struct st_geometry_program *master;
+
+   /** The fragment shader "signature" this vertex
+    * shader is meant for: */
+   GLbitfield frag_inputs;
+
+   /** Compared against master vertex program's serialNo: */
+   GLuint serialNo;
+
+   /** Maps VERT_RESULT_x to slot */
+   GLuint output_to_slot[VERT_RESULT_MAX];
+   ubyte output_to_semantic_name[VERT_RESULT_MAX];
+   ubyte output_to_semantic_index[VERT_RESULT_MAX];
+
+   /** Pointer to the translated vertex program */
+   struct st_geometry_program *gp;
+
+   struct translated_geometry_program *next;  /**< next in linked list */
+};
 
 
 /**
@@ -114,6 +136,74 @@ vp_out_to_fp_in(GLuint vertResult)
    }
 }
 
+/**
+ * Given a geometry program output attribute, return the corresponding
+ * fragment program input attribute.
+ * \return -1 for geometry outputs that have no corresponding fragment input
+ */
+static GLint
+gp_out_to_fp_in(GLuint geomResult)
+{
+   if (geomResult >= GEOM_RESULT_TEX0 &&
+       geomResult < GEOM_RESULT_TEX0 + MAX_TEXTURE_COORD_UNITS)
+      return FRAG_ATTRIB_TEX0 + (geomResult - GEOM_RESULT_TEX0);
+
+   if (geomResult >= GEOM_RESULT_VAR0 &&
+       geomResult < GEOM_RESULT_VAR0 + MAX_VARYING - 2)
+      return FRAG_ATTRIB_VAR0 + (geomResult - GEOM_RESULT_VAR0);
+
+   switch (geomResult) {
+   case GEOM_RESULT_POS:
+      return FRAG_ATTRIB_WPOS;
+   case GEOM_RESULT_COL0:
+      return FRAG_ATTRIB_COL0;
+   case GEOM_RESULT_COL1:
+      return FRAG_ATTRIB_COL1;
+   case GEOM_RESULT_FOGC:
+      return FRAG_ATTRIB_FOGC;
+   default:
+      /* Back-face colors, primitive id, etc */
+      return -1;
+   }
+}
+
+/**
+ * Given a vertex program output attribute, return the corresponding
+ * geometry program input attribute.
+ * \return -1 for vertex outputs that have no corresponding geometry input
+ */
+static GLint
+vp_out_to_gp_in(GLuint vertResult)
+{
+   if (vertResult >= VERT_RESULT_TEX0 &&
+       vertResult < VERT_RESULT_TEX0 + MAX_TEXTURE_COORD_UNITS)
+      return GEOM_ATTRIB_TEX_COORD;
+
+   if (vertResult >= VERT_RESULT_VAR0 &&
+       vertResult < VERT_RESULT_VAR0 + MAX_VARYING)
+      return GEOM_ATTRIB_VAR0 + (vertResult - VERT_RESULT_VAR0);
+
+   switch (vertResult) {
+   case VERT_RESULT_HPOS:
+      return GEOM_ATTRIB_POSITION;
+   case VERT_RESULT_COL0:
+      return GEOM_ATTRIB_COLOR0;
+   case VERT_RESULT_COL1:
+      return GEOM_ATTRIB_COLOR1;
+   case VERT_RESULT_FOGC:
+      return GEOM_ATTRIB_FOG_FRAG_COORD;
+   case VERT_RESULT_PSIZ:
+      return GEOM_ATTRIB_POINT_SIZE;
+   case VERT_RESULT_BFC0:
+      return GEOM_ATTRIB_SECONDARY_COLOR0;
+   case VERT_RESULT_BFC1:
+      return GEOM_ATTRIB_SECONDARY_COLOR1;
+   default:
+      /* edge flags, etc */
+      return -1;
+   }
+}
+
 
 /**
  * Find a translated vertex program that corresponds to stvp and
@@ -128,11 +218,14 @@ find_translated_vp(struct st_context *st,
 {
    static const GLuint UNUSED = ~0;
    struct translated_vertex_program *xvp;
+   struct translated_geometry_program *xgp;
    const GLbitfield fragInputsRead = stfp->Base.Base.InputsRead;
-   GLbitfield geomInputsRead = 0;
+   GLbitfield geomInputsRead = 0, linkedInputs = fragInputsRead;
 
-   if (stgp)
+   if (stgp) {
       geomInputsRead = stgp->Base.Base.InputsRead;
+      linkedInputs = geomInputsRead;
+   }
 
    /*
     * Translate fragment program if needed.
@@ -157,44 +250,187 @@ find_translated_vp(struct st_context *st,
       st_translate_fragment_program(st, stfp, stfp->input_to_slot);
    }
 
-   if (stgp && !stgp->state.shader.tokens) {
-      GLuint inAttr, numIn = 0;
-
-      for (inAttr = 0; inAttr < GEOM_ATTRIB_MAX; inAttr++) {
-         if (geomInputsRead & (1 << inAttr)) {
-            stgp->input_to_slot[inAttr] = numIn;
-            numIn++;
-         }
-         else {
-            stgp->input_to_slot[inAttr] = UNUSED;
-         }
-      }
-
-      stgp->num_input_slots = numIn;
-
-      assert(stgp->Base.Base.NumInstructions > 1);
-
-      st_translate_geometry_program(st, stgp, stgp->input_to_slot);
-   }
-
-   /* See if we've got a translated vertex program whose outputs match
-    * the fragment program's inputs.
+   /* See if we've got a translated geometry program whose outputs match
+    * the fragment  program's inputs.
     * XXX This could be a hash lookup, using InputsRead as the key.
     */
-   for (xvp = stfp->vertex_programs; xvp; xvp = xvp->next) {
-      if (xvp->master == stvp && xvp->frag_inputs == fragInputsRead) {
-         break;
+   if (stgp) {
+      for (xgp = stfp->geometry_programs; xgp; xgp = xgp->next) {
+         if (xgp->master == stgp && xgp->frag_inputs == fragInputsRead)
+            break;
       }
+      /* No?  Allocate translated gp object now */
+      if (!xgp) {
+         xgp = ST_CALLOC_STRUCT(translated_geometry_program);
+         xgp->frag_inputs = fragInputsRead;
+         xgp->master = stgp;
+
+         xgp->next = stfp->geometry_programs;
+         stfp->geometry_programs = xgp;
+      }
+
+      if (!stgp->state.shader.tokens) {
+         GLuint inAttr, numIn = 0;
+
+         for (inAttr = 0; inAttr < GEOM_ATTRIB_MAX; inAttr++) {
+            if (geomInputsRead & (1 << inAttr)) {
+               stgp->input_to_slot[inAttr] = numIn;
+               numIn++;
+            }
+            else {
+               stgp->input_to_slot[inAttr] = UNUSED;
+            }
+         }
+
+         stgp->num_input_slots = numIn;
+         assert(stgp->Base.Base.NumInstructions > 1);
+
+         if (xgp->serialNo != stgp->serialNo) {
+            GLuint outAttr;
+            const GLbitfield outputsWritten = stgp->Base.Base.OutputsWritten;
+            GLuint numGpOuts = 0;
+            GLboolean emitPntSize = GL_FALSE, emitBFC0 = GL_FALSE, emitBFC1 = GL_FALSE;
+            GLbitfield usedGenerics = 0x0;
+            GLbitfield usedOutputSlots = 0x0;
+
+            /* Compute mapping of geometry program outputs to slots, which depends
+             * on the fragment program's input->slot mapping.
+             */
+            for (outAttr = 0; outAttr < GEOM_RESULT_MAX; outAttr++) {
+               /* set defaults: */
+               xgp->output_to_slot[outAttr] = UNUSED;
+               xgp->output_to_semantic_name[outAttr] = TGSI_SEMANTIC_COUNT;
+               xgp->output_to_semantic_index[outAttr] = 99;
+
+               if (outAttr == GEOM_RESULT_POS) {
+                  /* always put xformed position into slot zero */
+                  GLuint slot = 0;
+                  xgp->output_to_slot[GEOM_RESULT_POS] = slot;
+                  xgp->output_to_semantic_name[outAttr] = TGSI_SEMANTIC_POSITION;
+                  xgp->output_to_semantic_index[outAttr] = 0;
+                  numGpOuts++;
+                  usedOutputSlots |= (1 << slot);
+               }
+               else if (outputsWritten & (1 << outAttr)) {
+                  /* see if the frag prog wants this geom output */
+                  GLint fpInAttrib = gp_out_to_fp_in(outAttr);
+                  if (fpInAttrib >= 0) {
+                     GLuint fpInSlot = stfp->input_to_slot[fpInAttrib];
+                     if (fpInSlot != ~0) {
+                        /* match this gp output to the fp input */
+                        GLuint gpOutSlot = stfp->input_map[fpInSlot];
+                        xgp->output_to_slot[outAttr] = gpOutSlot;
+                        xgp->output_to_semantic_name[outAttr] = stfp->input_semantic_name[fpInSlot];
+                        xgp->output_to_semantic_index[outAttr] = stfp->input_semantic_index[fpInSlot];
+                        numGpOuts++;
+                        usedOutputSlots |= (1 << gpOutSlot);
+                     }
+                     else {
+#if 0 /*debug*/
+                        printf("GP output %d not used by FP\n", outAttr);
+#endif
+                     }
+                  }
+                  else if (outAttr == GEOM_RESULT_PSIZ)
+                     emitPntSize = GL_TRUE;
+                  else if (outAttr == GEOM_RESULT_SCOL0)
+                     emitBFC0 = GL_TRUE;
+                  else if (outAttr == GEOM_RESULT_SCOL1)
+                     emitBFC1 = GL_TRUE;
+               }
+#if 0 /*debug*/
+               printf("assign gp output_to_slot[%d] = %d\n", outAttr,
+                      xgp->output_to_slot[outAttr]);
+#endif
+            }
+
+            /* must do these last */
+            if (emitPntSize) {
+               GLuint slot = numGpOuts++;
+               xgp->output_to_slot[GEOM_RESULT_PSIZ] = slot;
+               xgp->output_to_semantic_name[GEOM_RESULT_PSIZ] = TGSI_SEMANTIC_PSIZE;
+               xgp->output_to_semantic_index[GEOM_RESULT_PSIZ] = 0;
+               usedOutputSlots |= (1 << slot);
+            }
+            if (emitBFC0) {
+               GLuint slot = numGpOuts++;
+               xgp->output_to_slot[GEOM_RESULT_SCOL0] = slot;
+               xgp->output_to_semantic_name[GEOM_RESULT_SCOL0] = TGSI_SEMANTIC_COLOR;
+               xgp->output_to_semantic_index[GEOM_RESULT_SCOL0] = 0;
+               usedOutputSlots |= (1 << slot);
+            }
+            if (emitBFC1) {
+               GLuint slot = numGpOuts++;
+               xgp->output_to_slot[GEOM_RESULT_SCOL1] = slot;
+               xgp->output_to_semantic_name[GEOM_RESULT_SCOL1] = TGSI_SEMANTIC_COLOR;
+               xgp->output_to_semantic_index[GEOM_RESULT_SCOL1] = 1;
+               usedOutputSlots |= (1 << slot);
+            }
+
+            /* build usedGenerics mask */
+            usedGenerics = 0x0;
+            for (outAttr = 0; outAttr < GEOM_RESULT_MAX; outAttr++) {
+               if (xgp->output_to_semantic_name[outAttr] == TGSI_SEMANTIC_GENERIC) {
+                  usedGenerics |= (1 << xgp->output_to_semantic_index[outAttr]);
+               }
+            }
+
+            /* For each vertex geometry output that doesn't match up to a fragment
+             * program input, map the geometry program output to a free slot and
+             * free generic attribute.
+             */
+            for (outAttr = 0; outAttr < GEOM_RESULT_MAX; outAttr++) {
+               if (outputsWritten & (1 << outAttr)) {
+                  if (xgp->output_to_slot[outAttr] == UNUSED) {
+                     GLint freeGeneric = _mesa_ffs(~usedGenerics) - 1;
+                     GLint freeSlot = _mesa_ffs(~usedOutputSlots) - 1;
+                     usedGenerics |= (1 << freeGeneric);
+                     usedOutputSlots |= (1 << freeSlot);
+                     xgp->output_to_slot[outAttr] = freeSlot;
+                     xgp->output_to_semantic_name[outAttr] = TGSI_SEMANTIC_GENERIC;
+                     xgp->output_to_semantic_index[outAttr] = freeGeneric;
+                  }
+               }
+
+#if 0 /*debug*/
+               printf("gp output_to_slot[%d] = %d\n", outAttr,
+                      xgp->output_to_slot[outAttr]);
+#endif
+            }
+         }
+
+         st_translate_geometry_program(st, stgp, stgp->input_to_slot,
+                                       xgp->output_to_slot,
+                                       xgp->output_to_semantic_name,
+                                       xgp->output_to_semantic_index);
+
+         xgp->gp = stgp;
+
+         /* translated GP is up to date now */
+         xgp->serialNo = stgp->serialNo;
+      }
+   }
+   /* See if we've got a translated vertex program whose outputs match
+    * the fragment or geometry program's inputs.
+    * XXX This could be a hash lookup, using InputsRead as the key.
+    */
+#define LP_FUNC(FP, GP) ((stgp)?GP:FP)
+#define LP(X) ((stgp)?stgp->X:stfp->X)
+#define LP_SET(X, Y) do { if (stgp) stgp->X = Y; else stfp->X = Y; } while(0)
+
+   for (xvp = LP(vertex_programs); xvp; xvp = xvp->next) {
+      if (xvp->master == stvp && xvp->linked_inputs == linkedInputs)
+         break;
    }
 
    /* No?  Allocate translated vp object now */
    if (!xvp) {
       xvp = ST_CALLOC_STRUCT(translated_vertex_program);
-      xvp->frag_inputs = fragInputsRead;
+      xvp->linked_inputs = linkedInputs;
       xvp->master = stvp;
 
-      xvp->next = stfp->vertex_programs;
-      stfp->vertex_programs = xvp;
+      xvp->next = LP(vertex_programs);
+      LP_SET(vertex_programs, xvp);
    }
 
    /* See if we need to translate vertex program to TGSI form */
@@ -226,21 +462,21 @@ find_translated_vp(struct st_context *st,
          }
          else if (outputsWritten & (1 << outAttr)) {
             /* see if the frag prog wants this vert output */
-            GLint fpInAttrib = vp_out_to_fp_in(outAttr);
-            if (fpInAttrib >= 0) {
-               GLuint fpInSlot = stfp->input_to_slot[fpInAttrib];
-               if (fpInSlot != ~0) {
-                  /* match this vp output to the fp input */
-                  GLuint vpOutSlot = stfp->input_map[fpInSlot];
+            GLint lpInAttrib = LP_FUNC(vp_out_to_fp_in(outAttr), vp_out_to_gp_in(outAttr));
+            if (lpInAttrib >= 0) {
+               GLuint lpInSlot = LP(input_to_slot[lpInAttrib]);
+               if (lpInSlot != ~0) {
+                  /* match this vp output to the lp input */
+                  GLuint vpOutSlot = LP(input_map[lpInSlot]);
                   xvp->output_to_slot[outAttr] = vpOutSlot;
-                  xvp->output_to_semantic_name[outAttr] = stfp->input_semantic_name[fpInSlot];
-                  xvp->output_to_semantic_index[outAttr] = stfp->input_semantic_index[fpInSlot];
+                  xvp->output_to_semantic_name[outAttr] = LP(input_semantic_name[lpInSlot]);
+                  xvp->output_to_semantic_index[outAttr] = LP(input_semantic_index[lpInSlot]);
                   numVpOuts++;
                   usedOutputSlots |= (1 << vpOutSlot);
                }
                else {
 #if 0 /*debug*/
-                  printf("VP output %d not used by FP\n", outAttr);
+                  printf("VP output %d not used by LP\n", outAttr);
 #endif
                }
             }
