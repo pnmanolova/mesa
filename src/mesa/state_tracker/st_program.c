@@ -681,7 +681,7 @@ st_translate_geometry_program(struct st_context *st,
       }
    }
 
-#if 1
+#if 0
    if (outputMapping && outputSemanticName) {
       printf("GEOM_RESULT  written  out_slot  semantic_name  semantic_index\n");
       for (attr = 0; attr < GEOM_RESULT_MAX; attr++) {
@@ -802,7 +802,7 @@ st_translate_geometry_program(struct st_context *st,
       outputMapping = defaultOutputMapping;
    }
 
-#if 1 /* debug */
+#if 0 /* debug */
    {
       GLuint i;
       printf("outputMapping? %d\n", outputMapping ? 1 : 0);
@@ -832,6 +832,8 @@ st_translate_geometry_program(struct st_context *st,
       stgp->driver_shader = NULL;
    }
 
+   if (!inputMapping)
+      inputMapping = defaultInputMapping;
    /* XXX: fix static allocation of tokens:
     */
    num_tokens = st_translate_mesa_program(st->ctx,
@@ -839,7 +841,7 @@ st_translate_geometry_program(struct st_context *st,
                                           &stgp->Base.Base,
                                           /* inputs */
                                           gs_num_inputs,
-                                          stgp->input_to_index,
+                                          inputMapping,
                                           stgp->input_semantic_name,
                                           stgp->input_semantic_index,
                                           NULL,

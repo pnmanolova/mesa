@@ -204,6 +204,34 @@ vp_out_to_gp_in(GLuint vertResult)
    }
 }
 
+static INLINE int num_vertices_for_prim(int prim)
+{
+   switch(prim) {
+   case PIPE_PRIM_POINTS:
+      return 1;
+   case PIPE_PRIM_LINES:
+      return 2;
+   case PIPE_PRIM_LINE_LOOP:
+      return 2;
+   case PIPE_PRIM_LINE_STRIP:
+      return 2;
+   case PIPE_PRIM_TRIANGLES:
+      return 3;
+   case PIPE_PRIM_TRIANGLE_STRIP:
+      return 3;
+   case PIPE_PRIM_TRIANGLE_FAN:
+      return 3;
+   case PIPE_PRIM_LINES_ADJACENCY:
+   case PIPE_PRIM_LINE_STRIP_ADJACENCY:
+      return 4;
+   case PIPE_PRIM_TRIANGLES_ADJACENCY:
+   case PIPE_PRIM_TRIANGLE_STRIP_ADJACENCY:
+      return 6;
+   default:
+      assert(!"Bad geometry shader input");
+      return 0;
+   }
+}
 
 /**
  * Find a translated vertex program that corresponds to stvp and
@@ -275,7 +303,18 @@ find_translated_vp(struct st_context *st,
          for (inAttr = 0; inAttr < GEOM_ATTRIB_MAX; inAttr++) {
             if (geomInputsRead & (1 << inAttr)) {
                stgp->input_to_slot[inAttr] = numIn;
-               numIn++;
+               switch(inAttr) {
+               case GEOM_ATTRIB_VERTICES:
+                  ++numIn;
+                  break;
+               default:
+                  numIn += num_vertices_for_prim(stgp->Base.InputType);
+                  break;
+               }
+#if 0
+               debug_printf("%d attr = slot %d\n",
+                            inAttr, stgp->input_to_slot[inAttr]);
+#endif
             }
             else {
                stgp->input_to_slot[inAttr] = UNUSED;
