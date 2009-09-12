@@ -147,53 +147,63 @@ static INLINE int num_vertices_for_prim(int prim)
 static void draw_fetch_geometry_input(struct draw_geometry_shader *shader,
                                       int start_primitive,
                                       int num_primitives,
-                                      const float (*input)[4],
-                                      unsigned input_stride,
+                                      const float (*input_ptr)[4],
+                                      unsigned input_vertex_stride,
                                       unsigned inputs_from_vs)
 {
    struct tgsi_exec_machine *machine = shader->machine;
    unsigned slot, vs_slot, k, j;
    unsigned num_vertices = num_vertices_for_prim(shader->state.input_type);
+   int idx = 0;
 
-   for (k = 0; k < num_primitives; ++k) {
-      debug_printf("%d) Prim (num_verts = %d)\n", start_primitive + k,
-                   num_vertices);
-      for (j = 0; j < num_vertices; j++) {
-         int idx = ((start_primitive + k) * num_vertices + j) * inputs_from_vs;
-         debug_printf("\t%d)(%d) Input vert:\n", idx, j);
+   for (slot = 0, vs_slot = 0; slot < shader->info.num_inputs; slot++) {
+      debug_printf("Slot = %d (semantic = %d)\n", slot,
+                   shader->info.input_semantic_name[slot]);
+      if (shader->info.input_semantic_name[slot] ==
+          TGSI_SEMANTIC_VERTICES) {
+         for (j = 0; j < num_primitives; ++j) {
+            machine->Inputs[idx].xyzw[0].f[j] = (float)num_vertices;
+            machine->Inputs[idx].xyzw[1].f[j] = (float)num_vertices;
+            machine->Inputs[idx].xyzw[2].f[j] = (float)num_vertices;
+            machine->Inputs[idx].xyzw[3].f[j] = (float)num_vertices;
+         }
+         ++idx;
+      } else {
+         for (j = 0; j < num_primitives; ++j) {
+            int vidx = idx;
+            const float (*prim_ptr)[4];
+            debug_printf("    %d) Prim (num_verts = %d)\n", start_primitive + j,
+                         num_vertices);
+            prim_ptr = (const float (*)[4])(
+               (const char *)input_ptr +
+               (j * num_vertices * input_vertex_stride));
 
-         for (slot = 0, vs_slot = 0; slot < shader->info.num_inputs; slot++) {
-            if (shader->info.input_semantic_name[slot] ==
-                TGSI_SEMANTIC_VERTICES) {
-               machine->Inputs[idx + slot].xyzw[0].f[j] = (float)num_vertices;
-               machine->Inputs[idx + slot].xyzw[1].f[j] = (float)num_vertices;
-               machine->Inputs[idx + slot].xyzw[2].f[j] = (float)num_vertices;
-               machine->Inputs[idx + slot].xyzw[3].f[j] = (float)num_vertices;
-            }
-            else {
+            for (k = 0; k < num_vertices; ++k, ++vidx) {
+               const float (*input)[4];
+               input = (const float (*)[4])(
+                  (const char *)prim_ptr + (k * input_vertex_stride));
+               debug_printf("\t%d)(%d) Input vert:\n", vidx, k);
 #if 1
                assert(!util_is_inf_or_nan(input[vs_slot][0]));
                assert(!util_is_inf_or_nan(input[vs_slot][1]));
                assert(!util_is_inf_or_nan(input[vs_slot][2]));
                assert(!util_is_inf_or_nan(input[vs_slot][3]));
 #endif
-
-               machine->Inputs[idx + slot].xyzw[0].f[j] = input[vs_slot][0];
-               machine->Inputs[idx + slot].xyzw[1].f[j] = input[vs_slot][1];
-               machine->Inputs[idx + slot].xyzw[2].f[j] = input[vs_slot][2];
-               machine->Inputs[idx + slot].xyzw[3].f[j] = input[vs_slot][3];
-               ++vs_slot;
-            }
+               machine->Inputs[vidx].xyzw[0].f[j] = input[vs_slot][0];
+               machine->Inputs[vidx].xyzw[1].f[j] = input[vs_slot][1];
+               machine->Inputs[vidx].xyzw[2].f[j] = input[vs_slot][2];
+               machine->Inputs[vidx].xyzw[3].f[j] = input[vs_slot][3];
 #if 1
-            debug_printf("\t%d: %f %f %f %f\n", slot,
-                         machine->Inputs[idx + slot].xyzw[0].f[j],
-                         machine->Inputs[idx + slot].xyzw[1].f[j],
-                         machine->Inputs[idx + slot].xyzw[2].f[j],
-                         machine->Inputs[idx + slot].xyzw[3].f[j]);
+               debug_printf("\t\t%f %f %f %f\n", slot,
+                            machine->Inputs[vidx].xyzw[0].f[j],
+                            machine->Inputs[vidx].xyzw[1].f[j],
+                            machine->Inputs[vidx].xyzw[2].f[j],
+                            machine->Inputs[vidx].xyzw[3].f[j]);
 #endif
+            }
          }
-
-         input = (const float (*)[4])((const char *)input + input_stride);
+         ++vs_slot;
+         idx += num_vertices;
       }
    }
 }
