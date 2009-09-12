@@ -134,19 +134,19 @@ static void r300_vs_tab_routes(struct r300_context* r300,
         tab[0] = 0;
     }
     draw_emit_vertex_attr(vinfo, EMIT_4F, INTERP_PERSPECTIVE,
-        draw_find_vs_output(r300->draw, TGSI_SEMANTIC_POSITION, 0));
+        draw_find_shader_output(r300->draw, TGSI_SEMANTIC_POSITION, 0));
     vinfo->hwfmt[1] |= R300_INPUT_CNTL_POS;
     vinfo->hwfmt[2] |= R300_VAP_OUTPUT_VTX_FMT_0__POS_PRESENT;
 
     if (psize) {
         draw_emit_vertex_attr(vinfo, EMIT_1F_PSIZE, INTERP_POS,
-            draw_find_vs_output(r300->draw, TGSI_SEMANTIC_PSIZE, 0));
+            draw_find_shader_output(r300->draw, TGSI_SEMANTIC_PSIZE, 0));
         vinfo->hwfmt[2] |= R300_VAP_OUTPUT_VTX_FMT_0__PT_SIZE_PRESENT;
     }
 
     for (i = 0; i < cols; i++) {
         draw_emit_vertex_attr(vinfo, EMIT_4F, INTERP_LINEAR,
-            draw_find_vs_output(r300->draw, TGSI_SEMANTIC_COLOR, i));
+            draw_find_shader_output(r300->draw, TGSI_SEMANTIC_COLOR, i));
         vinfo->hwfmt[1] |= R300_INPUT_CNTL_COLOR;
         vinfo->hwfmt[2] |= (R300_VAP_OUTPUT_VTX_FMT_0__COLOR_0_PRESENT << i);
     }
@@ -158,14 +158,14 @@ static void r300_vs_tab_routes(struct r300_context* r300,
     if (fog) {
         i++;
         draw_emit_vertex_attr(vinfo, EMIT_4F, INTERP_PERSPECTIVE,
-            draw_find_vs_output(r300->draw, TGSI_SEMANTIC_FOG, 0));
+            draw_find_shader_output(r300->draw, TGSI_SEMANTIC_FOG, 0));
         vinfo->hwfmt[1] |= (R300_INPUT_CNTL_TC0 << i);
         vinfo->hwfmt[3] |= (4 << (3 * i));
     }
 
     for (i; i < texs; i++) {
         draw_emit_vertex_attr(vinfo, EMIT_4F, INTERP_PERSPECTIVE,
-            draw_find_vs_output(r300->draw, TGSI_SEMANTIC_GENERIC, i));
+            draw_find_shader_output(r300->draw, TGSI_SEMANTIC_GENERIC, i));
         vinfo->hwfmt[1] |= (R300_INPUT_CNTL_TC0 << i);
         vinfo->hwfmt[3] |= (4 << (3 * i));
     }

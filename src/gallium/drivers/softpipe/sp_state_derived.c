@@ -72,7 +72,7 @@ softpipe_get_vertex_info(struct softpipe_context *softpipe)
           * simply emit the whole post-xform vertex as-is:
           */
          struct vertex_info *vinfo_vbuf = &softpipe->vertex_info_vbuf;
-         const uint num = draw_num_vs_outputs(softpipe->draw);
+         const uint num = draw_num_shader_outputs(softpipe->draw);
          uint i;
 
          /* No longer any need to try and emit draw vertex_header info.
@@ -93,27 +93,27 @@ softpipe_get_vertex_info(struct softpipe_context *softpipe)
          int src;
          switch (spfs->info.input_semantic_name[i]) {
          case TGSI_SEMANTIC_POSITION:
-            src = draw_find_vs_output(softpipe->draw,
+            src = draw_find_shader_output(softpipe->draw,
                                       TGSI_SEMANTIC_POSITION, 0);
             draw_emit_vertex_attr(vinfo, EMIT_4F, INTERP_POS, src);
             break;
 
          case TGSI_SEMANTIC_COLOR:
-            src = draw_find_vs_output(softpipe->draw, TGSI_SEMANTIC_COLOR, 
+            src = draw_find_shader_output(softpipe->draw, TGSI_SEMANTIC_COLOR, 
                                  spfs->info.input_semantic_index[i]);
             draw_emit_vertex_attr(vinfo, EMIT_4F, colorInterp, src);
             break;
 
          case TGSI_SEMANTIC_FOG:
-            src = draw_find_vs_output(softpipe->draw, TGSI_SEMANTIC_FOG, 0);
+            src = draw_find_shader_output(softpipe->draw, TGSI_SEMANTIC_FOG, 0);
             draw_emit_vertex_attr(vinfo, EMIT_4F, INTERP_PERSPECTIVE, src);
             break;
 
          case TGSI_SEMANTIC_GENERIC:
          case TGSI_SEMANTIC_FACE:
             /* this includes texcoords and varying vars */
-            src = draw_find_vs_output(softpipe->draw, TGSI_SEMANTIC_GENERIC,
-                                      spfs->info.input_semantic_index[i]);
+            src = draw_find_shader_output(softpipe->draw, TGSI_SEMANTIC_GENERIC,
+                                          spfs->info.input_semantic_index[i]);
             draw_emit_vertex_attr(vinfo, EMIT_4F, INTERP_PERSPECTIVE, src);
             break;
 
@@ -122,7 +122,7 @@ softpipe_get_vertex_info(struct softpipe_context *softpipe)
          }
       }
 
-      softpipe->psize_slot = draw_find_vs_output(softpipe->draw,
+      softpipe->psize_slot = draw_find_shader_output(softpipe->draw,
                                                  TGSI_SEMANTIC_PSIZE, 0);
       if (softpipe->psize_slot > 0) {
          draw_emit_vertex_attr(vinfo, EMIT_4F, INTERP_CONSTANT,

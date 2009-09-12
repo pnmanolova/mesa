@@ -112,7 +112,7 @@ static void set_texcoords(const struct widepoint_stage *wide,
 
    if (wide->point_coord_fs_input >= 0) {
       /* put gl_PointCoord into the extra vertex slot */
-      uint slot = wide->stage.draw->extra_vp_outputs.slot;
+      uint slot = wide->stage.draw->extra_shader_outputs.slot;
       v->data[slot][0] = tc[0];
       v->data[slot][1] = tc[1];
       v->data[slot][2] = 0.0F;
@@ -257,13 +257,13 @@ static void widepoint_first_point( struct draw_stage *stage,
       wide->point_coord_fs_input = find_pntc_input_attrib(draw);
 
       /* setup extra vp output (point coord implemented as a texcoord) */
-      draw->extra_vp_outputs.semantic_name = TGSI_SEMANTIC_GENERIC;
-      draw->extra_vp_outputs.semantic_index = 0;
-      draw->extra_vp_outputs.slot = draw->vs.num_vs_outputs;
+      draw->extra_shader_outputs.semantic_name = TGSI_SEMANTIC_GENERIC;
+      draw->extra_shader_outputs.semantic_index = 0;
+      draw->extra_shader_outputs.slot = draw->vs.num_vs_outputs;
    }
    else {
       wide->point_coord_fs_input = -1;
-      draw->extra_vp_outputs.slot = 0;
+      draw->extra_shader_outputs.slot = 0;
    }
 
    wide->psize_slot = -1;
@@ -287,7 +287,7 @@ static void widepoint_flush( struct draw_stage *stage, unsigned flags )
 {
    stage->point = widepoint_first_point;
    stage->next->flush( stage->next, flags );
-   stage->draw->extra_vp_outputs.slot = 0;
+   stage->draw->extra_shader_outputs.slot = 0;
 }
 
 

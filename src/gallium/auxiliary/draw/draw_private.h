@@ -236,7 +236,7 @@ struct draw_context
       uint semantic_name;
       uint semantic_index;
       int slot;
-   } extra_vp_outputs;
+   } extra_shader_outputs;
 
    unsigned reduced_prim;
 

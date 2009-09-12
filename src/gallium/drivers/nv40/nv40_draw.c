@@ -286,7 +286,7 @@ static INLINE void
 emit_attrib(struct nv40_context *nv40, unsigned hw, unsigned emit,
 	    unsigned semantic, unsigned index)
 {
-	unsigned draw_out = draw_find_vs_output(nv40->draw, semantic, index);
+	unsigned draw_out = draw_find_shader_output(nv40->draw, semantic, index);
 	unsigned a = nv40->swtnl.nr_attribs++;
 
 	nv40->swtnl.hw[a] = hw;

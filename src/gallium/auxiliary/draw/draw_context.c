@@ -36,6 +36,7 @@
 #include "draw_context.h"
 #include "draw_vbuf.h"
 #include "draw_vs.h"
+#include "draw_gs.h"
 #include "draw_pt.h"
 #include "draw_pipe.h"
 
@@ -309,7 +310,7 @@ draw_set_force_passthrough( struct draw_context *draw, boolean enable )
  * a post-transformed vertex.
  *
  * With this function, drivers that use the draw module should have no reason
- * to track the current vertex shader.
+ * to track the current vertex/geometry shader.
  *
  * Note that the draw module may sometimes generate vertices with extra
  * attributes (such as texcoords for AA lines).  The driver can call this
@@ -320,36 +321,52 @@ draw_set_force_passthrough( struct draw_context *draw, boolean enable )
  * work for the drivers.
  */
 int
-draw_find_vs_output(const struct draw_context *draw,
-                    uint semantic_name, uint semantic_index)
+draw_find_shader_output(const struct draw_context *draw,
+                        uint semantic_name, uint semantic_index)
 {
    const struct draw_vertex_shader *vs = draw->vs.vertex_shader;
+   const struct draw_geometry_shader *gs = draw->gs.geometry_shader;
    uint i;
-   for (i = 0; i < vs->info.num_outputs; i++) {
-      if (vs->info.output_semantic_name[i] == semantic_name &&
-          vs->info.output_semantic_index[i] == semantic_index)
+   const struct tgsi_shader_info *info = &vs->info;
+
+   if (gs)
+      info = &gs->info;
+
+   for (i = 0; i < info->num_outputs; i++) {
+      if (info->output_semantic_name[i] == semantic_name &&
+          info->output_semantic_index[i] == semantic_index)
          return i;
    }
 
    /* XXX there may be more than one extra vertex attrib.
     * For example, simulated gl_FragCoord and gl_PointCoord.
     */
-   if (draw->extra_vp_outputs.semantic_name == semantic_name &&
-       draw->extra_vp_outputs.semantic_index == semantic_index) {
-      return draw->extra_vp_outputs.slot;
+   if (draw->extra_shader_outputs.semantic_name == semantic_name &&
+       draw->extra_shader_outputs.semantic_index == semantic_index) {
+      return draw->extra_shader_outputs.slot;
    }
+
    return 0;
 }
 
 
 /**
- * Return number of vertex shader outputs.
+ * Return number of the shader outputs.
+ *
+ * If geometry shader is present, its output will be returned,
+ * if not vertex shader is used.
  */
 uint
-draw_num_vs_outputs(const struct draw_context *draw)
+draw_num_shader_outputs(const struct draw_context *draw)
 {
    uint count = draw->vs.vertex_shader->info.num_outputs;
-   if (draw->extra_vp_outputs.slot > 0)
+
+   /* if geometry shader is present, its outputs go to te
+    * driver, not the vertex shaders */
+   if (draw->gs.geometry_shader)
+      count = draw->gs.geometry_shader->info.num_outputs;
+
+   if (draw->extra_shader_outputs.slot > 0)
       count++;
    return count;
 }

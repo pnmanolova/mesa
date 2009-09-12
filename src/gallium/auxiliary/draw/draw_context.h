@@ -86,11 +86,11 @@ draw_install_pstipple_stage(struct draw_context *draw, struct pipe_context *pipe
 
 
 int
-draw_find_vs_output(const struct draw_context *draw,
-                    uint semantic_name, uint semantic_index);
+draw_find_shader_output(const struct draw_context *draw,
+                        uint semantic_name, uint semantic_index);
 
 uint
-draw_num_vs_outputs(const struct draw_context *draw);
+draw_num_shader_outputs(const struct draw_context *draw);
 
 
 void

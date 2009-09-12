@@ -1488,7 +1488,7 @@ void setup_prepare( struct setup_context *setup )
    }
 
    /* Note: nr_attrs is only used for debugging (vertex printing) */
-   setup->quad.nr_attrs = draw_num_vs_outputs(sp->draw);
+   setup->quad.nr_attrs = draw_num_shader_outputs(sp->draw);
 
    for (i = 0; i < SP_NUM_QUAD_THREADS; i++) {
       sp->quad[i].first->begin( sp->quad[i].first );
