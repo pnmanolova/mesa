@@ -46,7 +46,7 @@ boolean
 draw_gs_init( struct draw_context *draw )
 {
    draw->gs.machine = tgsi_exec_machine_create();
-   if (!draw->vs.machine)
+   if (!draw->gs.machine)
       return FALSE;
 
    draw->gs.machine->Primitives = align_malloc(
