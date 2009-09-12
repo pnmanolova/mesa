@@ -89,6 +89,16 @@ draw_create_geometry_shader(struct draw_context *draw,
 
    gs->machine = draw->gs.machine;
 
+   if (gs)
+   {
+      uint i;
+      for (i = 0; i < gs->info.num_outputs; i++) {
+         if (gs->info.output_semantic_name[i] == TGSI_SEMANTIC_POSITION &&
+             gs->info.output_semantic_index[i] == 0)
+            gs->position_output = i;
+      }
+   }
+
    return gs;
 }
 
