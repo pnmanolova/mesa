@@ -305,6 +305,7 @@ find_translated_vp(struct st_context *st,
                stgp->input_to_slot[inAttr] = numIn;
                switch(inAttr) {
                case GEOM_ATTRIB_VERTICES:
+               case GEOM_ATTRIB_PRIMITIVE_ID:
                   ++numIn;
                   break;
                default:
