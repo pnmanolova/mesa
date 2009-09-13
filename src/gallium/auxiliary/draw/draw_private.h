@@ -268,6 +268,12 @@ void draw_gs_set_constants( struct draw_context *,
                             unsigned size );
 
 /*******************************************************************************
+ * Common shading code:
+ */
+int draw_current_shader_outputs(struct draw_context *draw);
+int draw_current_shader_position_output(struct draw_context *draw);
+
+/*******************************************************************************
  * Vertex processing (was passthrough) code:
  */
 boolean draw_pt_init( struct draw_context *draw );

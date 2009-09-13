@@ -687,10 +687,10 @@ aapoint_first_point(struct draw_stage *stage, struct prim_header *header)
    bind_aapoint_fragment_shader(aapoint);
 
    /* update vertex attrib info */
-   aapoint->tex_slot = draw->vs.num_vs_outputs;
+   aapoint->tex_slot = draw_current_shader_outputs(draw);
    assert(aapoint->tex_slot > 0); /* output[0] is vertex pos */
 
-   aapoint->pos_slot = draw->vs.position_output;
+   aapoint->pos_slot = draw_current_shader_position_output(draw);
 
    draw->extra_shader_outputs.semantic_name = TGSI_SEMANTIC_GENERIC;
    draw->extra_shader_outputs.semantic_index = aapoint->fs->generic_attrib;

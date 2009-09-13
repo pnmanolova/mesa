@@ -458,3 +458,18 @@ void draw_do_flush( struct draw_context *draw, unsigned flags )
       draw->flushing = FALSE;
    }
 }
+
+
+int draw_current_shader_outputs(struct draw_context *draw)
+{
+   if (draw->gs.geometry_shader)
+      return draw->gs.num_gs_outputs;
+   return draw->vs.num_vs_outputs;
+}
+
+int draw_current_shader_position_output(struct draw_context *draw)
+{
+   if (draw->gs.geometry_shader)
+      return draw->gs.position_output;
+   return draw->vs.position_output;
+}

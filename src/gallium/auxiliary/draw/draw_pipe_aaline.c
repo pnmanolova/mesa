@@ -658,8 +658,8 @@ aaline_first_line(struct draw_stage *stage, struct prim_header *header)
    }
 
    /* update vertex attrib info */
-   aaline->tex_slot = draw->vs.num_vs_outputs;
-   aaline->pos_slot = draw->vs.position_output;
+   aaline->tex_slot = draw_current_shader_outputs(draw);
+   aaline->pos_slot = draw_current_shader_position_output(draw);;
 
    /* advertise the extra post-transformed vertex attribute */
    draw->extra_shader_outputs.semantic_name = TGSI_SEMANTIC_GENERIC;

@@ -130,7 +130,7 @@ static void widepoint_point( struct draw_stage *stage,
                              struct prim_header *header )
 {
    const struct widepoint_stage *wide = widepoint_stage(stage);
-   const unsigned pos = stage->draw->vs.position_output;
+   const unsigned pos = draw_current_shader_position_output(stage->draw);
    const boolean sprite = (boolean) stage->draw->rasterizer->point_sprite;
    float half_size;
    float left_adj, right_adj, bot_adj, top_adj;
@@ -259,7 +259,7 @@ static void widepoint_first_point( struct draw_stage *stage,
       /* setup extra vp output (point coord implemented as a texcoord) */
       draw->extra_shader_outputs.semantic_name = TGSI_SEMANTIC_GENERIC;
       draw->extra_shader_outputs.semantic_index = 0;
-      draw->extra_shader_outputs.slot = draw->vs.num_vs_outputs;
+      draw->extra_shader_outputs.slot = draw_current_shader_outputs(draw);
    }
    else {
       wide->point_coord_fs_input = -1;
