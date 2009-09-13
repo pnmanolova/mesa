@@ -231,29 +231,32 @@ draw_geometry_fetch_outputs(struct draw_geometry_shader *shader,
     */
    /* FIXME: handle all the primitives produced by the gs, not just
     * the first one
-   unsigned prim_count =
+    unsigned prim_count =
     mach->Temps[TEMP_PRIMITIVE_I].xyzw[TEMP_PRIMITIVE_C].u[0];*/
    for (prim_idx = 0; prim_idx < num_primitives; ++prim_idx) {
       unsigned num_verts_per_prim = machine->Primitives[0];
       for (j = 0; j < num_verts_per_prim; j++) {
          int idx = (prim_idx * num_verts_per_prim + j) *
                    shader->info.num_outputs;
+#ifdef DEBUG_OUTPUTS
          debug_printf("%d) Output vert:\n", idx);
+#endif
          for (slot = 0; slot < shader->info.num_outputs; slot++) {
             output[slot][0] = machine->Outputs[idx + slot].xyzw[0].f[prim_idx];
             output[slot][1] = machine->Outputs[idx + slot].xyzw[1].f[prim_idx];
             output[slot][2] = machine->Outputs[idx + slot].xyzw[2].f[prim_idx];
             output[slot][3] = machine->Outputs[idx + slot].xyzw[3].f[prim_idx];
+#ifdef DEBUG_OUTPUTS
             debug_printf("\t%d: %f %f %f %f\n", slot,
                          output[slot][0],
                          output[slot][1],
                          output[slot][2],
                          output[slot][3]);
-            assert(!util_is_inf_or_nan(output[slot][0]));
+#endif
+            debug_assert(!util_is_inf_or_nan(output[slot][0]));
          }
+         output = (float (*)[4])((char *)output + vertex_size);
       }
-
-      output = (float (*)[4])((char *)output + (num_verts_per_prim * vertex_size));
    }
 }
 

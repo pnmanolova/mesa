@@ -598,6 +598,8 @@ st_translate_geometry_program(struct st_context *st,
    GLuint num_tokens;
 
    uint gs_num_inputs = 0;
+   uint gs_builtin_inputs = 0;
+   uint gs_array_offset = 0;
 
    ubyte gs_output_semantic_name[PIPE_MAX_SHADER_OUTPUTS];
    ubyte gs_output_semantic_index[PIPE_MAX_SHADER_OUTPUTS];
@@ -636,10 +638,21 @@ st_translate_geometry_program(struct st_context *st,
 
          defaultInputMapping[attr] = slot;
 
-         stgp->input_map[slot] = vslot;
+         stgp->input_map[slot + gs_array_offset] = vslot - gs_builtin_inputs;
          stgp->input_to_index[attr] = vslot;
          stgp->index_to_input[vslot] = attr;
          ++vslot;
+
+         if (attr != GEOM_ATTRIB_VERTICES &&
+             attr != GEOM_ATTRIB_PRIMITIVE_ID) {
+            gs_array_offset += 2;
+         } else
+            ++gs_builtin_inputs;
+
+#if 0
+         debug_printf("input map at %d = %d\n",
+                      slot + gs_array_offset, stgp->input_map[slot + gs_array_offset]);
+#endif
 
          switch (attr) {
          case GEOM_ATTRIB_VERTICES:
