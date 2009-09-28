@@ -154,6 +154,17 @@ _mesa_ARBvp_parse_option(struct asm_parser_state *state, const char *option)
    if (strcmp(option, "ARB_position_invariant") == 0) {
       state->option.PositionInvariant = 1;
       return 1;
+   } else if (strncmp(option, "NV_vertex_program", 17) == 0) {
+      option += 17;
+
+      /* Other NV_vertex_program strings may be supported later.
+       */
+      if ((option[0] == '2') && (option[1] == '\0')) {
+	 if (state->ctx->Extensions.NV_vertex_program2_option) {
+	    state->option.NV_vertex2 = 1;
+	    return 1;
+	 }
+      }
    }
 
    return 0;
