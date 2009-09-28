@@ -63,7 +63,7 @@
 
 #define return_opcode(condition, token, opcode, len)	\
    do {							\
-      if (condition &&					\
+      if ((condition) &&				\
 	  _mesa_parse_instruction_suffix(yyextra,	\
 					 yytext + len,	\
 					 & yylval->temp_inst)) {	\
