@@ -210,6 +210,7 @@ PK4UB              { return_opcode(require_NV_fp,  VECTOR_OP, PK4UB, 5); }
 POW{szf}{cc}{sat}  { return_opcode(             1, BINSC_OP, POW, 3); }
 
 RCP{szf}{cc}{sat}  { return_opcode(             1, SCALAR_OP, RCP, 3); }
+RCC{cc}            { return_opcode(require_NV_vp2, SCALAR_OP, RCC, 3); }
 RFL{szf}{cc}{sat}  { return_opcode(require_NV_fp,  BIN_OP,    RFL, 3); }
 RSQ{szf}{cc}{sat}  { return_opcode(             1, SCALAR_OP, RSQ, 3); }
 
@@ -222,6 +223,7 @@ SIN{szf}{cc}{sat}  { return_opcode(require_ARB_fp || require_NV_vp2, SCALAR_OP, 
 SLE{sz}{cc}{sat}   { return_opcode(require_NV_fp || require_NV_vp2,  BIN_OP, SLE, 3); }
 SLT{sz}{cc}{sat}   { return_opcode(             1, BIN_OP, SLT, 3); }
 SNE{sz}{cc}{sat}   { return_opcode(require_NV_fp || require_NV_vp2,  BIN_OP, SNE, 3); }
+SSG{cc}            { return_opcode(require_NV_vp2,  VECTOR_OP, SSG, 3); }
 STR{sz}{cc}{sat}   { return_opcode(require_NV_fp || require_NV_vp2,  BIN_OP, STR, 3); }
 SUB{sz}{cc}{sat}   { return_opcode(             1, BIN_OP, SUB, 3); }
 SWZ{sat}           { return_opcode(             1, SWZ, SWZ, 3); }
