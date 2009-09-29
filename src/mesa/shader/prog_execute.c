@@ -134,6 +134,11 @@ get_src_register_pointer(const struct prog_src_register *source,
          return ZeroVec;
       return prog->Parameters->ParameterValues[reg];
 
+   case PROGRAM_ADDRESS:
+      if (reg >= MAX_PROGRAM_ADDRESS_REGS)
+         return ZeroVec;
+      return (GLfloat *) machine->AddressReg[reg];
+
    default:
       _mesa_problem(NULL,
          "Invalid src register file %d in get_src_register_pointer()",
@@ -179,7 +184,7 @@ get_dst_register_pointer(const struct prog_dst_register *dest,
    case PROGRAM_ADDRESS:
       if (reg >= MAX_PROGRAM_ADDRESS_REGS)
          return dummyReg;
-      return machine->AddressReg[reg];
+      return (GLfloat *) machine->AddressReg[reg];
 
    default:
       _mesa_problem(NULL,
@@ -670,6 +675,20 @@ _mesa_execute_program(GLcontext * ctx,
             store_vector4ui(inst, machine, result);
          }
          break;
+      case OPCODE_ARA:
+         {
+	    GLuint *v;
+            GLuint result[4];
+
+	    v = (GLuint *) get_src_register_pointer(&inst->SrcReg[0], machine);
+	    result[0] = v[0] + v[2];
+	    result[1] = v[1] + v[3];
+	    result[2] = v[0] + v[2];
+	    result[3] = v[1] + v[3];
+
+            store_vector4ui(inst, machine, result);
+         }
+         break;
       case OPCODE_ARL:
          {
             GLfloat t[4];
@@ -680,6 +699,20 @@ _mesa_execute_program(GLcontext * ctx,
             result[1] = IFLOOR(t[1]);
             result[2] = IFLOOR(t[2]);
             result[3] = IFLOOR(t[3]);
+
+            store_vector4ui(inst, machine, result);
+         }
+         break;
+      case OPCODE_ARR:
+         {
+            GLfloat t[4];
+            GLuint result[4];
+
+            fetch_vector4(&inst->SrcReg[0], machine, t);
+            result[0] = IROUND(t[0]);
+            result[1] = IROUND(t[1]);
+            result[2] = IROUND(t[2]);
+            result[3] = IROUND(t[3]);
 
             store_vector4ui(inst, machine, result);
          }
