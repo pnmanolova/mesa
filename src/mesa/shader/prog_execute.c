@@ -84,7 +84,7 @@ get_src_register_pointer(const struct prog_src_register *source,
 
    if (source->RelAddr) {
       /* add address register value to src index/offset */
-      reg += machine->AddressReg[0][0];
+      reg += machine->AddressReg[source->AddrReg][source->AddrComponent];
       if (reg < 0) {
          return ZeroVec;
       }
@@ -175,6 +175,11 @@ get_dst_register_pointer(const struct prog_dst_register *dest,
 
    case PROGRAM_WRITE_ONLY:
       return dummyReg;
+
+   case PROGRAM_ADDRESS:
+      if (reg >= MAX_PROGRAM_ADDRESS_REGS)
+         return dummyReg;
+      return machine->AddressReg[reg];
 
    default:
       _mesa_problem(NULL,
@@ -668,8 +673,15 @@ _mesa_execute_program(GLcontext * ctx,
       case OPCODE_ARL:
          {
             GLfloat t[4];
+            GLuint result[4];
+
             fetch_vector4(&inst->SrcReg[0], machine, t);
-            machine->AddressReg[0][0] = IFLOOR(t[0]);
+            result[0] = IFLOOR(t[0]);
+            result[1] = IFLOOR(t[1]);
+            result[2] = IFLOOR(t[2]);
+            result[3] = IFLOOR(t[3]);
+
+            store_vector4ui(inst, machine, result);
          }
          break;
       case OPCODE_BGNLOOP:

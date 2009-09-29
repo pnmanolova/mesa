@@ -261,6 +261,18 @@ struct prog_src_register
    GLuint Swizzle:12;
    GLuint RelAddr:1;
 
+   /**
+    * Address register selector.
+    *
+    * NV_vertex_program3 only supports two address registers.
+    */
+   GLuint AddrReg:1;
+
+   /**
+    * Select the X, Y, Z, or W component of the address register
+    */
+   GLuint AddrComponent:2;
+
    /** Take the component-wise absolute value */
    GLuint Abs:1;
 
