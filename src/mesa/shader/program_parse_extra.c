@@ -69,7 +69,7 @@ _mesa_parse_instruction_suffix(const struct asm_parser_state *state,
    /* The next possible suffix element is the condition code modifier selection
     * from NV_fragment_program_option.
     */
-   if (state->option.NV_fragment) {
+   if (state->option.NV_fragment || state->option.NV_vertex2) {
       if (suffix[0] == 'C') {
 	 inst->CondUpdate = 1;
 	 suffix++;

@@ -555,7 +555,7 @@ scalarSrcReg: optionalSign scalarUse
 	{
 	   $$ = $3;
 
-	   if (!state->option.NV_fragment) {
+	   if (!state->option.NV_fragment && !state->option.NV_vertex2) {
 	      yyerror(& @2, state, "unexpected character '|'");
 	      YYERROR;
 	   }
@@ -579,7 +579,7 @@ scalarUse:  srcReg scalarSuffix
 	{
 	   struct asm_symbol temp_sym;
 
-	   if (!state->option.NV_fragment) {
+	   if (!state->option.NV_fragment && !state->option.NV_vertex2) {
 	      yyerror(& @1, state, "expected scalar suffix");
 	      YYERROR;
 	   }
@@ -609,7 +609,7 @@ swizzleSrcReg: optionalSign srcReg swizzleSuffix
 	{
 	   $$ = $3;
 
-	   if (!state->option.NV_fragment) {
+	   if (!state->option.NV_fragment && !state->option.NV_vertex2) {
 	      yyerror(& @2, state, "unexpected character '|'");
 	      YYERROR;
 	   }
