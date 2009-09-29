@@ -151,7 +151,7 @@ static struct asm_instruction *asm_instruction_copy_ctor(
 
  /* Tokens for instructions */
 %token <temp_inst> BIN_OP BINSC_OP SAMPLE_OP SCALAR_OP TRI_OP VECTOR_OP
-%token <temp_inst> ARL KIL SWZ TXD_OP
+%token <temp_inst> ARL_OP ARA_OP KIL SWZ TXD_OP
 
 %token <integer> INTEGER
 %token <real> REAL
@@ -188,10 +188,11 @@ static struct asm_instruction *asm_instruction_copy_ctor(
 %type <inst> ARL_instruction VECTORop_instruction
 %type <inst> SCALARop_instruction BINSCop_instruction BINop_instruction
 %type <inst> TRIop_instruction TXD_instruction SWZ_instruction SAMPLE_instruction
-%type <inst> KIL_instruction
+%type <inst> KIL_instruction ARA_instruction
 
-%type <dst_reg> dstReg maskedDstReg maskedAddrReg
+%type <dst_reg> dstReg maskedDstReg instResultAddr
 %type <src_reg> srcReg scalarUse scalarSrcReg swizzleSrcReg
+%type <src_reg> instOperandAddrVNS addrUseVNS
 %type <swiz_mask> scalarSuffix swizzleSuffix extendedSwizzle
 %type <ext_swizzle> extSwizComp extSwizSel
 %type <swiz_mask> optionalMask
@@ -200,7 +201,7 @@ static struct asm_instruction *asm_instruction_copy_ctor(
 %type <integer> addrRegRelOffset addrRegPosOffset addrRegNegOffset
 %type <src_reg> progParamArrayMem progParamArrayAbs progParamArrayRel
 %type <sym> addrReg
-%type <swiz_mask> addrComponent addrWriteMask
+%type <integer> addrComponent
 
 %type <dst_reg> ccMaskRule ccTest ccMaskRule2 ccTest2 optionalCcMask
 
@@ -348,7 +349,8 @@ instruction: ALU_instruction
 	}
 	;
 
-ALU_instruction: ARL_instruction
+ALU_instruction: ARA_instruction
+	| ARL_instruction
 	| VECTORop_instruction
 	| SCALARop_instruction
 	| BINSCop_instruction
@@ -362,9 +364,15 @@ TexInstruction: SAMPLE_instruction
 	| TXD_instruction
 	;
 
-ARL_instruction: ARL maskedAddrReg ',' scalarSrcReg
+ARL_instruction: ARL_OP instResultAddr ',' scalarSrcReg
 	{
-	   $$ = asm_instruction_ctor(OPCODE_ARL, & $2, & $4, NULL, NULL);
+	   $$ = asm_instruction_copy_ctor(& $1, & $2, & $4, NULL, NULL);
+	}
+	;
+
+ARA_instruction: ARA_OP instResultAddr ',' instOperandAddrVNS
+	{
+	   $$ = asm_instruction_ctor(OPCODE_ARA, & $2, & $4, NULL, NULL);
 	}
 	;
 
@@ -642,12 +650,36 @@ maskedDstReg: dstReg optionalMask optionalCcMask
 	}
 	;
 
-maskedAddrReg: addrReg addrWriteMask
+instResultAddr: addrReg optionalMask optionalCcMask
 	{
+	   if (!state->option.NV_vertex2) {
+	      if ($2.mask != WRITEMASK_X) {
+		 yyerror(& @2, state,
+			 "address register write mask must be \".x\"");
+		 YYERROR;
+	      }
+	   }
+
 	   init_dst_reg(& $$);
 	   $$.File = PROGRAM_ADDRESS;
 	   $$.Index = 0;
 	   $$.WriteMask = $2.mask;
+	   $$.CondMask = $3.CondMask;
+	   $$.CondSwizzle = $3.CondSwizzle;
+	   $$.CondSrc = $3.CondSrc;
+	}
+	;
+
+	/* The "VNS" part means "vector, no swizzle".
+	 */
+instOperandAddrVNS: addrUseVNS
+	;
+
+addrUseVNS: addrReg
+	{
+	   init_src_reg(& $$);
+	   $$.Base.File = PROGRAM_ADDRESS;
+	   $$.Symbol = $1;
 	}
 	;
 
@@ -907,11 +939,11 @@ progParamArrayRel: addrReg addrComponent addrRegRelOffset
 	{
 	   /* FINISHME: Add support for multiple address registers.
 	    */
-	   /* FINISHME: Add support for 4-component address registers.
-	    */
 	   init_src_reg(& $$);
 	   $$.Base.RelAddr = 1;
 	   $$.Base.Index = $3;
+	   $$.Base.AddrReg = 0;
+	   $$.Base.AddrComponent = $2;
 	}
 	;
 
@@ -968,23 +1000,21 @@ addrReg: USED_IDENTIFIER
 
 addrComponent: MASK1
 	{
-	   if ($1.mask != WRITEMASK_X) {
+	   if (!state->option.NV_vertex2 && ($1.mask != WRITEMASK_X)) {
 	      yyerror(& @1, state, "invalid address component selector");
 	      YYERROR;
 	   } else {
-	      $$ = $1;
-	   }
-	}
-	;
+	      switch ($1.mask) {
+	      case WRITEMASK_X: $$ = 0; break;
+	      case WRITEMASK_Y: $$ = 1; break;
+	      case WRITEMASK_Z: $$ = 2; break;
+	      case WRITEMASK_W: $$ = 3; break;
 
-addrWriteMask: MASK1
-	{
-	   if ($1.mask != WRITEMASK_X) {
-	      yyerror(& @1, state,
-		      "address register write mask must be \".x\"");
-	      YYERROR;
-	   } else {
-	      $$ = $1;
+	      /* It should be impossible to get here because the RHS of the
+	       * production is MASK1.
+	       */
+	      default: YYERROR; break;
+	      }
 	   }
 	}
 	;
