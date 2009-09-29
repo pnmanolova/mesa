@@ -509,6 +509,8 @@ init_program_limits(GLenum type, struct gl_program_constants *prog)
    prog->MaxNativeTemps = 0;
    prog->MaxNativeAddressRegs = 0;
    prog->MaxNativeParameters = 0;
+   prog->MaxExecInstructions = 0;
+   prog->MaxCallDepth = 0;
 }
 
 

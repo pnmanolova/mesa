@@ -929,6 +929,20 @@ _mesa_GetProgramivARB(GLenum target, GLenum pname, GLint *params)
       case GL_MAX_PROGRAM_ENV_PARAMETERS_ARB:
          *params = limits->MaxEnvParams;
          return;
+      case GL_MAX_PROGRAM_EXEC_INSTRUCTIONS_NV:
+	 if (target == GL_VERTEX_PROGRAM_ARB
+	     && ctx->Extensions.NV_vertex_program2_option) {
+	    *params = limits->MaxExecInstructions;
+	    return;
+	 }
+	 break;
+      case GL_MAX_PROGRAM_CALL_DEPTH_NV:
+	 if (target == GL_VERTEX_PROGRAM_ARB
+	     && ctx->Extensions.NV_vertex_program2_option) {
+	    *params = limits->MaxCallDepth;
+	    return;
+	 }
+	 break;
       case GL_PROGRAM_UNDER_NATIVE_LIMITS_ARB:
          /*
           * XXX we may not really need a driver callback here.

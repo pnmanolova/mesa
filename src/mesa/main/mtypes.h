@@ -2381,7 +2381,10 @@ struct gl_program_constants
    GLuint MaxParameters;
    GLuint MaxLocalParams;
    GLuint MaxEnvParams;
-   /* native/hardware limits */
+   /**
+    * \name native/hardware limits
+    */
+   /*@{*/
    GLuint MaxNativeInstructions;
    GLuint MaxNativeAluInstructions; /* fragment programs only, for now */
    GLuint MaxNativeTexInstructions; /* fragment programs only, for now */
@@ -2390,6 +2393,28 @@ struct gl_program_constants
    GLuint MaxNativeTemps;
    GLuint MaxNativeAddressRegs; /* vertex program only, for now */
    GLuint MaxNativeParameters;
+
+   /**
+    * Maximum number of instructions, including loops, that can be executed
+    *
+    * \note
+    * This field only needs a non-zero value if \c GL_NV_vertex_program2,
+    * \c GL_NV_vertex_program2_option, or \c GL_NV_fragment_program2 is
+    * supported.
+    */
+   GLuint MaxExecInstructions;
+
+   /**
+    * Maximum function call depth
+    *
+    * \note
+    * This field only needs a non-zero value if \c GL_NV_vertex_program2,
+    * \c GL_NV_vertex_program2_option, or \c GL_NV_fragment_program2 is
+    * supported.
+    */
+   GLuint MaxCallDepth;
+   /*@}*/
+
    /* For shaders */
    GLuint MaxUniformComponents;
 };
