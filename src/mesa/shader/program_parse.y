@@ -1003,10 +1003,24 @@ optionalMask: MASK4 | MASK3 | MASK2 | MASK1
 
 optionalCcMask: '(' ccTest ')'
 	{
+	   if (!state->option.NV_vertex2
+	       && !state->option.NV_fragment) {
+	      yyerror(& @1, state,
+		      "conditional write mask invalid in this program mode");
+	      YYERROR;
+	   }
+
 	   $$ = $2;
 	}
 	| '(' ccTest2 ')'
 	{
+	   if (!state->option.NV_vertex2
+	       && !state->option.NV_fragment) {
+	      yyerror(& @1, state,
+		      "conditional write mask invalid in this program mode");
+	      YYERROR;
+	   }
+
 	   $$ = $2;
 	}
 	|
