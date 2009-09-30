@@ -29,6 +29,17 @@ struct __GLcontextRec;
 typedef struct __GLcontextRec GLcontext;
 #endif
 
+typedef struct YYLTYPE {
+   int first_line;
+   int first_column;
+   int last_line;
+   int last_column;
+   int position;
+} YYLTYPE;
+
+#define YYLTYPE_IS_DECLARED 1
+#define YYLTYPE_IS_TRIVIAL 1
+
 enum asm_type {
    at_none,
    at_address,
@@ -121,6 +132,7 @@ struct asm_instruction {
    struct prog_instruction Base;
    struct asm_instruction *next;
    struct asm_src_register SrcReg[3];
+   YYLTYPE position;
 };
 
 
@@ -217,17 +229,6 @@ struct asm_parser_state {
 #define OPTION_FOG_LINEAR  3
 #define OPTION_NICEST      1
 #define OPTION_FASTEST     2
-
-typedef struct YYLTYPE {
-   int first_line;
-   int first_column;
-   int last_line;
-   int last_column;
-   int position;
-} YYLTYPE;
-
-#define YYLTYPE_IS_DECLARED 1
-#define YYLTYPE_IS_TRIVIAL 1
 
 
 extern GLboolean _mesa_parse_arb_program(GLcontext *ctx, GLenum target,
