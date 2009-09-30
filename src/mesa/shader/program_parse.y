@@ -1169,10 +1169,6 @@ labelStatement: labelName
 	       */
 	      const intptr_t offset = state->prog->NumInstructions + 1;
 	      _mesa_symbol_table_add_symbol(state->st, 1, $1, (void *) offset);
-
-	      if (strcmp("main", $1) == 0) {
-		 state->HasMain = 1;
-	      }
 	   }
 	}
 	;
@@ -2658,6 +2654,7 @@ _mesa_parse_arb_program(GLcontext *ctx, GLenum target, const GLubyte *str,
    GLboolean result = GL_FALSE;
    void *temp;
    struct asm_symbol *sym;
+   unsigned main_offset;
 
    state->ctx = ctx;
    state->prog->Target = target;
@@ -2733,6 +2730,39 @@ _mesa_parse_arb_program(GLcontext *ctx, GLenum target, const GLubyte *str,
 	 }
       }
    }
+
+   /* If either there is no "main" label (offset of zero) or the "main" label
+    * is at the first instruction of the shader, do nothing.  Otherwise
+    * prepend an unconditional branch to the main label.  This also means that
+    * all branch targets need to be incremented by one instruction.
+    */
+   main_offset = (unsigned) (intptr_t)
+      _mesa_symbol_table_find_symbol(state->st, 1, "main");
+   if (main_offset > 1) {
+      struct asm_instruction *bra_to_main =
+	 asm_instruction_ctor(OPCODE_BRA, NULL, NULL, NULL, NULL);
+
+      /* The -1 handles the biasing on the stored offset, and the +1 handles
+       * the offset caused by inserting a new instruction.
+       */
+      bra_to_main->Base.BranchTarget = main_offset - 1 + 1;
+
+      /* Insert the instruction in the list.
+       */
+      bra_to_main->next = state->inst_head;
+      state->inst_head = bra_to_main;
+      state->prog->NumInstructions++;
+
+      /* Bump the offsets of all other branch instructions.
+       */
+      for (inst = bra_to_main->next; inst != NULL; inst = inst->next) {
+	 if ((inst->Base.Opcode == OPCODE_CAL)
+	     || (inst->Base.Opcode == OPCODE_BRA)) {
+	    inst->Base.BranchTarget++;
+	 }
+      }
+   }
+
 
    /* Add one instruction to store the "END" instruction.
     */
