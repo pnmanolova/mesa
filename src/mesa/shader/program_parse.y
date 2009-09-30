@@ -151,7 +151,7 @@ static struct asm_instruction *asm_instruction_copy_ctor(
 
  /* Tokens for instructions */
 %token <temp_inst> BIN_OP BINSC_OP SAMPLE_OP SCALAR_OP TRI_OP VECTOR_OP
-%token <temp_inst> ARL_OP ARA_OP KIL SWZ TXD_OP
+%token <temp_inst> ARL_OP ARA_OP KIL SWZ TXD_OP BRA_OP FLOW_OP
 
 %token <integer> INTEGER
 %token <real> REAL
@@ -179,16 +179,16 @@ static struct asm_instruction *asm_instruction_copy_ctor(
 %token WEIGHT
 
 %token <string> IDENTIFIER USED_IDENTIFIER
-%type <string> string
+%type <string> string labelName
 %token <swiz_mask> MASK4 MASK3 MASK2 MASK1 SWIZZLE
 %token DOT_DOT
 %token DOT
 
-%type <inst> instruction ALU_instruction TexInstruction
+%type <inst> instruction ALU_instruction TexInstruction FlowInstruction
 %type <inst> ARL_instruction VECTORop_instruction
 %type <inst> SCALARop_instruction BINSCop_instruction BINop_instruction
 %type <inst> TRIop_instruction TXD_instruction SWZ_instruction SAMPLE_instruction
-%type <inst> KIL_instruction ARA_instruction
+%type <inst> KIL_instruction ARA_instruction BRA_instruction FLOWCC_instruction
 
 %type <dst_reg> dstReg maskedDstReg instResultAddr
 %type <src_reg> srcReg scalarUse scalarSrcReg swizzleSrcReg
@@ -335,6 +335,7 @@ statement: instruction ';'
 	   }
 	}
 	| namingStatement ';'
+	| labelStatement ':'
 	;
 
 instruction: ALU_instruction
@@ -347,6 +348,7 @@ instruction: ALU_instruction
 	   $$ = $1;
 	   state->prog->NumTexInstructions++;
 	}
+	| FlowInstruction
 	;
 
 ALU_instruction: ARA_instruction
@@ -362,6 +364,10 @@ ALU_instruction: ARA_instruction
 TexInstruction: SAMPLE_instruction
 	| KIL_instruction
 	| TXD_instruction
+	;
+
+FlowInstruction: BRA_instruction
+	| FLOWCC_instruction
 	;
 
 ARL_instruction: ARL_OP instResultAddr ',' scalarSrcReg
@@ -540,6 +546,33 @@ SWZ_instruction: SWZ maskedDstReg ',' srcReg ',' extendedSwizzle
 	   $4.Base.Negate = $6.mask;
 
 	   $$ = asm_instruction_copy_ctor(& $1, & $2, & $4, NULL, NULL);
+	}
+	;
+
+BRA_instruction: BRA_OP labelName optionalCcMask
+	{
+	   $$ = asm_instruction_copy_ctor(& $1, NULL, NULL, NULL, NULL);
+
+	   /* Since we don't know whether or not the branch label is valid,
+	    * store the position of the label.  This allows use to generate a
+	    * sensible error message later.
+	    */
+	   $$->Base.Data = $2;
+	   $$->position = @2;
+
+	   $$->Base.DstReg.CondMask = $3.CondMask;
+	   $$->Base.DstReg.CondSwizzle = $3.CondSwizzle;
+	   $$->Base.DstReg.CondSrc = $3.CondSrc;
+	}
+	;
+
+FLOWCC_instruction: FLOW_OP optionalCcMask
+	{
+	   $$ = asm_instruction_copy_ctor(& $1, NULL, NULL, NULL, NULL);
+
+	   $$->Base.DstReg.CondMask = $2.CondMask;
+	   $$->Base.DstReg.CondSwizzle = $2.CondSwizzle;
+	   $$->Base.DstReg.CondSrc = $2.CondSrc;
 	}
 	;
 
@@ -1119,6 +1152,32 @@ ccMaskRule2: USED_IDENTIFIER
 	   $$.CondSwizzle = SWIZZLE_NOOP;
 	   $$.CondSrc = 0;
 	}
+	;
+
+labelStatement: labelName
+	{
+	   const void *const label =
+	      _mesa_symbol_table_find_symbol(state->st, 1, $1);
+
+	   if (label != NULL) {
+	      yyerror(& @1, state, "duplicate label");
+	      YYERROR;
+	   } else {
+	      /* We have to bias the offset by one so that we don't add a
+	       * symbol with zero value.  That will fail the symbol existence
+	       * test above.
+	       */
+	      const intptr_t offset = state->prog->NumInstructions + 1;
+	      _mesa_symbol_table_add_symbol(state->st, 1, $1, (void *) offset);
+
+	      if (strcmp("main", $1) == 0) {
+		 state->HasMain = 1;
+	      }
+	   }
+	}
+	;
+
+labelName: IDENTIFIER | USED_IDENTIFIER
 	;
 
 namingStatement: ATTRIB_statement
@@ -2217,8 +2276,13 @@ asm_instruction_set_operands(struct asm_instruction *inst,
 			     const struct asm_src_register *src1,
 			     const struct asm_src_register *src2)
 {
-   /* In the core ARB extensions only the KIL instruction doesn't have a
-    * destination register.
+   /* In the extensions supported by this assembler, the following instructions
+    * do not have destination registers:
+    *
+    *     KIL (GL_ARB_fragment_program and GL_NV_fragment_program_option)
+    *     BRA (GL_NV_vertex_program2_option)
+    *     CAL (GL_NV_vertex_program2_option)
+    *     RET (GL_NV_vertex_program2_option)
     */
    if (dst == NULL) {
       init_dst_reg(& inst->Base.DstReg);
@@ -2226,8 +2290,13 @@ asm_instruction_set_operands(struct asm_instruction *inst,
       inst->Base.DstReg = *dst;
    }
 
-   /* The only instruction that doesn't have any source registers is the
-    * condition-code based KIL instruction added by NV_fragment_program_option.
+   /* In the extensions supported by this assembler, the following instructions
+    * do not have any source registers:
+    *
+    *     KIL (GL_NV_fragment_program_option)
+    *     BRA (GL_NV_vertex_program2_option)
+    *     CAL (GL_NV_vertex_program2_option)
+    *     RET (GL_NV_vertex_program2_option)
     */
    if (src0 != NULL) {
       inst->Base.SrcReg[0] = src0->Base;
@@ -2645,7 +2714,26 @@ _mesa_parse_arb_program(GLcontext *ctx, GLenum target, const GLubyte *str,
    }
 
 
-   
+   /* Search the instruction stream for BRA and CAL opcodes.  Attempt to
+    * resolve the branch targets.
+    */
+   for (inst = state->inst_head; inst != NULL; inst = inst->next) {
+      if ((inst->Base.Opcode == OPCODE_CAL)
+	  || (inst->Base.Opcode == OPCODE_BRA)) {
+	 const char *const label = inst->Base.Data;
+	 unsigned offset;
+
+	 offset = (unsigned) (intptr_t)
+	    _mesa_symbol_table_find_symbol(state->st, 1, label);
+	 if (offset == 0) {
+	    yyerror(& inst->position, state, "invalid branch target");
+	    goto error;
+	 } else {
+	    inst->Base.BranchTarget = offset - 1;
+	 }
+      }
+   }
+
    /* Add one instruction to store the "END" instruction.
     */
    state->prog->Instructions =

@@ -176,6 +176,9 @@ ARA                { return_opcode(require_NV_vp2, ARA_OP, ARA, 3); }
 ARL                { return_opcode(require_ARB_vp, ARL_OP, ARL, 3); }
 ARR                { return_opcode(require_NV_vp2, ARL_OP, ARR, 3); }
 
+BRA                { return_opcode(require_NV_vp2, BRA_OP, BRA, 3); }
+
+CAL                { return_opcode(require_NV_vp2, BRA_OP, CAL, 3); }
 CMP{sat}           { return_opcode(require_ARB_fp, TRI_OP, CMP, 3); }
 COS{szf}{cc}{sat}  { return_opcode(require_ARB_fp || require_NV_vp2, SCALAR_OP, COS, 3); }
 
@@ -211,6 +214,7 @@ PK4B               { return_opcode(require_NV_fp,  VECTOR_OP, PK4B, 4); }
 PK4UB              { return_opcode(require_NV_fp,  VECTOR_OP, PK4UB, 5); }
 POW{szf}{cc}{sat}  { return_opcode(             1, BINSC_OP, POW, 3); }
 
+RET                { return_opcode(require_NV_vp2, FLOW_OP,   RET, 3); }
 RCP{szf}{cc}{sat}  { return_opcode(             1, SCALAR_OP, RCP, 3); }
 RCC{cc}            { return_opcode(require_NV_vp2, SCALAR_OP, RCC, 3); }
 RFL{szf}{cc}{sat}  { return_opcode(require_NV_fp,  BIN_OP,    RFL, 3); }

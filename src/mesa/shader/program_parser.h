@@ -221,6 +221,8 @@ struct asm_parser_state {
    struct {
       unsigned UsesKill:1;
    } fragment;
+
+   unsigned HasMain:1;
 };
 
 #define OPTION_NONE        0
