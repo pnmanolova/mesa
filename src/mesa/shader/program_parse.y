@@ -2125,6 +2125,11 @@ resultBinding: RESULT POSITION
 	      YYERROR;
 	   }
 	}
+	| RESULT CLIP '[' stateClipPlaneNum ']'
+	{
+	   yyerror(& @2, state, "user clip planes not yet supported");
+	   YYERROR;
+	}
 	;
 
 resultColBinding: COLOR optResultFaceType optResultColorType
