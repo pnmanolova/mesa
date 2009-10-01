@@ -1110,8 +1110,8 @@ ccTest2: ccMaskRule2 swizzleSuffix
 
 ccMaskRule: IDENTIFIER
 	{
-	   const int cond = _mesa_parse_cc($1);
-	   if ((cond == 0) || ($1[2] != '\0')) {
+	   const int good_cond = _mesa_parse_cc(state, $1, & $$);
+	   if (! good_cond) {
 	      char *const err_str =
 		 make_error_string("invalid condition code \"%s\"", $1);
 
@@ -1125,16 +1125,14 @@ ccMaskRule: IDENTIFIER
 	      YYERROR;
 	   }
 
-	   $$.CondMask = cond;
 	   $$.CondSwizzle = SWIZZLE_NOOP;
-	   $$.CondSrc = 0;
 	}
 	;
 
 ccMaskRule2: USED_IDENTIFIER
 	{
-	   const int cond = _mesa_parse_cc($1);
-	   if ((cond == 0) || ($1[2] != '\0')) {
+	   const int good_cond = _mesa_parse_cc(state, $1, & $$);
+	   if (! good_cond) {
 	      char *const err_str =
 		 make_error_string("invalid condition code \"%s\"", $1);
 
@@ -1148,9 +1146,7 @@ ccMaskRule2: USED_IDENTIFIER
 	      YYERROR;
 	   }
 
-	   $$.CondMask = cond;
 	   $$.CondSwizzle = SWIZZLE_NOOP;
-	   $$.CondSrc = 0;
 	}
 	;
 

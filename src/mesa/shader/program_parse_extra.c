@@ -95,7 +95,8 @@ _mesa_parse_instruction_suffix(const struct asm_parser_state *state,
 
 
 int
-_mesa_parse_cc(const char *s)
+_mesa_parse_cc(const struct asm_parser_state *state, const char *s,
+	       struct prog_dst_register *dst)
 {
    int cond = 0;
 
@@ -144,7 +145,32 @@ _mesa_parse_cc(const char *s)
       break;
    }
 
-   return ((cond == 0) || (s[2] != '\0')) ? 0 : cond;
+
+   /* The first part of the condition code failed to parse.
+    */
+   if (cond == 0) {
+      return 0;
+   }
+
+
+   if (state->option.NV_vertex3) {
+      if (((s[2] == '0') && (s[3] == '\0'))
+	  || (s[2] == '\0')) {
+	 dst->CondSrc = 0;
+	 dst->CondMask = cond;
+	 return 1;
+      } else if ((s[2] == '0') && (s[3] == '\0')) {
+	 dst->CondSrc = 1;
+	 dst->CondMask = cond;
+	 return 1;
+      }
+   } else if (s[2] == '\0') {
+      dst->CondSrc = 0;
+      dst->CondMask = cond;
+      return 1;
+   }
+
+   return 0;
 }
 
 

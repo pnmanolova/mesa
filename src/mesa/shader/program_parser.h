@@ -292,6 +292,7 @@ extern int _mesa_parse_instruction_suffix(const struct asm_parser_state *state,
  * One of the \c COND_ macros defined in prog_instruction.h on success or zero
  * on failure.
  */
-extern int _mesa_parse_cc(const char *s);
+extern int _mesa_parse_cc(const struct asm_parser_state *state, const char *s,
+    struct prog_dst_register *dst);
 
 /*@}*/
