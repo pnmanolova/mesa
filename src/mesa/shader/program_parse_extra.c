@@ -214,6 +214,8 @@ _mesa_ARBvp_parse_option(struct asm_parser_state *state, const char *option)
 	 if (state->ctx->Extensions.NV_vertex_program3) {
 	    state->option.NV_vertex2 = 1;
 	    state->option.NV_vertex3 = 1;
+	    state->option.TexRect =
+	       (state->ctx->Extensions.NV_texture_rectangle != GL_FALSE);
 	    return 1;
 	 }
       }
