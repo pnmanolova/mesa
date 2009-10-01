@@ -213,6 +213,8 @@ PK2H               { return_opcode(require_NV_fp,  VECTOR_OP, PK2H, 4); }
 PK2US              { return_opcode(require_NV_fp,  VECTOR_OP, PK2US, 5); }
 PK4B               { return_opcode(require_NV_fp,  VECTOR_OP, PK4B, 4); }
 PK4UB              { return_opcode(require_NV_fp,  VECTOR_OP, PK4UB, 5); }
+PUSHA              { return_opcode(require_NV_vp3, PUSHA_OP,  PUSHA, 5); }
+POPA               { return_opcode(require_NV_vp3, POPA_OP,   POPA, 4); }
 POW{szf}{cc}{sat}  { return_opcode(             1, BINSC_OP, POW, 3); }
 
 RET                { return_opcode(require_NV_vp2, FLOW_OP,   RET, 3); }

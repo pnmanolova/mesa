@@ -151,7 +151,7 @@ static struct asm_instruction *asm_instruction_copy_ctor(
 
  /* Tokens for instructions */
 %token <temp_inst> BIN_OP BINSC_OP SAMPLE_OP SCALAR_OP TRI_OP VECTOR_OP
-%token <temp_inst> ARL_OP ARA_OP KIL SWZ TXD_OP BRA_OP FLOW_OP
+%token <temp_inst> ARL_OP ARA_OP KIL SWZ TXD_OP BRA_OP FLOW_OP PUSHA_OP POPA_OP
 
 %token <integer> INTEGER
 %token <real> REAL
@@ -189,6 +189,7 @@ static struct asm_instruction *asm_instruction_copy_ctor(
 %type <inst> SCALARop_instruction BINSCop_instruction BINop_instruction
 %type <inst> TRIop_instruction TXD_instruction SWZ_instruction SAMPLE_instruction
 %type <inst> KIL_instruction ARA_instruction BRA_instruction FLOWCC_instruction
+%type <inst> ASTACK_instruction
 
 %type <dst_reg> dstReg maskedDstReg instResultAddr
 %type <src_reg> srcReg scalarUse scalarSrcReg swizzleSrcReg
@@ -353,6 +354,7 @@ instruction: ALU_instruction
 
 ALU_instruction: ARA_instruction
 	| ARL_instruction
+	| ASTACK_instruction
 	| VECTORop_instruction
 	| SCALARop_instruction
 	| BINSCop_instruction
@@ -381,6 +383,17 @@ ARA_instruction: ARA_OP instResultAddr ',' instOperandAddrVNS
 	   $$ = asm_instruction_ctor(OPCODE_ARA, & $2, & $4, NULL, NULL);
 	}
 	;
+
+ASTACK_instruction: PUSHA_OP instOperandAddrVNS
+	{
+	   $$ = asm_instruction_copy_ctor(& $1, NULL, & $2, NULL, NULL);
+	}
+	| POPA_OP instResultAddr
+	{
+	   $$ = asm_instruction_copy_ctor(& $1, & $2, NULL, NULL, NULL);
+	}
+	;
+
 
 VECTORop_instruction: VECTOR_OP maskedDstReg ',' swizzleSrcReg
 	{
@@ -2333,6 +2346,7 @@ asm_instruction_set_operands(struct asm_instruction *inst,
     *     BRA (GL_NV_vertex_program2_option)
     *     CAL (GL_NV_vertex_program2_option)
     *     RET (GL_NV_vertex_program2_option)
+    *     PUSHA (GL_NV_vertex_program3)
     */
    if (dst == NULL) {
       init_dst_reg(& inst->Base.DstReg);
@@ -2347,6 +2361,7 @@ asm_instruction_set_operands(struct asm_instruction *inst,
     *     BRA (GL_NV_vertex_program2_option)
     *     CAL (GL_NV_vertex_program2_option)
     *     RET (GL_NV_vertex_program2_option)
+    *     POPA (GL_NV_vertex_program3)
     */
    if (src0 != NULL) {
       inst->Base.SrcReg[0] = src0->Base;
