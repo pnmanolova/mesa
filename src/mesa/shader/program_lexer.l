@@ -33,6 +33,7 @@
 #define require_ARB_fp (yyextra->mode == ARB_fragment)
 #define require_NV_fp  (yyextra->option.NV_fragment)
 #define require_NV_vp2 (yyextra->option.NV_vertex2)
+#define require_NV_vp3 (yyextra->option.NV_vertex3)
 #define require_shadow (yyextra->option.Shadow)
 #define require_rect   (yyextra->option.TexRect)
 #define require_texarray        (yyextra->option.TexArray)
@@ -234,10 +235,11 @@ STR{sz}{cc}{sat}   { return_opcode(require_NV_fp || require_NV_vp2,  BIN_OP, STR
 SUB{sz}{cc}{sat}   { return_opcode(             1, BIN_OP, SUB, 3); }
 SWZ{sat}           { return_opcode(             1, SWZ, SWZ, 3); }
 
-TEX{cc}{sat}       { return_opcode(require_ARB_fp, SAMPLE_OP, TEX, 3); }
-TXB{cc}{sat}       { return_opcode(require_ARB_fp, SAMPLE_OP, TXB, 3); }
+TEX{cc}{sat}       { return_opcode(require_ARB_fp || require_NV_vp3, SAMPLE_OP, TEX, 3); }
+TXB{cc}{sat}       { return_opcode(require_ARB_fp || require_NV_vp3, SAMPLE_OP, TXB, 3); }
 TXD{cc}{sat}       { return_opcode(require_NV_fp,  TXD_OP, TXD, 3); }
-TXP{cc}{sat}       { return_opcode(require_ARB_fp, SAMPLE_OP, TXP, 3); }
+TXL{cc}            { return_opcode(require_NV_vp3, SAMPLE_OP, TXP, 3); }
+TXP{cc}{sat}       { return_opcode(require_ARB_fp || require_NV_vp3, SAMPLE_OP, TXP, 3); }
 
 UP2H{cc}{sat}      { return_opcode(require_NV_fp,  SCALAR_OP, UP2H, 4); }
 UP2US{cc}{sat}     { return_opcode(require_NV_fp,  SCALAR_OP, UP2US, 5); }
@@ -310,9 +312,9 @@ result                    { return RESULT; }
 {dot}weight               { return_token_or_DOT(require_ARB_vp, WEIGHT); }
 
 texture                   { return_token_or_IDENTIFIER(require_ARB_fp, TEXTURE_UNIT); }
-1D                        { return_token_or_IDENTIFIER(require_ARB_fp, TEX_1D); }
-2D                        { return_token_or_IDENTIFIER(require_ARB_fp, TEX_2D); }
-3D                        { return_token_or_IDENTIFIER(require_ARB_fp, TEX_3D); }
+1D                        { return_token_or_IDENTIFIER(require_ARB_fp || require_NV_vp3, TEX_1D); }
+2D                        { return_token_or_IDENTIFIER(require_ARB_fp || require_NV_vp3, TEX_2D); }
+3D                        { return_token_or_IDENTIFIER(require_ARB_fp || require_NV_vp3, TEX_3D); }
 CUBE                      { return_token_or_IDENTIFIER(require_ARB_fp, TEX_CUBE); }
 RECT                      { return_token_or_IDENTIFIER(require_ARB_fp && require_rect, TEX_RECT); }
 SHADOW1D                  { return_token_or_IDENTIFIER(require_ARB_fp && require_shadow, TEX_SHADOW1D); }

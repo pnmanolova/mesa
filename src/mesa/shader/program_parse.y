@@ -521,6 +521,21 @@ texImageUnit: TEXTURE_UNIT optTexImageUnitNum
 	{
 	   $$ = $2;
 	}
+	| string optTexImageUnitNum
+	{
+	   /* The NV_vertex_program3 spec is just plain broken.  While
+	    * ARB_fragment_program correctly makes "texture" a reserved word,
+	    * NV_vp3 does not.  To work around this, the lexer treats it as
+	    * IDENTIFIER or USED_IDENTIFIER, and the parser has to do the
+	    * matching.
+	    */
+	   if (strcmp("texture", $1) == 0) {
+	      $$ = $2;
+	   } else {
+	      yyerror(& @1, state, "expected \"texture\", got IDENTIFIER");
+	      YYERROR;
+	   }
+	}
 	;
 
 texTarget: TEX_1D  { $$ = TEXTURE_1D_INDEX; }
@@ -535,6 +550,44 @@ texTarget: TEX_1D  { $$ = TEXTURE_1D_INDEX; }
 	| TEX_ARRAY2D         { $$ = TEXTURE_2D_ARRAY_INDEX; }
 	| TEX_ARRAYSHADOW1D   { $$ = -TEXTURE_1D_ARRAY_INDEX; }
 	| TEX_ARRAYSHADOW2D   { $$ = -TEXTURE_2D_ARRAY_INDEX; }
+	| string
+	{
+	   int valid = 0;
+
+	   /* The NV_vertex_program3 spec is just plain broken.  While
+	    * ARB_fragment_program correctly makes SHADOW1D, SHADOW2D, CUBE,
+	    * and RECT reserved words, NV_vp3 does not.  To work around this,
+	    * the lexer treats these as IDENTIFIER or USED_IDENTIFIER, and the
+	    * parser has to do the matching.
+	    */
+	   if (state->option.NV_vertex3) {
+	      if (strncmp("SHADOW", $1, 6) == 0) {
+		 const char *const subTarget = & $1[6];
+
+		 if (strcmp("1D", subTarget) == 0) {
+		    $$ = -TEXTURE_1D_INDEX;
+		    valid = state->option.Shadow;
+		 } else if (strcmp("2D", subTarget) == 0) {
+		    $$ = -TEXTURE_2D_INDEX;
+		    valid = state->option.Shadow;
+		 } else if (strcmp("RECT", subTarget) == 0) {
+		    $$ = -TEXTURE_RECT_INDEX;
+		    valid = state->option.Shadow && state->option.TexRect;
+		 }
+	      } else if (strcmp("CUBE", $1) == 0) {
+		 $$ = TEXTURE_CUBE_INDEX;
+		 valid = 1;
+	      } else if (strcmp("RECT", $1) == 0) {
+		 $$ = TEXTURE_RECT_INDEX;
+		 valid = state->option.TexRect;
+	      }
+	   }
+
+	   if (!valid) {
+	      yyerror(& @1, state, "invalid texture target");
+	      YYERROR;
+	   }
+	}
 	;
 
 SWZ_instruction: SWZ maskedDstReg ',' srcReg ',' extendedSwizzle
