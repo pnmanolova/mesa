@@ -151,9 +151,22 @@ _mesa_parse_cc(const char *s)
 int
 _mesa_ARBvp_parse_option(struct asm_parser_state *state, const char *option)
 {
-   if (strcmp(option, "ARB_position_invariant") == 0) {
-      state->option.PositionInvariant = 1;
-      return 1;
+   if (strncmp(option, "ARB_", 4) == 0) {
+      /* Advance the pointer past the "ARB_" prefix.
+       */
+      option += 4;
+
+      if (strcmp(option, "position_invariant") == 0) {
+	 state->option.PositionInvariant = 1;
+	 return 1;
+      } else if (strcmp(option, "fragment_program_shadow") == 0) {
+	 if (state->ctx->Extensions.ARB_fragment_program_shadow
+	     && state->ctx->Extensions.NV_vertex_program3
+	     && state->option.NV_vertex3) {
+	    state->option.Shadow = 1;
+	    return 1;
+	 }
+      }
    } else if (strncmp(option, "NV_vertex_program", 17) == 0) {
       option += 17;
 
@@ -162,6 +175,12 @@ _mesa_ARBvp_parse_option(struct asm_parser_state *state, const char *option)
       if ((option[0] == '2') && (option[1] == '\0')) {
 	 if (state->ctx->Extensions.NV_vertex_program2_option) {
 	    state->option.NV_vertex2 = 1;
+	    return 1;
+	 }
+      } else if ((option[0] == '3') && (option[1] == '\0')) {
+	 if (state->ctx->Extensions.NV_vertex_program3) {
+	    state->option.NV_vertex2 = 1;
+	    state->option.NV_vertex3 = 1;
 	    return 1;
 	 }
       }

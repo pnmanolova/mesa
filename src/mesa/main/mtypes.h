@@ -2617,6 +2617,7 @@ struct gl_extensions
    GLboolean NV_vertex_program;
    GLboolean NV_vertex_program1_1;
    GLboolean NV_vertex_program2_option;
+   GLboolean NV_vertex_program3;
    GLboolean OES_read_format;
    GLboolean SGI_color_matrix;
    GLboolean SGI_color_table;

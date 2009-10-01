@@ -176,6 +176,7 @@ static const struct {
    { OFF, "GL_NV_vertex_program",              F(NV_vertex_program) },
    { OFF, "GL_NV_vertex_program1_1",           F(NV_vertex_program1_1) },
    { OFF, "GL_NV_vertex_program2_option",      F(NV_vertex_program2_option) },
+   { OFF, "GL_NV_vertex_program3",             F(NV_vertex_program3) },
    { ON,  "GL_OES_read_format",                F(OES_read_format) },
    { OFF, "GL_SGI_color_matrix",               F(SGI_color_matrix) },
    { OFF, "GL_SGI_color_table",                F(SGI_color_table) },

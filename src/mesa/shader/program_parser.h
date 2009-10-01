@@ -216,6 +216,7 @@ struct asm_parser_state {
       unsigned TexArray:1;
       unsigned NV_fragment:1;
       unsigned NV_vertex2:1;
+      unsigned NV_vertex3:1;
    } option;
 
    struct {
