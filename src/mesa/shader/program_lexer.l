@@ -150,7 +150,7 @@ dot    "."[ \t]*
 
 sz     [HRX]?
 szf    [HR]?
-cc     C?
+cc     (C[01]?)?
 sat    (_SAT)?
 
 %option bison-bridge bison-locations reentrant noyywrap

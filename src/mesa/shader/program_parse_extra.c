@@ -74,6 +74,13 @@ _mesa_parse_instruction_suffix(const struct asm_parser_state *state,
 	 inst->CondUpdate = 1;
 	 suffix++;
       }
+
+      if (state->option.NV_vertex3) {
+	 if ((suffix[0] == '0') || (suffix[0] == '1')) {
+	    inst->CondDst = suffix[0] - '0';
+	    suffix++;
+	 }
+      }
    }
 
 
