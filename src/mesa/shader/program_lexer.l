@@ -174,7 +174,7 @@ TEMP                      { yylval->integer = at_temp; return TEMP; }
 ABS{sz}{cc}{sat}   { return_opcode(             1, VECTOR_OP, ABS, 3); }
 ADD{sz}{cc}{sat}   { return_opcode(             1, BIN_OP, ADD, 3); }
 ARA                { return_opcode(require_NV_vp2, ARA_OP, ARA, 3); }
-ARL                { return_opcode(require_ARB_vp, ARL_OP, ARL, 3); }
+ARL                { return_opcode(require_ARB_vp, (require_NV_vp2) ? ARL_NV_OP : ARL_OP, ARL, 3); }
 ARR                { return_opcode(require_NV_vp2, ARL_OP, ARR, 3); }
 
 BRA                { return_opcode(require_NV_vp2, BRA_OP, BRA, 3); }

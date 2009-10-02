@@ -105,6 +105,11 @@ static struct asm_instruction *asm_instruction_copy_ctor(
    } while(YYID(0))
 
 #define YYLEX_PARAM state->scanner
+
+#define SWIZZLE_XXXX MAKE_SWIZZLE4(SWIZZLE_X, SWIZZLE_X, SWIZZLE_X, SWIZZLE_X)
+#define SWIZZLE_YYYY MAKE_SWIZZLE4(SWIZZLE_Y, SWIZZLE_Y, SWIZZLE_Y, SWIZZLE_Y)
+#define SWIZZLE_ZZZZ MAKE_SWIZZLE4(SWIZZLE_Z, SWIZZLE_Z, SWIZZLE_Z, SWIZZLE_Z)
+#define SWIZZLE_WWWW MAKE_SWIZZLE4(SWIZZLE_W, SWIZZLE_W, SWIZZLE_W, SWIZZLE_W)
 %}
 
 %pure-parser
@@ -151,7 +156,8 @@ static struct asm_instruction *asm_instruction_copy_ctor(
 
  /* Tokens for instructions */
 %token <temp_inst> BIN_OP BINSC_OP SAMPLE_OP SCALAR_OP TRI_OP VECTOR_OP
-%token <temp_inst> ARL_OP ARA_OP KIL SWZ TXD_OP BRA_OP FLOW_OP PUSHA_OP POPA_OP
+%token <temp_inst> KIL SWZ TXD_OP BRA_OP FLOW_OP
+%token <temp_inst> ARL_OP ARL_NV_OP ARA_OP PUSHA_OP POPA_OP
 
 %token <integer> INTEGER
 %token <real> REAL
@@ -372,7 +378,17 @@ FlowInstruction: BRA_instruction
 	| FLOWCC_instruction
 	;
 
+	/* ARL_OP is returned by the lexer for the input "ARL" in
+	 * GL_ARB_vertex_program mode.  In GL_NV_vertex_program2_option mode
+	 * the lexer returns ARL_NV_OP for the same string.  This allows the
+	 * parser to differentiate between the different source opperand types
+	 * for the two flavors of the instruction.
+	 */
 ARL_instruction: ARL_OP instResultAddr ',' scalarSrcReg
+	{
+	   $$ = asm_instruction_copy_ctor(& $1, & $2, & $4, NULL, NULL);
+	}
+	| ARL_NV_OP instResultAddr ',' swizzleSrcReg
 	{
 	   $$ = asm_instruction_copy_ctor(& $1, & $2, & $4, NULL, NULL);
 	}
@@ -390,6 +406,11 @@ ASTACK_instruction: PUSHA_OP instOperandAddrVNS
 	}
 	| POPA_OP instResultAddr
 	{
+	   if ($2.WriteMask != WRITEMASK_XYZW) {
+	      yyerror(& @2, state, "POPA only supports .xyzw write mask");
+	      YYERROR;
+	   }
+
 	   $$ = asm_instruction_copy_ctor(& $1, & $2, NULL, NULL, NULL);
 	}
 	;
