@@ -53,8 +53,11 @@ struct asm_symbol {
    struct asm_symbol *next;    /**< List linkage for freeing. */
    const char *name;
    enum asm_type type;
-   unsigned attrib_binding;
-   unsigned output_binding;   /**< Output / result register number. */
+
+   /**
+    * Index of the register assigned to this variable.
+    */
+   unsigned binding;
 
    /**
     * One of PROGRAM_STATE_VAR, PROGRAM_LOCAL_PARAM, or PROGRAM_ENV_PARAM.
@@ -72,11 +75,6 @@ struct asm_symbol {
     * the number of param registers we eventually use.
     */
    unsigned param_binding_length;
-
-   /**
-    * Index of the temp register assigned to this variable.
-    */
-   unsigned temp_binding;
 
    /**
     * Flag whether or not a PARAM is an array

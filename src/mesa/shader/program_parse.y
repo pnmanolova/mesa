@@ -929,7 +929,7 @@ srcReg: USED_IDENTIFIER /* temporaryReg | progParamSingle */
 	   switch (s->type) {
 	   case at_temp:
 	      $$.Base.File = PROGRAM_TEMPORARY;
-	      $$.Base.Index = s->temp_binding;
+	      $$.Base.Index = s->binding;
 	      break;
 	   case at_param:
 	      $$.Base.File = s->param_binding_type;
@@ -937,7 +937,7 @@ srcReg: USED_IDENTIFIER /* temporaryReg | progParamSingle */
 	      break;
 	   case at_attrib:
 	      $$.Base.File = PROGRAM_INPUT;
-	      $$.Base.Index = s->attrib_binding;
+	      $$.Base.Index = s->binding;
 	      state->prog->InputsRead |= (1U << $$.Base.Index);
 
 	      if (!validate_inputs(& @1, state)) {
@@ -1015,11 +1015,11 @@ dstReg: resultBinding
 	   switch (s->type) {
 	   case at_temp:
 	      $$.File = PROGRAM_TEMPORARY;
-	      $$.Index = s->temp_binding;
+	      $$.Index = s->binding;
 	      break;
 	   case at_output:
 	      $$.File = PROGRAM_OUTPUT;
-	      $$.Index = s->output_binding;
+	      $$.Index = s->binding;
 	      break;
 	   default:
 	      $$.File = s->param_binding_type;
@@ -1275,8 +1275,8 @@ ATTRIB_statement: ATTRIB IDENTIFIER '=' attribBinding
 	   if (s == NULL) {
 	      YYERROR;
 	   } else {
-	      s->attrib_binding = $4;
-	      state->InputsBound |= (1U << s->attrib_binding);
+	      s->binding = $4;
+	      state->InputsBound |= (1U << s->binding);
 
 	      if (!validate_inputs(& @4, state)) {
 		 YYERROR;
@@ -2154,7 +2154,7 @@ OUTPUT_statement: optVarSize OUTPUT IDENTIFIER '=' resultBinding
 	   if (s == NULL) {
 	      YYERROR;
 	   } else {
-	      s->output_binding = $5;
+	      s->binding = $5;
 	   }
 	}
 	;
@@ -2520,7 +2520,7 @@ declare_variable(struct asm_parser_state *state, char *name, enum asm_type t,
 	    return NULL;
 	 }
 
-	 s->temp_binding = state->prog->NumTemporaries;
+	 s->binding = state->prog->NumTemporaries;
 	 state->prog->NumTemporaries++;
 	 break;
 
