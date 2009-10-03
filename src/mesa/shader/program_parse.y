@@ -782,7 +782,7 @@ instResultAddr: addrReg optionalMask optionalCcMask
 
 	   init_dst_reg(& $$);
 	   $$.File = PROGRAM_ADDRESS;
-	   $$.Index = 0;
+	   $$.Index = $1->binding;
 	   $$.WriteMask = $2.mask;
 	   $$.CondMask = $3.CondMask;
 	   $$.CondSwizzle = $3.CondSwizzle;
@@ -799,6 +799,7 @@ addrUseVNS: addrReg
 	{
 	   init_src_reg(& $$);
 	   $$.Base.File = PROGRAM_ADDRESS;
+	   $$.Base.Index = $1->binding;
 	   $$.Symbol = $1;
 	}
 	;
@@ -977,6 +978,8 @@ srcReg: USED_IDENTIFIER /* temporaryReg | progParamSingle */
 
 	      $$.Base.RelAddr = 1;
 	      $$.Base.Index = $3.Base.Index;
+	      $$.Base.AddrReg = $3.Base.AddrReg;
+	      $$.Base.AddrComponent = $3.Base.AddrComponent;
 	      $$.Symbol = $1;
 	   } else {
 	      $$.Base.Index = $1->param_binding_begin + $3.Base.Index;
@@ -1057,12 +1060,10 @@ progParamArrayAbs: INTEGER
 
 progParamArrayRel: addrReg addrComponent addrRegRelOffset
 	{
-	   /* FINISHME: Add support for multiple address registers.
-	    */
 	   init_src_reg(& $$);
 	   $$.Base.RelAddr = 1;
 	   $$.Base.Index = $3;
-	   $$.Base.AddrReg = 0;
+	   $$.Base.AddrReg = $1->binding;
 	   $$.Base.AddrComponent = $2;
 	}
 	;
@@ -2531,8 +2532,7 @@ declare_variable(struct asm_parser_state *state, char *name, enum asm_type t,
 	    return NULL;
 	 }
 
-	 /* FINISHME: Add support for multiple address registers.
-	  */
+	 s->binding = state->prog->NumAddressRegs;
 	 state->prog->NumAddressRegs++;
 	 break;
 
