@@ -51,6 +51,8 @@
 
 #define DRV_ERROR(msg)	xf86DrvMsg(pScrn->scrnIndex, X_ERROR, msg);
 
+struct exa_context;
+
 typedef struct
 {
     int lastInstance;
@@ -92,8 +94,9 @@ typedef struct _modesettingRec
     boolean ds_depth_bits_last;
 
     /* exa */
-    void *exa;
+    struct exa_context *exa;
     Bool noEvict;
+    Bool debug_fallback;
 
 #ifdef DRM_MODE_FEATURE_DIRTYFB
     DamagePtr damage;

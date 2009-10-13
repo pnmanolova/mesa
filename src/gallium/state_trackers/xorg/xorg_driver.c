@@ -558,6 +558,9 @@ ScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     xf86SetBlackWhitePixels(pScreen);
 
     ms->exa = xorg_exa_init(pScrn);
+    ms->debug_fallback = debug_get_bool_option("XORG_DEBUG_FALLBACK", TRUE);
+
+    xorg_init_video(pScreen);
 
     miInitializeBackingStore(pScreen);
     xf86SetBackingStore(pScreen);
@@ -725,8 +728,10 @@ CloseScreen(int scrnIndex, ScreenPtr pScreen)
     if (ms->exa)
 	xorg_exa_close(pScrn);
 
+    if (ms->api->destroy)
 	ms->api->destroy(ms->api);
-	ms->api = NULL;
+    ms->api = NULL;
+
     drmClose(ms->fd);
     ms->fd = -1;
 

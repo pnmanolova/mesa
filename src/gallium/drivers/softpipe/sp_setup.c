@@ -106,6 +106,7 @@ struct setup_context {
 #endif
 
    unsigned winding;		/* which winding to cull */
+   unsigned nr_vertex_attrs;
 };
 
 
@@ -268,8 +269,8 @@ static void print_vertex(const struct setup_context *setup,
                          const float (*v)[4])
 {
    int i;
-   debug_printf("   Vertex: (%p)\n", v);
-   for (i = 0; i < setup->quad[0].nr_attrs; i++) {
+   debug_printf("   Vertex: (%p)\n", (void *) v);
+   for (i = 0; i < setup->nr_vertex_attrs; i++) {
       debug_printf("     %d: %f %f %f %f\n",  i,
               v[i][0], v[i][1], v[i][2], v[i][3]);
       if (util_is_inf_or_nan(v[i][0])) {
@@ -696,7 +697,7 @@ calc_det( const float (*v0)[4],
 /**
  * Do setup for triangle rasterization, then render the triangle.
  */
-void setup_tri( struct setup_context *setup,
+void sp_setup_tri( struct setup_context *setup,
                 const float (*v0)[4],
                 const float (*v1)[4],
                 const float (*v2)[4] )
@@ -915,7 +916,7 @@ plot(struct setup_context *setup, int x, int y)
  * to handle stippling and wide lines.
  */
 void
-setup_line(struct setup_context *setup,
+sp_setup_line(struct setup_context *setup,
            const float (*v0)[4],
            const float (*v1)[4])
 {
@@ -1045,7 +1046,7 @@ point_persp_coeff(const struct setup_context *setup,
  * XXX could optimize a lot for 1-pixel points.
  */
 void
-setup_point( struct setup_context *setup,
+sp_setup_point( struct setup_context *setup,
              const float (*v0)[4] )
 {
    struct softpipe_context *softpipe = setup->softpipe;
@@ -1246,13 +1247,16 @@ setup_point( struct setup_context *setup,
    }
 }
 
-void setup_prepare( struct setup_context *setup )
+void sp_setup_prepare( struct setup_context *setup )
 {
    struct softpipe_context *sp = setup->softpipe;
 
    if (sp->dirty) {
       softpipe_update_derived(sp);
    }
+
+   /* Note: nr_attrs is only used for debugging (vertex printing) */
+   setup->nr_vertex_attrs = draw_num_vs_outputs(sp->draw);
 
    sp->quad.first->begin( sp->quad.first );
 
@@ -1270,7 +1274,7 @@ void setup_prepare( struct setup_context *setup )
 
 
 
-void setup_destroy_context( struct setup_context *setup )
+void sp_setup_destroy_context( struct setup_context *setup )
 {
    FREE( setup );
 }
@@ -1279,7 +1283,7 @@ void setup_destroy_context( struct setup_context *setup )
 /**
  * Create a new primitive setup/render stage.
  */
-struct setup_context *setup_create_context( struct softpipe_context *softpipe )
+struct setup_context *sp_setup_create_context( struct softpipe_context *softpipe )
 {
    struct setup_context *setup = CALLOC_STRUCT(setup_context);
    unsigned i;

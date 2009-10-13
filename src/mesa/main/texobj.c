@@ -491,7 +491,7 @@ _mesa_test_texobj_completeness( const GLcontext *ctx,
 	     t->Image[face][baseLevel]->Width2 != w ||
 	     t->Image[face][baseLevel]->Height2 != h) {
 	    t->_Complete = GL_FALSE;
-	    incomplete(t, "Non-quare cubemap image");
+	    incomplete(t, "Cube face missing or mismatched size");
 	    return;
 	 }
       }
@@ -859,7 +859,7 @@ unbind_texobj_from_texunits(GLcontext *ctx, struct gl_texture_object *texObj)
       for (tex = 0; tex < NUM_TEXTURE_TARGETS; tex++) {
          if (texObj == unit->CurrentTex[tex]) {
             _mesa_reference_texobj(&unit->CurrentTex[tex],
-                                   ctx->Shared->DefaultTex[TEXTURE_1D_INDEX]);
+                                   ctx->Shared->DefaultTex[tex]);
             ASSERT(unit->CurrentTex[tex]);
             break;
          }

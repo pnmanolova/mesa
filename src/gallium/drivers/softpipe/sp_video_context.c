@@ -1,3 +1,30 @@
+/**************************************************************************
+ * 
+ * Copyright 2009 Younes Manton.
+ * All Rights Reserved.
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sub license, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:
+ * 
+ * The above copyright notice and this permission notice (including the
+ * next paragraph) shall be included in all copies or substantial portions
+ * of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
+ * IN NO EVENT SHALL TUNGSTEN GRAPHICS AND/OR ITS SUPPLIERS BE LIABLE FOR
+ * ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * 
+ **************************************************************************/
+
 #include "sp_video_context.h"
 #include <pipe/p_inlines.h>
 #include <util/u_memory.h>
@@ -109,6 +136,15 @@ sp_mpeg12_set_decode_target(struct pipe_video_context *vpipe,
    pipe_video_surface_reference(&ctx->decode_target, dt);
 }
 
+static void sp_mpeg12_set_csc_matrix(struct pipe_video_context *vpipe, const float *mat)
+{
+   struct sp_mpeg12_context *ctx = (struct sp_mpeg12_context*)vpipe;
+
+   assert(vpipe);
+
+   vl_compositor_set_csc_matrix(&ctx->compositor, mat);
+}
+
 static bool
 init_pipe_state(struct sp_mpeg12_context *ctx)
 {
@@ -167,7 +203,6 @@ init_pipe_state(struct sp_mpeg12_context *ctx)
    dsa.depth.enabled = 0;
    dsa.depth.writemask = 0;
    dsa.depth.func = PIPE_FUNC_ALWAYS;
-   dsa.depth.occlusion_count = 0;
    for (i = 0; i < 2; ++i) {
       dsa.stencil[i].enabled = 0;
       dsa.stencil[i].func = PIPE_FUNC_ALWAYS;
@@ -212,6 +247,7 @@ sp_mpeg12_create(struct pipe_screen *screen, enum pipe_video_profile profile,
    ctx->base.clear_surface = sp_mpeg12_clear_surface;
    ctx->base.render_picture = sp_mpeg12_render_picture;
    ctx->base.set_decode_target = sp_mpeg12_set_decode_target;
+   ctx->base.set_csc_matrix = sp_mpeg12_set_csc_matrix;
 
    ctx->pipe = softpipe_create(screen);
    if (!ctx->pipe) {

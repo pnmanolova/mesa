@@ -18,7 +18,7 @@ AC_CONFIG_AUX_DIR([bin])
 AC_CANONICAL_HOST
 
 dnl Versions for external dependencies
-LIBDRM_REQUIRED=2.4.3
+LIBDRM_REQUIRED=2.4.15
 DRI2PROTO_REQUIRED=1.99.3
 
 dnl Check for progs
@@ -1190,7 +1190,7 @@ AC_ARG_ENABLE([gallium-intel],
     [enable_gallium_intel=yes])
 if test "x$enable_gallium_intel" = xyes; then
     GALLIUM_WINSYS_DRM_DIRS="$GALLIUM_WINSYS_DRM_DIRS intel"
-    GALLIUM_DRIVERS_DIRS="$GALLIUM_DRIVERS_DIRS i915simple"
+    GALLIUM_DRIVERS_DIRS="$GALLIUM_DRIVERS_DIRS i915"
 fi
 
 dnl

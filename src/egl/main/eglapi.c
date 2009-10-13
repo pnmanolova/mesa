@@ -92,8 +92,8 @@ eglInitialize(EGLDisplay dpy, EGLint *major, EGLint *minor)
       snprintf(disp->Version, sizeof(disp->Version),
                "%d.%d (%s)", major_int, minor_int, drv->Name);
 
-      /* update the global notion of supported APIs */
-      _eglGlobal.ClientAPIsMask |= disp->ClientAPIsMask;
+      /* limit to APIs supported by core */
+      disp->ClientAPIsMask &= _EGL_API_ALL_BITS;
 
       disp->Driver = drv;
    } else {
@@ -586,43 +586,11 @@ eglGetError(void)
 
 void (* EGLAPIENTRY eglGetProcAddress(const char *procname))()
 {
-   typedef void (*genericFunc)();
-   struct name_function {
+   static const struct {
       const char *name;
       _EGLProc function;
-   };
-   static struct name_function egl_functions[] = {
-      /* alphabetical order */
-      { "eglBindTexImage", (_EGLProc) eglBindTexImage },
-      { "eglChooseConfig", (_EGLProc) eglChooseConfig },
-      { "eglCopyBuffers", (_EGLProc) eglCopyBuffers },
-      { "eglCreateContext", (_EGLProc) eglCreateContext },
-      { "eglCreatePbufferSurface", (_EGLProc) eglCreatePbufferSurface },
-      { "eglCreatePixmapSurface", (_EGLProc) eglCreatePixmapSurface },
-      { "eglCreateWindowSurface", (_EGLProc) eglCreateWindowSurface },
-      { "eglDestroyContext", (_EGLProc) eglDestroyContext },
-      { "eglDestroySurface", (_EGLProc) eglDestroySurface },
-      { "eglGetConfigAttrib", (_EGLProc) eglGetConfigAttrib },
-      { "eglGetConfigs", (_EGLProc) eglGetConfigs },
-      { "eglGetCurrentContext", (_EGLProc) eglGetCurrentContext },
-      { "eglGetCurrentDisplay", (_EGLProc) eglGetCurrentDisplay },
-      { "eglGetCurrentSurface", (_EGLProc) eglGetCurrentSurface },
-      { "eglGetDisplay", (_EGLProc) eglGetDisplay },
-      { "eglGetError", (_EGLProc) eglGetError },
-      { "eglGetProcAddress", (_EGLProc) eglGetProcAddress },
-      { "eglInitialize", (_EGLProc) eglInitialize },
-      { "eglMakeCurrent", (_EGLProc) eglMakeCurrent },
-      { "eglQueryContext", (_EGLProc) eglQueryContext },
-      { "eglQueryString", (_EGLProc) eglQueryString },
-      { "eglQuerySurface", (_EGLProc) eglQuerySurface },
-      { "eglReleaseTexImage", (_EGLProc) eglReleaseTexImage },
-      { "eglSurfaceAttrib", (_EGLProc) eglSurfaceAttrib },
-      { "eglSwapBuffers", (_EGLProc) eglSwapBuffers },
-      { "eglSwapInterval", (_EGLProc) eglSwapInterval },
-      { "eglTerminate", (_EGLProc) eglTerminate },
-      { "eglWaitGL", (_EGLProc) eglWaitGL },
-      { "eglWaitNative", (_EGLProc) eglWaitNative },
-      /* Extensions */
+   } egl_functions[] = {
+      /* extensions only */
 #ifdef EGL_MESA_screen_surface
       { "eglChooseModeMESA", (_EGLProc) eglChooseModeMESA },
       { "eglGetModesMESA", (_EGLProc) eglGetModesMESA },
@@ -637,21 +605,22 @@ void (* EGLAPIENTRY eglGetProcAddress(const char *procname))()
       { "eglQueryScreenModeMESA", (_EGLProc) eglQueryScreenModeMESA },
       { "eglQueryModeStringMESA", (_EGLProc) eglQueryModeStringMESA },
 #endif /* EGL_MESA_screen_surface */
-#ifdef EGL_VERSION_1_2
-      { "eglBindAPI", (_EGLProc) eglBindAPI },
-      { "eglCreatePbufferFromClientBuffer", (_EGLProc) eglCreatePbufferFromClientBuffer },
-      { "eglQueryAPI", (_EGLProc) eglQueryAPI },
-      { "eglReleaseThread", (_EGLProc) eglReleaseThread },
-      { "eglWaitClient", (_EGLProc) eglWaitClient },
-#endif /* EGL_VERSION_1_2 */
       { NULL, NULL }
    };
    EGLint i;
-   for (i = 0; egl_functions[i].name; i++) {
-      if (strcmp(egl_functions[i].name, procname) == 0) {
-         return (genericFunc) egl_functions[i].function;
+
+   if (!procname)
+      return NULL;
+   if (strncmp(procname, "egl", 3) == 0) {
+      for (i = 0; egl_functions[i].name; i++) {
+         if (strcmp(egl_functions[i].name, procname) == 0)
+            return egl_functions[i].function;
       }
    }
+
+   /* preload a driver if there isn't one */
+   if (!_eglGlobal.NumDrivers)
+      _eglPreloadDriver(NULL);
 
    /* now loop over drivers to query their procs */
    for (i = 0; i < _eglGlobal.NumDrivers; i++) {
@@ -662,6 +631,9 @@ void (* EGLAPIENTRY eglGetProcAddress(const char *procname))()
 
    return NULL;
 }
+
+
+#ifdef EGL_MESA_screen_surface
 
 
 /*
@@ -838,6 +810,9 @@ eglQueryModeStringMESA(EGLDisplay dpy, EGLModeMESA mode)
 }
 
 
+#endif /* EGL_MESA_screen_surface */
+
+
 /**
  ** EGL 1.2
  **/
@@ -867,33 +842,7 @@ eglBindAPI(EGLenum api)
    if (!_eglIsApiValid(api))
       return _eglError(EGL_BAD_PARAMETER, "eglBindAPI");
 
-   switch (api) {
-#ifdef EGL_VERSION_1_4
-   case EGL_OPENGL_API:
-      if (_eglGlobal.ClientAPIsMask & EGL_OPENGL_BIT) {
-         t->CurrentAPIIndex = _eglConvertApiToIndex(api);
-         return EGL_TRUE;
-      }
-      _eglError(EGL_BAD_PARAMETER, "eglBindAPI");
-      return EGL_FALSE;
-#endif
-   case EGL_OPENGL_ES_API:
-      if (_eglGlobal.ClientAPIsMask & (EGL_OPENGL_ES_BIT | EGL_OPENGL_ES2_BIT)) {
-         t->CurrentAPIIndex = _eglConvertApiToIndex(api);
-         return EGL_TRUE;
-      }
-      _eglError(EGL_BAD_PARAMETER, "eglBindAPI");
-      return EGL_FALSE;
-   case EGL_OPENVG_API:
-      if (_eglGlobal.ClientAPIsMask & EGL_OPENVG_BIT) {
-         t->CurrentAPIIndex = _eglConvertApiToIndex(api);
-         return EGL_TRUE;
-      }
-      _eglError(EGL_BAD_PARAMETER, "eglBindAPI");
-      return EGL_FALSE;
-   default:
-      return EGL_FALSE;
-   }
+   t->CurrentAPIIndex = _eglConvertApiToIndex(api);
    return EGL_TRUE;
 }
 

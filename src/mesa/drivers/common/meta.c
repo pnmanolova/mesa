@@ -55,6 +55,7 @@
 #include "main/stencil.h"
 #include "main/texobj.h"
 #include "main/texenv.h"
+#include "main/texformat.h"
 #include "main/teximage.h"
 #include "main/texparam.h"
 #include "main/texstate.h"
@@ -302,40 +303,10 @@ _mesa_meta_init(GLcontext *ctx)
 void
 _mesa_meta_free(GLcontext *ctx)
 {
-   struct gl_meta_state *meta = ctx->Meta;
-
-   if (_mesa_get_current_context()) {
-      /* if there's no current context, these textures, buffers, etc should
-       * still get freed by _mesa_free_context_data().
-       */
-
-      /* the temporary texture */
-      _mesa_DeleteTextures(1, &meta->TempTex.TexObj);
-
-      /* glBlitFramebuffer */
-      _mesa_DeleteBuffersARB(1, & meta->Blit.VBO);
-      _mesa_DeleteVertexArraysAPPLE(1, &meta->Blit.ArrayObj);
-      _mesa_DeletePrograms(1, &meta->Blit.DepthFP);
-
-      /* glClear */
-      _mesa_DeleteBuffersARB(1, & meta->Clear.VBO);
-      _mesa_DeleteVertexArraysAPPLE(1, &meta->Clear.ArrayObj);
-
-      /* glCopyPixels */
-      _mesa_DeleteBuffersARB(1, & meta->CopyPix.VBO);
-      _mesa_DeleteVertexArraysAPPLE(1, &meta->CopyPix.ArrayObj);
-
-      /* glDrawPixels */
-      _mesa_DeleteVertexArraysAPPLE(1, &meta->DrawPix.ArrayObj);
-      _mesa_DeletePrograms(1, &meta->DrawPix.DepthFP);
-      _mesa_DeletePrograms(1, &meta->DrawPix.StencilFP);
-
-      /* glBitmap */
-      _mesa_DeleteBuffersARB(1, & meta->Bitmap.VBO);
-      _mesa_DeleteVertexArraysAPPLE(1, &meta->Bitmap.ArrayObj);
-      _mesa_DeleteTextures(1, &meta->Bitmap.Tex.TexObj);
-   }
-
+   /* Note: Any textures, VBOs, etc, that we allocate should get
+    * freed by the normal context destruction code.  But this would be
+    * the place to free other meta data someday.
+    */
    _mesa_free(ctx->Meta);
    ctx->Meta = NULL;
 }
@@ -974,7 +945,8 @@ setup_copypix_texture(struct temp_texture *tex,
  * Setup/load texture for glDrawPixels.
  */
 static void
-setup_drawpix_texture(struct temp_texture *tex,
+setup_drawpix_texture(GLcontext *ctx,
+		      struct temp_texture *tex,
                       GLboolean newTex,
                       GLenum texIntFormat,
                       GLsizei width, GLsizei height,
@@ -995,9 +967,17 @@ setup_drawpix_texture(struct temp_texture *tex,
                           tex->Width, tex->Height, 0, format, type, pixels);
       }
       else {
+	 struct gl_buffer_object *save_unpack_obj = NULL;
+
+	 _mesa_reference_buffer_object(ctx, &save_unpack_obj,
+				       ctx->Unpack.BufferObj);
+	 _mesa_BindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
          /* create empty texture */
          _mesa_TexImage2D(tex->Target, 0, tex->IntFormat,
                           tex->Width, tex->Height, 0, format, type, NULL);
+	 if (save_unpack_obj != NULL)
+	    _mesa_BindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB,
+				save_unpack_obj->Name);
          /* load image */
          _mesa_TexSubImage2D(tex->Target, 0,
                              0, 0, width, height, format, type, pixels);
@@ -1041,6 +1021,135 @@ init_blit_depth_pixels(GLcontext *ctx)
    _mesa_BindProgram(GL_FRAGMENT_PROGRAM_ARB, blit->DepthFP);
    _mesa_ProgramStringARB(GL_FRAGMENT_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB,
                           strlen(program2), (const GLubyte *) program2);
+}
+
+
+/**
+ * Try to do a glBiltFramebuffer using no-copy texturing.
+ * We can do this when the src renderbuffer is actually a texture.
+ * But if the src buffer == dst buffer we cannot do this.
+ *
+ * \return new buffer mask indicating the buffers left to blit using the
+ *         normal path.
+ */
+static GLbitfield
+blitframebuffer_texture(GLcontext *ctx,
+                        GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1,
+                        GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,
+                        GLbitfield mask, GLenum filter)
+{
+   if (mask & GL_COLOR_BUFFER_BIT) {
+      const struct gl_framebuffer *drawFb = ctx->DrawBuffer;
+      const struct gl_framebuffer *readFb = ctx->ReadBuffer;
+      const struct gl_renderbuffer_attachment *drawAtt =
+         &drawFb->Attachment[drawFb->_ColorDrawBufferIndexes[0]];
+      const struct gl_renderbuffer_attachment *readAtt =
+         &readFb->Attachment[readFb->_ColorReadBufferIndex];
+
+      if (readAtt && readAtt->Texture) {
+         const struct gl_texture_object *texObj = readAtt->Texture;
+         const GLuint srcLevel = readAtt->TextureLevel;
+         const GLenum minFilterSave = texObj->MinFilter;
+         const GLenum magFilterSave = texObj->MagFilter;
+         const GLint baseLevelSave = texObj->BaseLevel;
+         const GLint maxLevelSave = texObj->MaxLevel;
+         const GLenum wrapSSave = texObj->WrapS;
+         const GLenum wrapTSave = texObj->WrapT;
+         const GLenum target = texObj->Target;
+
+         if (drawAtt->Texture == readAtt->Texture) {
+            /* Can't use same texture as both the source and dest.  We need
+             * to handle overlapping blits and besides, some hw may not
+             * support this.
+             */
+            return mask;
+         }
+
+         if (target != GL_TEXTURE_2D && target != GL_TEXTURE_RECTANGLE_ARB) {
+            /* Can't handle other texture types at this time */
+            return mask;
+         }
+
+         /*
+         printf("Blit from texture!\n");
+         printf("  srcAtt %p  dstAtt %p\n", readAtt, drawAtt);
+         printf("  srcTex %p  dstText %p\n", texObj, drawAtt->Texture);
+         */
+
+         /* Prepare src texture state */
+         _mesa_BindTexture(target, texObj->Name);
+         _mesa_TexParameteri(target, GL_TEXTURE_MIN_FILTER, filter);
+         _mesa_TexParameteri(target, GL_TEXTURE_MAG_FILTER, filter);
+         _mesa_TexParameteri(target, GL_TEXTURE_BASE_LEVEL, srcLevel);
+         _mesa_TexParameteri(target, GL_TEXTURE_MAX_LEVEL, srcLevel);
+         _mesa_TexParameteri(target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+         _mesa_TexParameteri(target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+         _mesa_TexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+         _mesa_set_enable(ctx, target, GL_TRUE);
+
+         /* Prepare vertex data (the VBO was previously created and bound) */
+         {
+            struct vertex {
+               GLfloat x, y, s, t;
+            };
+            struct vertex verts[4];
+            GLfloat s0, t0, s1, t1;
+
+            if (target == GL_TEXTURE_2D) {
+               const struct gl_texture_image *texImage
+                   = _mesa_select_tex_image(ctx, texObj, target, srcLevel);
+               s0 = srcX0 / (float) texImage->Width;
+               s1 = srcX1 / (float) texImage->Width;
+               t0 = srcY0 / (float) texImage->Height;
+               t1 = srcY1 / (float) texImage->Height;
+            }
+            else {
+               assert(target == GL_TEXTURE_RECTANGLE_ARB);
+               s0 = srcX0;
+               s1 = srcX1;
+               t0 = srcY0;
+               t1 = srcY1;
+            }
+
+            verts[0].x = (GLfloat) dstX0;
+            verts[0].y = (GLfloat) dstY0;
+            verts[1].x = (GLfloat) dstX1;
+            verts[1].y = (GLfloat) dstY0;
+            verts[2].x = (GLfloat) dstX1;
+            verts[2].y = (GLfloat) dstY1;
+            verts[3].x = (GLfloat) dstX0;
+            verts[3].y = (GLfloat) dstY1;
+
+            verts[0].s = s0;
+            verts[0].t = t0;
+            verts[1].s = s1;
+            verts[1].t = t0;
+            verts[2].s = s1;
+            verts[2].t = t1;
+            verts[3].s = s0;
+            verts[3].t = t1;
+
+            _mesa_BufferSubDataARB(GL_ARRAY_BUFFER_ARB, 0, sizeof(verts), verts);
+         }
+
+         _mesa_DrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+         /* Restore texture object state, the texture binding will
+          * be restored by _mesa_meta_end().
+          */
+         _mesa_TexParameteri(target, GL_TEXTURE_MIN_FILTER, minFilterSave);
+         _mesa_TexParameteri(target, GL_TEXTURE_MAG_FILTER, magFilterSave);
+         _mesa_TexParameteri(target, GL_TEXTURE_BASE_LEVEL, baseLevelSave);
+         _mesa_TexParameteri(target, GL_TEXTURE_MAX_LEVEL, maxLevelSave);
+         _mesa_TexParameteri(target, GL_TEXTURE_WRAP_S, wrapSSave);
+         _mesa_TexParameteri(target, GL_TEXTURE_WRAP_T, wrapTSave);
+
+         /* Done with color buffer */
+         mask &= ~GL_COLOR_BUFFER_BIT;
+      }
+   }
+
+   return mask;
 }
 
 
@@ -1115,6 +1224,18 @@ _mesa_meta_BlitFramebuffer(GLcontext *ctx,
       _mesa_BindBufferARB(GL_ARRAY_BUFFER_ARB, blit->VBO);
    }
 
+   /* Try faster, direct texture approach first */
+   mask = blitframebuffer_texture(ctx, srcX0, srcY0, srcX1, srcY1,
+                                  dstX0, dstY0, dstX1, dstY1, mask, filter);
+   if (mask == 0x0) {
+      _mesa_meta_end(ctx);
+      return;
+   }
+
+   /* Continue with "normal" approach which involves copying the src rect
+    * into a temporary texture and is "blitted" by drawing a textured quad.
+    */
+
    newTex = alloc_texture(tex, srcW, srcH, GL_RGBA);
 
    /* vertex positions/texcoords (after texture allocation!) */
@@ -1162,7 +1283,7 @@ _mesa_meta_BlitFramebuffer(GLcontext *ctx,
          _mesa_ReadPixels(srcX, srcY, srcW, srcH,
                           GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, tmp);
 
-         setup_drawpix_texture(tex, newTex, GL_DEPTH_COMPONENT, srcW, srcH,
+         setup_drawpix_texture(ctx, tex, newTex, GL_DEPTH_COMPONENT, srcW, srcH,
                                GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, tmp);
 
          _mesa_BindProgram(GL_FRAGMENT_PROGRAM_ARB, blit->DepthFP);
@@ -1725,7 +1846,7 @@ _mesa_meta_DrawPixels(GLcontext *ctx,
       if (!drawpix->StencilFP)
          init_draw_stencil_pixels(ctx);
 
-      setup_drawpix_texture(tex, newTex, texIntFormat, width, height,
+      setup_drawpix_texture(ctx, tex, newTex, texIntFormat, width, height,
                             GL_ALPHA, type, pixels);
 
       _mesa_ColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
@@ -1768,14 +1889,14 @@ _mesa_meta_DrawPixels(GLcontext *ctx,
       _mesa_ProgramLocalParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, 0,
                                         ctx->Current.RasterColor);
 
-      setup_drawpix_texture(tex, newTex, texIntFormat, width, height,
+      setup_drawpix_texture(ctx, tex, newTex, texIntFormat, width, height,
                             format, type, pixels);
 
       _mesa_DrawArrays(GL_TRIANGLE_FAN, 0, 4);
    }
    else {
       /* Drawing RGBA */
-      setup_drawpix_texture(tex, newTex, texIntFormat, width, height,
+      setup_drawpix_texture(ctx, tex, newTex, texIntFormat, width, height,
                             format, type, pixels);
       _mesa_DrawArrays(GL_TRIANGLE_FAN, 0, 4);
    }
@@ -1923,7 +2044,7 @@ _mesa_meta_Bitmap(GLcontext *ctx,
       _mesa_set_enable(ctx, GL_ALPHA_TEST, GL_TRUE);
       _mesa_AlphaFunc(GL_GREATER, 0.0);
 
-      setup_drawpix_texture(tex, newTex, texIntFormat, width, height,
+      setup_drawpix_texture(ctx, tex, newTex, texIntFormat, width, height,
                             GL_ALPHA, GL_UNSIGNED_BYTE, bitmap8);
 
       _mesa_DrawArrays(GL_TRIANGLE_FAN, 0, 4);
@@ -1936,6 +2057,72 @@ _mesa_meta_Bitmap(GLcontext *ctx,
    _mesa_unmap_pbo_source(ctx, &unpackSave);
 
    _mesa_meta_end(ctx);
+}
+
+
+/**
+ * Check if the call to _mesa_meta_GenerateMipmap() will require a
+ * software fallback.  The fallback path will require that the texture
+ * images are mapped.
+ * \return GL_TRUE if a fallback is needed, GL_FALSE otherwise
+ */
+GLboolean
+_mesa_meta_check_generate_mipmap_fallback(GLcontext *ctx, GLenum target,
+                                          struct gl_texture_object *texObj)
+{
+   const GLuint fboSave = ctx->DrawBuffer->Name;
+   struct gen_mipmap_state *mipmap = &ctx->Meta->Mipmap;
+   struct gl_texture_image *baseImage;
+   GLuint srcLevel;
+   GLenum status;
+
+   /* check for fallbacks */
+   if (!ctx->Extensions.EXT_framebuffer_object ||
+       target == GL_TEXTURE_3D) {
+      return GL_TRUE;
+   }
+
+   srcLevel = texObj->BaseLevel;
+   baseImage = _mesa_select_tex_image(ctx, texObj, target, srcLevel);
+   if (!baseImage || baseImage->IsCompressed) {
+      return GL_TRUE;
+   }
+
+   /*
+    * Test that we can actually render in the texture's format.
+    */
+   if (!mipmap->FBO)
+      _mesa_GenFramebuffersEXT(1, &mipmap->FBO);
+   _mesa_BindFramebufferEXT(GL_FRAMEBUFFER_EXT, mipmap->FBO);
+
+   if (target == GL_TEXTURE_1D) {
+      _mesa_FramebufferTexture1DEXT(GL_FRAMEBUFFER_EXT,
+                                    GL_COLOR_ATTACHMENT0_EXT,
+                                    target, texObj->Name, srcLevel);
+   }
+   else if (target == GL_TEXTURE_3D) {
+      GLint zoffset = 0;
+      _mesa_FramebufferTexture3DEXT(GL_FRAMEBUFFER_EXT,
+                                    GL_COLOR_ATTACHMENT0_EXT,
+                                    target, texObj->Name, srcLevel, zoffset);
+   }
+   else {
+      /* 2D / cube */
+      _mesa_FramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT,
+                                    GL_COLOR_ATTACHMENT0_EXT,
+                                    target, texObj->Name, srcLevel);
+   }
+
+   status = _mesa_CheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
+
+   _mesa_BindFramebufferEXT(GL_FRAMEBUFFER_EXT, fboSave);
+
+   if (status != GL_FRAMEBUFFER_COMPLETE_EXT) {
+      printf("Can't render\n");
+      return GL_TRUE;
+   }
+
+   return GL_FALSE;
 }
 
 
@@ -1967,9 +2154,7 @@ _mesa_meta_GenerateMipmap(GLcontext *ctx, GLenum target,
    GLuint dstLevel;
    GLuint border = 0;
 
-   /* check for fallbacks */
-   if (!ctx->Extensions.EXT_framebuffer_object ||
-       target == GL_TEXTURE_3D) {
+   if (_mesa_meta_check_generate_mipmap_fallback(ctx, target, texObj)) {
       _mesa_generate_mipmap(ctx, target, texObj);
       return;
    }
@@ -2010,10 +2195,8 @@ _mesa_meta_GenerateMipmap(GLcontext *ctx, GLenum target,
    }
 
    if (!mipmap->FBO) {
-      /* Bind the new renderbuffer to the color attachment point. */
       _mesa_GenFramebuffersEXT(1, &mipmap->FBO);
    }
-
    _mesa_BindFramebufferEXT(GL_FRAMEBUFFER_EXT, mipmap->FBO);
 
    _mesa_TexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -2216,7 +2399,7 @@ _mesa_meta_GenerateMipmap(GLcontext *ctx, GLenum target,
       _mesa_DrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 
       /* sanity check */
-      status = _mesa_CheckFramebufferStatusEXT (GL_FRAMEBUFFER_EXT);
+      status = _mesa_CheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
       if (status != GL_FRAMEBUFFER_COMPLETE_EXT) {
          abort();
          break;
@@ -2310,6 +2493,12 @@ copy_tex_image(GLcontext *ctx, GLuint dims, GLenum target, GLint level,
       _mesa_error(ctx, GL_OUT_OF_MEMORY, "glCopyTexImage%uD", dims);
       return;
    }
+
+   if (texImage->TexFormat == &_mesa_null_texformat)
+	texImage->TexFormat = ctx->Driver.ChooseTextureFormat(ctx,
+							      internalFormat,
+							      format,
+							      type);
 
    _mesa_unlock_texture(ctx, texObj); /* need to unlock first */
 

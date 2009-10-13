@@ -84,6 +84,7 @@
 /*@{*/
 struct _mesa_HashTable;
 struct gl_attrib_node;
+struct gl_list_extensions;
 struct gl_meta_state;
 struct gl_pixelstore_attrib;
 struct gl_program_cache;
@@ -816,29 +817,6 @@ struct gl_line_attrib
 struct gl_list_attrib
 {
    GLuint ListBase;
-};
-
-
-/**
- * Used by device drivers to hook new commands into display lists.
- */
-struct gl_list_instruction
-{
-   GLuint Size;
-   void (*Execute)( GLcontext *ctx, void *data );
-   void (*Destroy)( GLcontext *ctx, void *data );
-   void (*Print)( GLcontext *ctx, void *data );
-};
-
-#define MAX_DLIST_EXT_OPCODES 16
-
-/**
- * Used by device drivers to hook new commands into display lists.
- */
-struct gl_list_extensions
-{
-   struct gl_list_instruction Opcode[MAX_DLIST_EXT_OPCODES];
-   GLuint NumOpcodes;
 };
 
 
@@ -2066,6 +2044,8 @@ struct gl_shader_program
 #define GLSL_OPT       0x4  /**< Force optimizations (override pragmas) */
 #define GLSL_NO_OPT    0x8  /**< Force no optimizations (override pragmas) */
 #define GLSL_UNIFORMS 0x10  /**< Print glUniform calls */
+#define GLSL_NOP_VERT 0x20  /**< Force no-op vertex shaders */
+#define GLSL_NOP_FRAG 0x40  /**< Force no-op fragment shaders */
 
 
 /**
@@ -3086,7 +3066,7 @@ struct __GLcontextRec
    struct gl_shine_tab *_ShineTabList;  /**< MRU list of inactive shine tables */
    /**@}*/
 
-   struct gl_list_extensions ListExt; /**< driver dlist extensions */
+   struct gl_list_extensions *ListExt; /**< driver dlist extensions */
 
    /** \name For debugging/development only */
    /*@{*/
