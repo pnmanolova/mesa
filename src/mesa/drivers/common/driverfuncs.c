@@ -352,3 +352,17 @@ _mesa_init_driver_state(GLcontext *ctx)
 
    ctx->Driver.DrawBuffer(ctx, ctx->Color.DrawBuffer[0]);
 }
+
+
+void
+_mesa_init_native_program_limits(struct gl_program_constants *pc)
+{
+   pc->MaxNativeInstructions = pc->MaxInstructions;
+   pc->MaxNativeAluInstructions = pc->MaxAluInstructions;
+   pc->MaxNativeTexInstructions = pc->MaxTexInstructions;
+   pc->MaxNativeTexIndirections = pc->MaxTexIndirections;
+   pc->MaxNativeAttribs = pc->MaxAttribs;
+   pc->MaxNativeTemps = pc->MaxTemps;
+   pc->MaxNativeAddressRegs = pc->MaxAddressRegs;
+   pc->MaxNativeParameters = pc->MaxParameters;
+}

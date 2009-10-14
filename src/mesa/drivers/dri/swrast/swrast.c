@@ -652,39 +652,8 @@ driCreateNewContext(__DRIscreen *screen, const __DRIconfig *config,
     _mesa_enable_2_0_extensions(mesaCtx);
     _mesa_enable_2_1_extensions(mesaCtx);
 
-    mesaCtx->Const.VertexProgram.MaxNativeInstructions =
-	mesaCtx->Const.VertexProgram.MaxInstructions;
-    mesaCtx->Const.VertexProgram.MaxNativeAluInstructions =
-	mesaCtx->Const.VertexProgram.MaxAluInstructions;
-    mesaCtx->Const.VertexProgram.MaxNativeTexInstructions =
-	mesaCtx->Const.VertexProgram.MaxTexInstructions;
-    mesaCtx->Const.VertexProgram.MaxNativeTexIndirections =
-	mesaCtx->Const.VertexProgram.MaxTexIndirections;
-    mesaCtx->Const.VertexProgram.MaxNativeAttribs =
-	mesaCtx->Const.VertexProgram.MaxAttribs;
-    mesaCtx->Const.VertexProgram.MaxNativeTemps =
-	mesaCtx->Const.VertexProgram.MaxTemps;
-    mesaCtx->Const.VertexProgram.MaxNativeAddressRegs =
-	mesaCtx->Const.VertexProgram.MaxAddressRegs;
-    mesaCtx->Const.VertexProgram.MaxNativeParameters =
-	mesaCtx->Const.VertexProgram.MaxParameters;
-
-    mesaCtx->Const.FragmentProgram.MaxNativeInstructions =
-	mesaCtx->Const.FragmentProgram.MaxInstructions;
-    mesaCtx->Const.FragmentProgram.MaxNativeAluInstructions =
-	mesaCtx->Const.FragmentProgram.MaxAluInstructions;
-    mesaCtx->Const.FragmentProgram.MaxNativeTexInstructions =
-	mesaCtx->Const.FragmentProgram.MaxTexInstructions;
-    mesaCtx->Const.FragmentProgram.MaxNativeTexIndirections =
-	mesaCtx->Const.FragmentProgram.MaxTexIndirections;
-    mesaCtx->Const.FragmentProgram.MaxNativeAttribs =
-	mesaCtx->Const.FragmentProgram.MaxAttribs;
-    mesaCtx->Const.FragmentProgram.MaxNativeTemps =
-	mesaCtx->Const.FragmentProgram.MaxTemps;
-    mesaCtx->Const.FragmentProgram.MaxNativeAddressRegs =
-	mesaCtx->Const.FragmentProgram.MaxAddressRegs;
-    mesaCtx->Const.FragmentProgram.MaxNativeParameters =
-	mesaCtx->Const.FragmentProgram.MaxParameters;
+    _mesa_init_native_program_limits(&mesaCtx->Const.VertexProgram);
+    _mesa_init_native_program_limits(&mesaCtx->Const.FragmentProgram);
 
     _mesa_meta_init(mesaCtx);
 

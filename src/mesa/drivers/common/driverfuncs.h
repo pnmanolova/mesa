@@ -34,4 +34,8 @@ extern void
 _mesa_init_driver_state(GLcontext *ctx);
 
 
+/** Set native fields to value of non-native fields. */
+void
+_mesa_init_native_program_limits(struct gl_program_constants *pc);
+
 #endif
