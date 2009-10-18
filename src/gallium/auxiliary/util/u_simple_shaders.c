@@ -34,14 +34,8 @@
 
 
 #include "pipe/p_context.h"
-#include "util/u_debug.h"
-#include "pipe/p_defines.h"
-#include "pipe/p_screen.h"
 #include "pipe/p_shader_tokens.h"
-
-#include "util/u_memory.h"
 #include "util/u_simple_shaders.h"
-
 #include "tgsi/tgsi_ureg.h"
 
 
@@ -67,9 +61,7 @@ util_make_vertex_passthrough_shader(struct pipe_context *pipe,
       struct ureg_src src;
       struct ureg_dst dst;
 
-      src = ureg_DECL_vs_input( ureg,
-                                semantic_names[i],
-                                semantic_indexes[i]);
+      src = ureg_DECL_vs_input( ureg, i );
       
       dst = ureg_DECL_output( ureg,
                               semantic_names[i],
@@ -88,11 +80,14 @@ util_make_vertex_passthrough_shader(struct pipe_context *pipe,
 
 /**
  * Make simple fragment texture shader:
- *  TEX OUT[0], IN[0], SAMP[0], 2D;
+ *  IMM {0,0,0,1}                         // (if writemask != 0xf)
+ *  MOV OUT[0], IMM[0]                    // (if writemask != 0xf)
+ *  TEX OUT[0].writemask, IN[0], SAMP[0], 2D;
  *  END;
  */
 void *
-util_make_fragment_tex_shader(struct pipe_context *pipe)
+util_make_fragment_tex_shader_writemask(struct pipe_context *pipe,
+                                        unsigned writemask )
 {
    struct ureg_program *ureg;
    struct ureg_src sampler;
@@ -103,7 +98,7 @@ util_make_fragment_tex_shader(struct pipe_context *pipe)
    if (ureg == NULL)
       return NULL;
    
-   sampler = ureg_DECL_sampler( ureg );
+   sampler = ureg_DECL_sampler( ureg, 0 );
 
    tex = ureg_DECL_fs_input( ureg, 
                              TGSI_SEMANTIC_GENERIC, 0, 
@@ -113,13 +108,26 @@ util_make_fragment_tex_shader(struct pipe_context *pipe)
                            TGSI_SEMANTIC_COLOR,
                            0 );
 
-   ureg_TEX( ureg, out, TGSI_TEXTURE_2D, tex, sampler );
+   if (writemask != TGSI_WRITEMASK_XYZW) {
+      struct ureg_src imm = ureg_imm4f( ureg, 0, 0, 0, 1 );
+
+      ureg_MOV( ureg, out, imm );
+   }
+
+   ureg_TEX( ureg, 
+             ureg_writemask(out, writemask),
+             TGSI_TEXTURE_2D, tex, sampler );
    ureg_END( ureg );
 
    return ureg_create_shader_and_destroy( ureg, pipe );
 }
 
-
+void *
+util_make_fragment_tex_shader(struct pipe_context *pipe )
+{
+   return util_make_fragment_tex_shader_writemask( pipe,
+                                                   TGSI_WRITEMASK_XYZW );
+}
 
 
 

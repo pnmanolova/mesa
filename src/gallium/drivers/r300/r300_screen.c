@@ -93,8 +93,6 @@ static int r300_get_param(struct pipe_screen* pscreen, int param)
             } else {
                 return 0;
             }
-        case PIPE_CAP_S3TC:
-            return 1;
         case PIPE_CAP_ANISOTROPIC_FILTER:
             return 1;
         case PIPE_CAP_POINT_SPRITE:
@@ -103,11 +101,9 @@ static int r300_get_param(struct pipe_screen* pscreen, int param)
         case PIPE_CAP_MAX_RENDER_TARGETS:
             return 4;
         case PIPE_CAP_OCCLUSION_QUERY:
-            /* IN THEORY */
-            return 0;
+            return 1;
         case PIPE_CAP_TEXTURE_SHADOW_MAP:
-            /* IN THEORY */
-            return 0;
+            return 1;
         case PIPE_CAP_MAX_TEXTURE_2D_LEVELS:
             if (r300screen->caps->is_r500) {
                 /* 13 == 4096x4096 */
@@ -186,16 +182,19 @@ static float r300_get_paramf(struct pipe_screen* pscreen, int param)
 static boolean check_tex_2d_format(enum pipe_format format, uint32_t usage,
                                    boolean is_r500)
 {
+    uint32_t retval = 0;
+
     switch (format) {
         /* Supported formats. */
         /* Colorbuffer */
         case PIPE_FORMAT_A4R4G4B4_UNORM:
         case PIPE_FORMAT_R5G6B5_UNORM:
         case PIPE_FORMAT_A1R5G5B5_UNORM:
-            return usage &
+            retval = usage &
                 (PIPE_TEXTURE_USAGE_RENDER_TARGET |
                  PIPE_TEXTURE_USAGE_DISPLAY_TARGET |
                  PIPE_TEXTURE_USAGE_PRIMARY);
+            break;
 
         /* Texture */
         case PIPE_FORMAT_A8R8G8B8_SRGB:
@@ -205,27 +204,30 @@ static boolean check_tex_2d_format(enum pipe_format format, uint32_t usage,
         case PIPE_FORMAT_DXT3_RGBA:
         case PIPE_FORMAT_DXT5_RGBA:
         case PIPE_FORMAT_YCBCR:
-            return usage & PIPE_TEXTURE_USAGE_SAMPLER;
+            retval = usage & PIPE_TEXTURE_USAGE_SAMPLER;
+            break;
 
         /* Colorbuffer or texture */
         case PIPE_FORMAT_A8R8G8B8_UNORM:
+        case PIPE_FORMAT_X8R8G8B8_UNORM:
         case PIPE_FORMAT_R8G8B8A8_UNORM:
+        case PIPE_FORMAT_R8G8B8X8_UNORM:
         case PIPE_FORMAT_I8_UNORM:
-            return usage &
+            retval = usage &
                 (PIPE_TEXTURE_USAGE_RENDER_TARGET |
                  PIPE_TEXTURE_USAGE_DISPLAY_TARGET |
                  PIPE_TEXTURE_USAGE_PRIMARY |
                  PIPE_TEXTURE_USAGE_SAMPLER);
+            break;
 
-        /* Z buffer */
+        /* Z buffer or texture */
         case PIPE_FORMAT_Z16_UNORM:
-            return usage & PIPE_TEXTURE_USAGE_DEPTH_STENCIL;
-
         /* Z buffer with stencil or texture */
         case PIPE_FORMAT_Z24S8_UNORM:
-            return usage &
+            retval = usage &
                 (PIPE_TEXTURE_USAGE_DEPTH_STENCIL |
                  PIPE_TEXTURE_USAGE_SAMPLER);
+            break;
 
         /* Definitely unsupported formats. */
         /* Non-usable Z buffer/stencil formats. */
@@ -263,7 +265,13 @@ static boolean check_tex_2d_format(enum pipe_format format, uint32_t usage,
             break;
     }
 
-    return FALSE;
+    /* If usage was a mask that contained multiple bits, and not all of them
+     * are supported, this will catch that and return FALSE.
+     * e.g. usage = 2 | 4; retval = 4; (retval >= usage) == FALSE
+     *
+     * This also returns FALSE for any unknown formats.
+     */
+    return (retval >= usage);
 }
 
 /* XXX moar targets */
@@ -323,13 +331,14 @@ r300_get_tex_transfer(struct pipe_screen *screen,
     if (trans) {
         pipe_texture_reference(&trans->transfer.texture, texture);
         trans->transfer.format = texture->format;
+        trans->transfer.x = x;
+        trans->transfer.y = y;
         trans->transfer.width = w;
         trans->transfer.height = h;
         trans->transfer.block = texture->block;
         trans->transfer.nblocksx = texture->nblocksx[level];
         trans->transfer.nblocksy = texture->nblocksy[level];
-        trans->transfer.stride = align(pf_get_stride(&trans->transfer.block,
-                                                     texture->width[level]), 32);
+        trans->transfer.stride = r300_texture_get_stride(tex, level);
         trans->transfer.usage = usage;
         trans->offset = offset;
     }
@@ -348,16 +357,9 @@ static void* r300_transfer_map(struct pipe_screen* screen,
 {
     struct r300_texture* tex = (struct r300_texture*)transfer->texture;
     char* map;
-    unsigned flags = 0;
 
-    if (transfer->usage != PIPE_TRANSFER_WRITE) {
-        flags |= PIPE_BUFFER_USAGE_CPU_READ;
-    }
-    if (transfer->usage != PIPE_TRANSFER_READ) {
-        flags |= PIPE_BUFFER_USAGE_CPU_WRITE;
-    }
-    
-    map = pipe_buffer_map(screen, tex->buffer, flags);
+    map = pipe_buffer_map(screen, tex->buffer,
+                          pipe_transfer_buffer_flags(transfer));
 
     if (!map) {
         return NULL;
@@ -393,6 +395,7 @@ struct pipe_screen* r300_create_screen(struct r300_winsys* r300_winsys)
 
     caps->pci_id = r300_winsys->pci_id;
     caps->num_frag_pipes = r300_winsys->gb_pipes;
+    caps->num_z_pipes = r300_winsys->z_pipes;
 
     r300_parse_chipset(caps);
 

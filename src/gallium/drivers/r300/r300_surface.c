@@ -29,7 +29,7 @@ static void r300_surface_setup(struct r300_context* r300,
                                unsigned w, unsigned h)
 {
     struct r300_capabilities* caps = r300_screen(r300->context.screen)->caps;
-    unsigned pixpitch = dest->stride / dest->tex.block.size;
+    unsigned pixpitch = r300_texture_get_stride(dest, 0) / dest->tex.block.size;
     CS_LOCALS(r300);
 
     r300_emit_blend_state(r300, &blend_clear_state);
@@ -95,12 +95,11 @@ static void r300_surface_fill(struct pipe_context* pipe,
                               unsigned w, unsigned h,
                               unsigned color)
 {
-    int i;
-    float r, g, b, a, depth;
+    float r, g, b, a;
     struct r300_context* r300 = r300_context(pipe);
     struct r300_capabilities* caps = r300_screen(pipe->screen)->caps;
     struct r300_texture* tex = (struct r300_texture*)dest->texture;
-    unsigned pixpitch = tex->stride / tex->tex.block.size;
+    unsigned pixpitch = r300_texture_get_stride(tex, 0) / tex->tex.block.size;
     boolean invalid = FALSE;
     CS_LOCALS(r300);
 
@@ -108,14 +107,16 @@ static void r300_surface_fill(struct pipe_context* pipe,
     r = (float)((color >> 16) & 0xff) / 255.0f;
     g = (float)((color >>  8) & 0xff) / 255.0f;
     b = (float)((color >>  0) & 0xff) / 255.0f;
-    debug_printf("r300: Filling surface %p at (%d,%d),"
+    DBG(r300, DBG_SURF, "r300: Filling surface %p at (%d,%d),"
         " dimensions %dx%d (pixel pitch %d), color 0x%x\n",
         dest, x, y, w, h, pixpitch, color);
 
     /* Fallback? */
-    if (FALSE) {
+    if (!pipe->screen->is_format_supported(pipe->screen, dest->format,
+        PIPE_TEXTURE_2D, PIPE_TEXTURE_USAGE_RENDER_TARGET, 0)) {
 fallback:
-        debug_printf("r300: Falling back on surface clear...");
+        DBG(r300, DBG_SURF | DBG_FALL,
+            "r300: Falling back on surface clear...\n");
         util_surface_fill(pipe, dest, x, y, w, h, color);
         return;
     }
@@ -130,7 +131,7 @@ validate:
     if (!r300->winsys->validate(r300->winsys)) {
         r300->context.flush(&r300->context, 0, NULL);
         if (invalid) {
-            debug_printf("r300: Stuck in validation loop, gonna fallback.");
+            DBG(r300, DBG_SURF | DBG_FALL, "r300: Stuck in validation loop.");
             goto fallback;
         }
         invalid = TRUE;
@@ -233,22 +234,30 @@ static void r300_surface_copy(struct pipe_context* pipe,
     struct r300_capabilities* caps = r300_screen(pipe->screen)->caps;
     struct r300_texture* srctex = (struct r300_texture*)src->texture;
     struct r300_texture* desttex = (struct r300_texture*)dest->texture;
-    unsigned pixpitch = srctex->stride / srctex->tex.block.size;
+    unsigned pixpitch = r300_texture_get_stride(srctex, 0) / srctex->tex.block.size;
     boolean invalid = FALSE;
     float fsrcx = srcx, fsrcy = srcy, fdestx = destx, fdesty = desty;
     CS_LOCALS(r300);
 
-    debug_printf("r300: Copying surface %p at (%d,%d) to %p at (%d, %d),"
+    DBG(r300, DBG_SURF, "r300: Copying surface %p at (%d,%d) to %p at (%d, %d),"
         " dimensions %dx%d (pixel pitch %d)\n",
         src, srcx, srcy, dest, destx, desty, w, h, pixpitch);
 
     if ((srctex->buffer == desttex->buffer) &&
             ((destx < srcx + w) || (srcx < destx + w)) &&
             ((desty < srcy + h) || (srcy < desty + h))) {
+        goto fallback;
+    }
+
+    if (!pipe->screen->is_format_supported(pipe->screen, src->format,
+            PIPE_TEXTURE_2D, PIPE_TEXTURE_USAGE_SAMPLER, 0) ||
+            !pipe->screen->is_format_supported(pipe->screen, dest->format,
+            PIPE_TEXTURE_2D, PIPE_TEXTURE_USAGE_RENDER_TARGET, 0)) {
 fallback:
-        debug_printf("r300: Falling back on surface_copy\n");
+        DBG(r300, DBG_SURF | DBG_FALL, "r300: Falling back on surface_copy\n");
         util_surface_copy(pipe, FALSE, dest, destx, desty, src,
                 srcx, srcy, w, h);
+        return;
     }
 
     /* Add our target BOs to the list. */
@@ -266,7 +275,7 @@ validate:
     if (!r300->winsys->validate(r300->winsys)) {
         r300->context.flush(&r300->context, 0, NULL);
         if (invalid) {
-            debug_printf("r300: Stuck in validation loop, gonna fallback.");
+            DBG(r300, DBG_SURF | DBG_FALL, "r300: Stuck in validation loop.");
             goto fallback;
         }
         invalid = TRUE;

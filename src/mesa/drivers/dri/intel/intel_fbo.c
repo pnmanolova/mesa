@@ -618,15 +618,8 @@ intel_render_texture(GLcontext * ctx,
    }
 
    /* compute offset of the particular 2D image within the texture region */
-   imageOffset = intel_miptree_image_offset(intel_image->mt,
-                                            att->CubeMapFace,
-                                            att->TextureLevel);
-
-   if (att->Texture->Target == GL_TEXTURE_3D) {
-      const GLuint *offsets = intel_miptree_depth_offsets(intel_image->mt,
-                                                          att->TextureLevel);
-      imageOffset += offsets[att->Zoffset];
-   }
+   imageOffset = intel_miptree_image_offset(intel_image->mt, att->CubeMapFace,
+                                            att->TextureLevel, att->Zoffset);
 
    /* store that offset in the region */
    intel_image->mt->region->draw_offset = imageOffset;
@@ -715,5 +708,5 @@ intel_fbo_init(struct intel_context *intel)
    intel->ctx.Driver.FinishRenderTexture = intel_finish_render_texture;
    intel->ctx.Driver.ResizeBuffers = intel_resize_buffers;
    intel->ctx.Driver.ValidateFramebuffer = intel_validate_framebuffer;
-   intel->ctx.Driver.BlitFramebuffer = _mesa_meta_blit_framebuffer;
+   intel->ctx.Driver.BlitFramebuffer = _mesa_meta_BlitFramebuffer;
 }

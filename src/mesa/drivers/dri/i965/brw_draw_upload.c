@@ -25,9 +25,9 @@
  * 
  **************************************************************************/
 
-#include <stdlib.h>
 
 #include "main/glheader.h"
+#include "main/bufferobj.h"
 #include "main/context.h"
 #include "main/state.h"
 #include "main/api_validate.h"
@@ -384,7 +384,7 @@ static void brw_prepare_vertices(struct brw_context *brw)
 
       input->element_size = get_size(input->glarray->Type) * input->glarray->Size;
 
-      if (input->glarray->BufferObj->Name != 0) {
+      if (_mesa_is_bufferobj(input->glarray->BufferObj)) {
 	 struct intel_buffer_object *intel_buffer =
 	    intel_buffer_object(input->glarray->BufferObj);
 
@@ -423,7 +423,7 @@ static void brw_prepare_vertices(struct brw_context *brw)
 	 /* Queue the buffer object up to be uploaded in the next pass,
 	  * when we've decided if we're doing interleaved or not.
 	  */
-	 if (i == 0) {
+	 if (input->attrib == VERT_ATTRIB_POS) {
 	    /* Position array not properly enabled:
 	     */
             if (input->glarray->StrideB == 0) {
@@ -539,12 +539,12 @@ static void brw_emit_vertices(struct brw_context *brw)
           if (input->stride) {
               OUT_RELOC(input->bo,
                         I915_GEM_DOMAIN_VERTEX, 0,
-                        input->offset + input->stride * input->count);
+                        input->offset + input->stride * input->count - 1);
           } else {
               assert(input->count == 1);
               OUT_RELOC(input->bo,
                         I915_GEM_DOMAIN_VERTEX, 0,
-                        input->offset + input->element_size);
+                        input->offset + input->element_size - 1);
           }
       } else
           OUT_BATCH(input->stride ? input->count : 0);
@@ -623,7 +623,7 @@ static void brw_prepare_indices(struct brw_context *brw)
 
    /* Turn into a proper VBO:
     */
-   if (!bufferobj->Name) {
+   if (!_mesa_is_bufferobj(bufferobj)) {
       brw->ib.start_vertex_offset = 0;
 
       /* Get new bufferobj, offset:
@@ -726,7 +726,7 @@ static void brw_emit_index_buffer(struct brw_context *brw)
 		brw->ib.offset);
       OUT_RELOC(brw->ib.bo,
 		I915_GEM_DOMAIN_VERTEX, 0,
-		brw->ib.offset + brw->ib.size);
+		brw->ib.offset + brw->ib.size - 1);
       OUT_BATCH( 0 );
       ADVANCE_BATCH();
    }

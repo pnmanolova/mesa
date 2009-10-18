@@ -545,15 +545,20 @@ brw_update_renderbuffer_surface(struct brw_context *brw,
 		       irb->texformat->MesaFormat);
       }
       key.tiling = region->tiling;
-      key.width = region->width;
-      key.height = region->height;
+      if (brw->intel.intelScreen->driScrnPriv->dri2.enabled) {
+	 key.width = rb->Width;
+	 key.height = rb->Height;
+      } else {
+	 key.width = region->width;
+	 key.height = region->height;
+      }
       key.pitch = region->pitch;
       key.cpp = region->cpp;
       key.draw_offset = region->draw_offset; /* cur 3d or cube face offset */
    } else {
       key.surface_type = BRW_SURFACE_NULL;
       key.surface_format = BRW_SURFACEFORMAT_B8G8R8A8_UNORM;
-      key.tiling = 0;
+      key.tiling = I915_TILING_X;
       key.width = 1;
       key.height = 1;
       key.cpp = 4;
@@ -629,7 +634,7 @@ brw_update_renderbuffer_surface(struct brw_context *brw,
 	 drm_intel_bo_emit_reloc(brw->wm.surf_bo[unit],
 				 offsetof(struct brw_surface_state, ss1),
 				 region_bo,
-				 surf.ss1.base_addr,
+				 surf.ss1.base_addr - region_bo->offset,
 				 I915_GEM_DOMAIN_RENDER,
 				 I915_GEM_DOMAIN_RENDER);
       }
@@ -655,7 +660,7 @@ brw_wm_get_binding_table(struct brw_context *brw)
 
    if (bind_bo == NULL) {
       GLuint data_size = brw->wm.nr_surfaces * sizeof(GLuint);
-      uint32_t *data = malloc(data_size);
+      uint32_t data[BRW_WM_MAX_SURF];
       int i;
 
       for (i = 0; i < brw->wm.nr_surfaces; i++)
@@ -680,8 +685,6 @@ brw_wm_get_binding_table(struct brw_context *brw)
 			      brw->wm.surf_bo[i]);
 	 }
       }
-
-      free(data);
    }
 
    return bind_bo;
@@ -690,7 +693,6 @@ brw_wm_get_binding_table(struct brw_context *brw)
 static void prepare_wm_surfaces(struct brw_context *brw )
 {
    GLcontext *ctx = &brw->intel.ctx;
-   struct intel_context *intel = &brw->intel;
    GLuint i;
    int old_nr_surfaces;
 
@@ -719,17 +721,8 @@ static void prepare_wm_surfaces(struct brw_context *brw )
 
       /* _NEW_TEXTURE, BRW_NEW_TEXDATA */
       if (texUnit->_ReallyEnabled) {
-         if (texUnit->_Current == intel->frame_buffer_texobj) {
-            /* render to texture */
-            dri_bo_unreference(brw->wm.surf_bo[surf]);
-            brw->wm.surf_bo[surf] = brw->wm.surf_bo[0];
-            dri_bo_reference(brw->wm.surf_bo[surf]);
-            brw->wm.nr_surfaces = surf + 1;
-         } else {
-            /* regular texture */
-            brw_update_texture_surface(ctx, i);
-            brw->wm.nr_surfaces = surf + 1;
-         }
+	 brw_update_texture_surface(ctx, i);
+	 brw->wm.nr_surfaces = surf + 1;
       } else {
          dri_bo_unreference(brw->wm.surf_bo[surf]);
          brw->wm.surf_bo[surf] = NULL;

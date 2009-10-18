@@ -45,44 +45,17 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "main/glheader.h"
 #include "main/imports.h"
 #include "main/context.h"
-#include "main/arrayobj.h"
-#include "main/api_arrayelt.h"
 #include "main/enums.h"
-#include "main/colormac.h"
-#include "main/light.h"
 #include "main/framebuffer.h"
-#include "main/simple_list.h"
 #include "main/renderbuffer.h"
-#include "swrast/swrast.h"
-#include "vbo/vbo.h"
-#include "tnl/tnl.h"
-#include "tnl/t_pipeline.h"
-#include "swrast_setup/swrast_setup.h"
+#include "drivers/common/meta.h"
 
-#include "main/blend.h"
-#include "main/bufferobj.h"
-#include "main/buffers.h"
-#include "main/depth.h"
-#include "main/polygon.h"
-#include "main/shaders.h"
-#include "main/texstate.h"
-#include "main/varray.h"
-#include "glapi/dispatch.h"
-#include "swrast/swrast.h"
-#include "main/stencil.h"
-#include "main/matrix.h"
-#include "main/attrib.h"
-#include "main/enable.h"
-#include "main/viewport.h"
-
-#include "dri_util.h"
 #include "vblank.h"
 
 #include "radeon_common.h"
 #include "radeon_bocs_wrapper.h"
 #include "radeon_lock.h"
 #include "radeon_drm.h"
-#include "radeon_mipmap_tree.h"
 #include "radeon_queryobj.h"
 
 /**
@@ -256,7 +229,6 @@ void radeonUpdateScissor( GLcontext *ctx )
 	}
 	if (!rmesa->radeonScreen->kernel_mm) {
 	   /* Fix scissors for dri 1 */
-
 	   __DRIdrawablePrivate *dPriv = radeon_get_drawable(rmesa);
 	   x1 += dPriv->x;
 	   x2 += dPriv->x + 1;
@@ -1261,7 +1233,9 @@ int rcommonFlushCmdBuf(radeonContextPtr rmesa, const char *caller)
 	UNLOCK_HARDWARE(rmesa);
 
 	if (ret) {
-		fprintf(stderr, "drmRadeonCmdBuffer: %d\n", ret);
+		fprintf(stderr, "drmRadeonCmdBuffer: %d. Kernel failed to "
+				"parse or rejected command stream. See dmesg "
+				"for more info.\n", ret);
 		_mesa_exit(ret);
 	}
 
@@ -1370,6 +1344,5 @@ void rcommonBeginBatch(radeonContextPtr rmesa, int n,
 
 void radeonUserClear(GLcontext *ctx, GLuint mask)
 {
-   radeonContextPtr rmesa = RADEON_CONTEXT(ctx);
-   meta_clear_tris(&rmesa->meta, mask);
+   _mesa_meta_Clear(ctx, mask);
 }

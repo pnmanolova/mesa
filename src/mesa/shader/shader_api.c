@@ -382,12 +382,18 @@ get_shader_flags(void)
          flags |= GLSL_DUMP;
       if (_mesa_strstr(env, "log"))
          flags |= GLSL_LOG;
+      if (_mesa_strstr(env, "nopvert"))
+         flags |= GLSL_NOP_VERT;
+      if (_mesa_strstr(env, "nopfrag"))
+         flags |= GLSL_NOP_FRAG;
       if (_mesa_strstr(env, "nopt"))
          flags |= GLSL_NO_OPT;
       else if (_mesa_strstr(env, "opt"))
          flags |= GLSL_OPT;
       if (_mesa_strstr(env, "uniform"))
          flags |= GLSL_UNIFORMS;
+      if (_mesa_strstr(env, "useprog"))
+         flags |= GLSL_USE_PROG;
    }
 
    return flags;
@@ -1546,6 +1552,21 @@ _mesa_link_program(GLcontext *ctx, GLuint program)
    FLUSH_VERTICES(ctx, _NEW_PROGRAM);
 
    _slang_link(ctx, program, shProg);
+
+   /* debug code */
+   if (0) {
+      GLuint i;
+
+      _mesa_printf("Link %u shaders in program %u: %s\n",
+                   shProg->NumShaders, shProg->Name,
+                   shProg->LinkStatus ? "Success" : "Failed");
+
+      for (i = 0; i < shProg->NumShaders; i++) {
+         _mesa_printf(" shader %u, type 0x%x\n",
+                      shProg->Shaders[i]->Name,
+                      shProg->Shaders[i]->Type);
+      }
+   }
 }
 
 
@@ -1577,21 +1598,34 @@ _mesa_use_program(GLcontext *ctx, GLuint program)
       }
 
       /* debug code */
-      if (0) {
+      if (ctx->Shader.Flags & GLSL_USE_PROG) {
          GLuint i;
-         _mesa_printf("Use Shader %u\n", shProg->Name);
+         _mesa_printf("Mesa: glUseProgram(%u)\n", shProg->Name);
          for (i = 0; i < shProg->NumShaders; i++) {
-            _mesa_printf(" shader %u, type 0x%x, checksum %u\n",
+            const char *s;
+            switch (shProg->Shaders[i]->Type) {
+            case GL_VERTEX_SHADER:
+               s = "vertex";
+               break;
+            case GL_FRAGMENT_SHADER:
+               s = "fragment";
+               break;
+            case GL_GEOMETRY_SHADER:
+               s = "geometry";
+               break;
+            default:
+               s = "";
+            }
+            _mesa_printf("  %s shader %u, checksum %u\n", s, 
                          shProg->Shaders[i]->Name,
-                         shProg->Shaders[i]->Type,
                          shProg->Shaders[i]->SourceChecksum);
          }
          if (shProg->VertexProgram)
-            printf(" vert prog %u\n", shProg->VertexProgram->Base.Id);
+            _mesa_printf("  vert prog %u\n", shProg->VertexProgram->Base.Id);
          if (shProg->FragmentProgram)
-            printf(" frag prog %u\n", shProg->FragmentProgram->Base.Id);
+            _mesa_printf("  frag prog %u\n", shProg->FragmentProgram->Base.Id);
          if (shProg->GeometryProgram)
-            printf(" frag prog %u\n", shProg->FragmentProgram->Base.Id);
+            _mesa_printf("  geom prog %u\n", shProg->GeometryProgram->Base.Id);
       }
    }
    else {
@@ -1761,8 +1795,8 @@ set_program_uniform(GLcontext *ctx, struct gl_program *program,
          /* we'll ignore extra data below */
       }
       else {
-         /* non-array: count must be one */
-         if (count != 1) {
+         /* non-array: count must be at most one; count == 0 is handled by the loop below */
+         if (count > 1) {
             _mesa_error(ctx, GL_INVALID_OPERATION,
                         "glUniform(uniform is not an array)");
             return;
@@ -1948,20 +1982,27 @@ set_program_uniform_matrix(GLcontext *ctx, struct gl_program *program,
                            GLboolean transpose, const GLfloat *values)
 {
    GLuint mat, row, col;
-   GLuint dst = index + offset, src = 0;
+   GLuint src = 0;
+   const struct gl_program_parameter * param = &program->Parameters->Parameters[index];
+   const GLint slots = (param->Size + 3) / 4;
+   const GLint typeSize = sizeof_glsl_type(param->DataType);
    GLint nr, nc;
 
    /* check that the number of rows, columns is correct */
-   get_matrix_dims(program->Parameters->Parameters[index].DataType, &nr, &nc);
+   get_matrix_dims(param->DataType, &nr, &nc);
    if (rows != nr || cols != nc) {
       _mesa_error(ctx, GL_INVALID_OPERATION,
                   "glUniformMatrix(matrix size mismatch)");
       return;
    }
 
-   if (index + offset > program->Parameters->Size) {
-      /* out of bounds! */
-      return;
+   if (param->Size <= typeSize) {
+      /* non-array: count must be at most one; count == 0 is handled by the loop below */
+      if (count > 1) {
+         _mesa_error(ctx, GL_INVALID_OPERATION,
+                     "glUniformMatrix(uniform is not an array)");
+         return;
+      }
    }
 
    /*
@@ -1975,7 +2016,12 @@ set_program_uniform_matrix(GLcontext *ctx, struct gl_program *program,
 
       /* each matrix: */
       for (col = 0; col < cols; col++) {
-         GLfloat *v = program->Parameters->ParameterValues[dst];
+         GLfloat *v;
+         if (offset >= slots) {
+            /* Ignore writes beyond the end of (the used part of) an array */
+            return;
+         }
+         v = program->Parameters->ParameterValues[index + offset];
          for (row = 0; row < rows; row++) {
             if (transpose) {
                v[row] = values[src + row * cols + col];
@@ -1984,7 +2030,8 @@ set_program_uniform_matrix(GLcontext *ctx, struct gl_program *program,
                v[row] = values[src + col * rows + row];
             }
          }
-         dst++;
+
+         offset++;
       }
 
       src += rows * cols;  /* next matrix */

@@ -43,6 +43,7 @@
 #include "pipe/p_inlines.h"
 #include "util/u_tile.h"
 
+#include "st_debug.h"
 #include "st_context.h"
 #include "st_cb_bitmap.h"
 #include "st_cb_readpixels.h"
@@ -353,7 +354,7 @@ st_readpixels(GLcontext *ctx, GLint x, GLint y, GLsizei width, GLsizei height,
       return;
    }
 
-   dest = _mesa_map_readpix_pbo(ctx, &clippedPacking, dest);
+   dest = _mesa_map_pbo_dest(ctx, &clippedPacking, dest);
    if (!dest)
       return;
 
@@ -380,7 +381,7 @@ st_readpixels(GLcontext *ctx, GLint x, GLint y, GLsizei width, GLsizei height,
    if (st_fast_readpixels(ctx, strb, x, y, width, height,
                           format, type, pack, dest)) {
       /* success! */
-      _mesa_unmap_readpix_pbo(ctx, &clippedPacking);
+      _mesa_unmap_pbo_dest(ctx, &clippedPacking);
       return;
    }
 
@@ -415,6 +416,9 @@ st_readpixels(GLcontext *ctx, GLint x, GLint y, GLsizei width, GLsizei height,
       y = 0;
       yStep = 1;
    }
+
+   if (ST_DEBUG & DEBUG_FALLBACK)
+      debug_printf("%s: fallback processing\n", __FUNCTION__);
 
    /*
     * Copy pixels from pipe_transfer to user memory
@@ -534,7 +538,7 @@ st_readpixels(GLcontext *ctx, GLint x, GLint y, GLsizei width, GLsizei height,
 
    screen->tex_transfer_destroy(trans);
 
-   _mesa_unmap_readpix_pbo(ctx, &clippedPacking);
+   _mesa_unmap_pbo_dest(ctx, &clippedPacking);
 }
 
 

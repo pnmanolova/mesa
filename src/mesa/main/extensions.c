@@ -47,7 +47,9 @@ static const struct {
 } default_extensions[] = {
    { OFF, "GL_ARB_copy_buffer",                F(ARB_copy_buffer) },
    { OFF, "GL_ARB_depth_texture",              F(ARB_depth_texture) },
+   { OFF, "GL_ARB_depth_clamp",                F(ARB_depth_clamp) },
    { ON,  "GL_ARB_draw_buffers",               F(ARB_draw_buffers) },
+   { OFF, "GL_ARB_draw_elements_base_vertex",  F(ARB_draw_elements_base_vertex) },
    { OFF, "GL_ARB_fragment_program",           F(ARB_fragment_program) },
    { OFF, "GL_ARB_fragment_program_shadow",    F(ARB_fragment_program_shadow) },
    { OFF, "GL_ARB_fragment_shader",            F(ARB_fragment_shader) },
@@ -62,12 +64,14 @@ static const struct {
    { OFF, "GL_ARB_pixel_buffer_object",        F(EXT_pixel_buffer_object) },
    { OFF, "GL_ARB_point_parameters",           F(EXT_point_parameters) },
    { OFF, "GL_ARB_point_sprite",               F(ARB_point_sprite) },
+   { OFF, "GL_ARB_provoking_vertex",           F(EXT_provoking_vertex) },
    { OFF, "GL_ARB_seamless_cube_map",          F(ARB_seamless_cube_map) },
    { OFF, "GL_ARB_shader_objects",             F(ARB_shader_objects) },
    { OFF, "GL_ARB_shading_language_100",       F(ARB_shading_language_100) },
    { OFF, "GL_ARB_shading_language_120",       F(ARB_shading_language_120) },
    { OFF, "GL_ARB_shadow",                     F(ARB_shadow) },
    { OFF, "GL_ARB_shadow_ambient",             F(ARB_shadow_ambient) },
+   { OFF, "GL_ARB_sync",                       F(ARB_sync) },
    { OFF, "GL_ARB_texture_border_clamp",       F(ARB_texture_border_clamp) },
    { ON,  "GL_ARB_texture_compression",        F(ARB_texture_compression) },
    { OFF, "GL_ARB_texture_cube_map",           F(ARB_texture_cube_map) },
@@ -162,7 +166,9 @@ static const struct {
    { OFF, "GL_MESA_ycbcr_texture",             F(MESA_ycbcr_texture) },
    { ON,  "GL_MESA_window_pos",                F(ARB_window_pos) },
    { OFF, "GL_NV_blend_square",                F(NV_blend_square) },
+   { OFF, "GL_NV_depth_clamp",                 F(ARB_depth_clamp) },
    { OFF, "GL_NV_fragment_program",            F(NV_fragment_program) },
+   { OFF, "GL_NV_fragment_program_option",     F(NV_fragment_program_option) },
    { ON,  "GL_NV_light_max_exponent",          F(NV_light_max_exponent) },
    { OFF, "GL_NV_point_sprite",                F(NV_point_sprite) },
    { OFF, "GL_NV_texture_env_combine4",        F(NV_texture_env_combine4) },
@@ -192,8 +198,10 @@ void
 _mesa_enable_sw_extensions(GLcontext *ctx)
 {
    ctx->Extensions.ARB_copy_buffer = GL_TRUE;
+   ctx->Extensions.ARB_depth_clamp = GL_TRUE;
    ctx->Extensions.ARB_depth_texture = GL_TRUE;
    /*ctx->Extensions.ARB_draw_buffers = GL_TRUE;*/
+   ctx->Extensions.ARB_draw_elements_base_vertex = GL_TRUE;
 #if FEATURE_ARB_fragment_program
    ctx->Extensions.ARB_fragment_program = GL_TRUE;
    ctx->Extensions.ARB_fragment_program_shadow = GL_TRUE;
@@ -211,7 +219,7 @@ _mesa_enable_sw_extensions(GLcontext *ctx)
    ctx->Extensions.ARB_imaging = GL_TRUE;
    ctx->Extensions.ARB_map_buffer_range = GL_TRUE;
    ctx->Extensions.ARB_multitexture = GL_TRUE;
-#if FEATURE_ARB_occlusion_query
+#if FEATURE_queryobj
    ctx->Extensions.ARB_occlusion_query = GL_TRUE;
 #endif
    ctx->Extensions.ARB_point_sprite = GL_TRUE;
@@ -243,6 +251,9 @@ _mesa_enable_sw_extensions(GLcontext *ctx)
 #endif
 #if FEATURE_ARB_vertex_buffer_object
    /*ctx->Extensions.ARB_vertex_buffer_object = GL_TRUE;*/
+#endif
+#if FEATURE_ARB_sync
+   ctx->Extensions.ARB_sync = GL_TRUE;
 #endif
    ctx->Extensions.APPLE_vertex_array_object = GL_TRUE;
    ctx->Extensions.ATI_envmap_bumpmap = GL_TRUE;
@@ -308,6 +319,9 @@ _mesa_enable_sw_extensions(GLcontext *ctx)
 #endif
 #if FEATURE_NV_fragment_program
    ctx->Extensions.NV_fragment_program = GL_TRUE;
+#endif
+#if FEATURE_NV_fragment_program && FEATURE_ARB_fragment_program
+   ctx->Extensions.NV_fragment_program_option = GL_TRUE;
 #endif
    ctx->Extensions.SGI_color_matrix = GL_TRUE;
    ctx->Extensions.SGI_color_table = GL_TRUE;

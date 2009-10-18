@@ -122,24 +122,45 @@
 
 #if defined(__linux__)
 #define PIPE_OS_LINUX
+#define PIPE_OS_UNIX
 #endif
 
 #if defined(__FreeBSD__)
+#define PIPE_OS_FREEBSD
 #define PIPE_OS_BSD
+#define PIPE_OS_UNIX
+#endif
+
+#if defined(__OpenBSD__)
+#define PIPE_OS_OPENBSD
+#define PIPE_OS_BSD
+#define PIPE_OS_UNIX
+#endif
+
+#if defined(__NetBSD__)
+#define PIPE_OS_NETBSD
+#define PIPE_OS_BSD
+#define PIPE_OS_UNIX
 #endif
 
 #if defined(__sun)
 #define PIPE_OS_SOLARIS
+#define PIPE_OS_UNIX
 #endif
 
 #if defined(__APPLE__)
 #define PIPE_OS_APPLE
+#define PIPE_OS_UNIX
 #endif
 
 #if defined(_WIN32) || defined(WIN32)
 #define PIPE_OS_WINDOWS
 #endif
 
+#if defined(__HAIKU__)
+#define PIPE_OS_HAIKU
+#define PIPE_OS_UNIX
+#endif
 
 /*
  * Subsystem.

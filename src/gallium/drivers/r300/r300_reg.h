@@ -1172,6 +1172,13 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 /* SU Depth Offset value */
 #define R300_SU_DEPTH_OFFSET                0x42c4
 
+#define R300_SU_REG_DEST		    0x42c8
+#	define R300_RASTER_PIPE_SELECT_0	(1 << 0)
+#	define R300_RASTER_PIPE_SELECT_1	(1 << 1)
+#	define R300_RASTER_PIPE_SELECT_2	(1 << 2)
+#	define R300_RASTER_PIPE_SELECT_3	(1 << 3)
+#	define R300_RASTER_PIPE_SELECT_ALL	0xf
+
 
 /* BEGIN: Rasterization / Interpolators - many guesses */
 
@@ -1478,6 +1485,7 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 #       define R300_TX_PITCH_EN                  (1 << 31)
 #       define R300_TX_WIDTH(x)                  ((x) << 0)
 #       define R300_TX_HEIGHT(x)                 ((x) << 11)
+#       define R300_TX_DEPTH(x)                  ((x) << 22)
 #       define R300_TX_NUM_LEVELS(x)             ((x) << 26)
 
 #define R300_TX_FORMAT1_0                   0x44C0
@@ -2094,6 +2102,10 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define R500_FG_ALPHA_VALUE                0x4be0
 #	define R500_FG_ALPHA_VALUE_MASK 0x0000ffff
 
+#define RV530_FG_ZBREG_DEST                 0x4be8
+#	define RV530_FG_ZBREG_DEST_PIPE_SELECT_0             (1 << 0)
+#	define RV530_FG_ZBREG_DEST_PIPE_SELECT_1             (1 << 1)
+#	define RV530_FG_ZBREG_DEST_PIPE_SELECT_ALL           (3 << 0)
 /* gap */
 
 /* Fragment program parameters in 7.16 floating point */
@@ -3311,10 +3323,6 @@ enum {
 #define RADEON_CP_PACKET3                           0xC0000000
 
 #define R200_3D_DRAW_IMMD_2      0xC0003500
-
-/* XXX Oh look, stuff not brought over from docs yet */
-
-#define R300_SU_REG_DEST                    0x42C8
 
 #endif /* _R300_REG_H */
 

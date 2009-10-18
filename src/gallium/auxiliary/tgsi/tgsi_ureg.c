@@ -29,7 +29,9 @@
 #include "pipe/p_context.h"
 #include "pipe/p_state.h"
 #include "tgsi/tgsi_ureg.h"
+#include "tgsi/tgsi_info.h"
 #include "tgsi/tgsi_dump.h"
+#include "tgsi/tgsi_sanity.h"
 #include "util/u_memory.h"
 #include "util/u_math.h"
 
@@ -69,8 +71,10 @@ struct ureg_tokens {
 
 #define UREG_MAX_INPUT PIPE_MAX_ATTRIBS
 #define UREG_MAX_OUTPUT PIPE_MAX_ATTRIBS
+#define UREG_MAX_CONSTANT_RANGE 32
 #define UREG_MAX_IMMEDIATE 32
 #define UREG_MAX_TEMP 256
+#define UREG_MAX_ADDR 2
 
 #define DOMAIN_DECL 0
 #define DOMAIN_INSN 1
@@ -84,8 +88,11 @@ struct ureg_program
       unsigned semantic_name;
       unsigned semantic_index;
       unsigned interp;
-   } input[UREG_MAX_INPUT];
-   unsigned nr_inputs;
+   } fs_input[UREG_MAX_INPUT];
+   unsigned nr_fs_inputs;
+
+   unsigned vs_inputs[UREG_MAX_INPUT/32];
+   unsigned gs_inputs[UREG_MAX_INPUT/32];
 
    struct {
       unsigned semantic_name;
@@ -99,11 +106,19 @@ struct ureg_program
    } immediate[UREG_MAX_IMMEDIATE];
    unsigned nr_immediates;
 
+   struct ureg_src sampler[PIPE_MAX_SAMPLERS];
+   unsigned nr_samplers;
+
    unsigned temps_active[UREG_MAX_TEMP / 32];
    unsigned nr_temps;
 
-   unsigned nr_constants;
-   unsigned nr_samplers;
+   struct {
+      unsigned first;
+      unsigned last;
+   } constant_range[UREG_MAX_CONSTANT_RANGE];
+   unsigned nr_constant_ranges;
+
+   unsigned nr_addrs;
    unsigned nr_instructions;
 
    struct ureg_tokens domain[2];
@@ -113,6 +128,9 @@ static union tgsi_any_token error_tokens[32];
 
 static void tokens_error( struct ureg_tokens *tokens )
 {
+   if (tokens->tokens && tokens->tokens != error_tokens)
+      FREE(tokens->tokens);
+
    tokens->tokens = error_tokens;
    tokens->size = Elements(error_tokens);
    tokens->count = 0;
@@ -187,6 +205,8 @@ ureg_dst_register( unsigned file,
    dst.File      = file;
    dst.WriteMask = TGSI_WRITEMASK_XYZW;
    dst.Indirect  = 0;
+   dst.IndirectIndex = 0;
+   dst.IndirectSwizzle = 0;
    dst.Saturate  = 0;
    dst.Index     = index;
    dst.Pad1      = 0;
@@ -208,6 +228,8 @@ ureg_src_register( unsigned file,
    src.SwizzleW = TGSI_SWIZZLE_W;
    src.Pad      = 0;
    src.Indirect = 0;
+   src.IndirectIndex = 0;
+   src.IndirectSwizzle = 0;
    src.Absolute = 0;
    src.Index    = index;
    src.Negate   = 0;
@@ -218,25 +240,25 @@ ureg_src_register( unsigned file,
 
 
 
-static struct ureg_src 
-ureg_DECL_input( struct ureg_program *ureg,
-                 unsigned name,
-                 unsigned index,
-                 unsigned interp_mode )
+struct ureg_src 
+ureg_DECL_fs_input( struct ureg_program *ureg,
+                    unsigned name,
+                    unsigned index,
+                    unsigned interp_mode )
 {
    unsigned i;
 
-   for (i = 0; i < ureg->nr_inputs; i++) {
-      if (ureg->input[i].semantic_name == name &&
-          ureg->input[i].semantic_index == index) 
+   for (i = 0; i < ureg->nr_fs_inputs; i++) {
+      if (ureg->fs_input[i].semantic_name == name &&
+          ureg->fs_input[i].semantic_index == index) 
          goto out;
    }
 
-   if (ureg->nr_inputs < UREG_MAX_INPUT) {
-      ureg->input[i].semantic_name = name;
-      ureg->input[i].semantic_index = index;
-      ureg->input[i].interp = interp_mode;
-      ureg->nr_inputs++;
+   if (ureg->nr_fs_inputs < UREG_MAX_INPUT) {
+      ureg->fs_input[i].semantic_name = name;
+      ureg->fs_input[i].semantic_index = index;
+      ureg->fs_input[i].interp = interp_mode;
+      ureg->nr_fs_inputs++;
    }
    else {
       set_bad( ureg );
@@ -247,23 +269,25 @@ out:
 }
 
 
-
 struct ureg_src 
-ureg_DECL_fs_input( struct ureg_program *ureg,
-                    unsigned name,
-                    unsigned index,
-                    unsigned interp )
+ureg_DECL_vs_input( struct ureg_program *ureg,
+                    unsigned index )
 {
-   return ureg_DECL_input( ureg, name, index, interp );
+   assert(ureg->processor == TGSI_PROCESSOR_VERTEX);
+   
+   ureg->vs_inputs[index/32] |= 1 << (index % 32);
+   return ureg_src_register( TGSI_FILE_INPUT, index );
 }
 
 
-struct ureg_src 
-ureg_DECL_vs_input( struct ureg_program *ureg,
-                    unsigned name,
+struct ureg_src
+ureg_DECL_gs_input( struct ureg_program *ureg,
                     unsigned index )
 {
-   return ureg_DECL_input( ureg, name, index, TGSI_INTERPOLATE_CONSTANT );
+   assert(ureg->processor == TGSI_PROCESSOR_GEOMETRY);
+
+   ureg->gs_inputs[index/32] |= 1 << (index % 32);
+   return ureg_src_register( TGSI_FILE_INPUT, index );
 }
 
 
@@ -301,9 +325,57 @@ out:
  * value or manage any constant_buffer contents -- that's the
  * resposibility of the calling code.
  */
-struct ureg_src ureg_DECL_constant(struct ureg_program *ureg )
+struct ureg_src ureg_DECL_constant(struct ureg_program *ureg, 
+                                   unsigned index )
 {
-   return ureg_src_register( TGSI_FILE_CONSTANT, ureg->nr_constants++ );
+   unsigned minconst = index, maxconst = index;
+   unsigned i;
+
+   /* Inside existing range?
+    */
+   for (i = 0; i < ureg->nr_constant_ranges; i++) {
+      if (ureg->constant_range[i].first <= index &&
+          ureg->constant_range[i].last >= index)
+         goto out;
+   }
+
+   /* Extend existing range?
+    */
+   for (i = 0; i < ureg->nr_constant_ranges; i++) {
+      if (ureg->constant_range[i].last == index - 1) {
+         ureg->constant_range[i].last = index;
+         goto out;
+      }
+
+      if (ureg->constant_range[i].first == index + 1) {
+         ureg->constant_range[i].first = index;
+         goto out;
+      }
+
+      minconst = MIN2(minconst, ureg->constant_range[i].first);
+      maxconst = MAX2(maxconst, ureg->constant_range[i].last);
+   }
+
+   /* Create new range?
+    */
+   if (ureg->nr_constant_ranges < UREG_MAX_CONSTANT_RANGE) {
+      i = ureg->nr_constant_ranges++;
+      ureg->constant_range[i].first = index;
+      ureg->constant_range[i].last = index;
+   }
+
+   /* Collapse all ranges down to one:
+    */
+   i = 0;
+   ureg->constant_range[0].first = minconst;
+   ureg->constant_range[0].last = maxconst;
+   ureg->nr_constant_ranges = 1;
+
+out:
+   assert(i < ureg->nr_constant_ranges);
+   assert(ureg->constant_range[i].first <= index);
+   assert(ureg->constant_range[i].last >= index);
+   return ureg_src_register( TGSI_FILE_CONSTANT, index );
 }
 
 
@@ -346,11 +418,36 @@ void ureg_release_temporary( struct ureg_program *ureg,
 }
 
 
+/* Allocate a new address register.
+ */
+struct ureg_dst ureg_DECL_address( struct ureg_program *ureg )
+{
+   if (ureg->nr_addrs < UREG_MAX_ADDR)
+      return ureg_dst_register( TGSI_FILE_ADDRESS, ureg->nr_addrs++ );
+
+   assert( 0 );
+   return ureg_dst_register( TGSI_FILE_ADDRESS, 0 );
+}
+
 /* Allocate a new sampler.
  */
-struct ureg_src ureg_DECL_sampler( struct ureg_program *ureg )
+struct ureg_src ureg_DECL_sampler( struct ureg_program *ureg,
+                                   unsigned nr )
 {
-   return ureg_src_register( TGSI_FILE_SAMPLER, ureg->nr_samplers++ );
+   unsigned i;
+
+   for (i = 0; i < ureg->nr_samplers; i++)
+      if (ureg->sampler[i].Index == nr)
+         return ureg->sampler[i];
+   
+   if (i < PIPE_MAX_SAMPLERS) {
+      ureg->sampler[i] = ureg_src_register( TGSI_FILE_SAMPLER, nr );
+      ureg->nr_samplers++;
+      return ureg->sampler[i];
+   }
+
+   assert( 0 );
+   return ureg->sampler[0];
 }
 
 
@@ -363,6 +460,8 @@ static int match_or_expand_immediate( const float *v,
                                       unsigned *swizzle )
 {
    unsigned i, j;
+   
+   *swizzle = 0;
 
    for (i = 0; i < nr; i++) {
       boolean found = FALSE;
@@ -394,8 +493,8 @@ struct ureg_src ureg_DECL_immediate( struct ureg_program *ureg,
                                      const float *v,
                                      unsigned nr )
 {
-   unsigned i;
-   unsigned swizzle = 0;
+   unsigned i, j;
+   unsigned swizzle;
 
    /* Could do a first pass where we examine all existing immediates
     * without expanding.
@@ -423,6 +522,12 @@ struct ureg_src ureg_DECL_immediate( struct ureg_program *ureg,
    set_bad( ureg );
 
 out:
+   /* Make sure that all referenced elements are from this immediate.
+    * Has the effect of making size-one immediates into scalars.
+    */
+   for (j = nr; j < 4; j++)
+      swizzle |= (swizzle & 0x3) << (j * 2);
+
    return ureg_swizzle( ureg_src_register( TGSI_FILE_IMMEDIATE, i ),
                         (swizzle >> 0) & 0x3,
                         (swizzle >> 2) & 0x3,
@@ -442,31 +547,39 @@ ureg_emit_src( struct ureg_program *ureg,
    union tgsi_any_token *out = get_tokens( ureg, DOMAIN_INSN, size );
    unsigned n = 0;
 
+   assert(src.File != TGSI_FILE_NULL);
+   assert(src.File != TGSI_FILE_OUTPUT);
+   assert(src.File < TGSI_FILE_COUNT);
+   
    out[n].value = 0;
    out[n].src.File = src.File;
    out[n].src.SwizzleX = src.SwizzleX;
    out[n].src.SwizzleY = src.SwizzleY;
    out[n].src.SwizzleZ = src.SwizzleZ;
    out[n].src.SwizzleW = src.SwizzleW;
-   out[n].src.Indirect = src.Indirect;
    out[n].src.Index = src.Index;
+   out[n].src.Negate = src.Negate;
    n++;
    
    if (src.Absolute) {
+      out[0].src.Extended = 1;
+      out[0].src.Negate = 0;
       out[n].value = 0;
+      out[n].src_ext_mod.Type = TGSI_SRC_REGISTER_EXT_TYPE_MOD;
       out[n].src_ext_mod.Absolute = 1;
+      out[n].src_ext_mod.Negate = src.Negate;
       n++;
    }
 
    if (src.Indirect) {
+      out[0].src.Indirect = 1;
       out[n].value = 0;
       out[n].src.File = TGSI_FILE_ADDRESS;
-      out[n].src.SwizzleX = TGSI_SWIZZLE_X;
-      out[n].src.SwizzleY = TGSI_SWIZZLE_X;
-      out[n].src.SwizzleZ = TGSI_SWIZZLE_X;
-      out[n].src.SwizzleW = TGSI_SWIZZLE_X;
-      out[n].src.Indirect = 0;
-      out[n].src.Index = 0;
+      out[n].src.SwizzleX = src.IndirectSwizzle;
+      out[n].src.SwizzleY = src.IndirectSwizzle;
+      out[n].src.SwizzleZ = src.IndirectSwizzle;
+      out[n].src.SwizzleW = src.IndirectSwizzle;
+      out[n].src.Index = src.IndirectIndex;
       n++;
    }
 
@@ -484,6 +597,13 @@ ureg_emit_dst( struct ureg_program *ureg,
    union tgsi_any_token *out = get_tokens( ureg, DOMAIN_INSN, size );
    unsigned n = 0;
 
+   assert(dst.File != TGSI_FILE_NULL);
+   assert(dst.File != TGSI_FILE_CONSTANT);
+   assert(dst.File != TGSI_FILE_INPUT);
+   assert(dst.File != TGSI_FILE_SAMPLER);
+   assert(dst.File != TGSI_FILE_IMMEDIATE);
+   assert(dst.File < TGSI_FILE_COUNT);
+   
    out[n].value = 0;
    out[n].dst.File = dst.File;
    out[n].dst.WriteMask = dst.WriteMask;
@@ -494,12 +614,11 @@ ureg_emit_dst( struct ureg_program *ureg,
    if (dst.Indirect) {
       out[n].value = 0;
       out[n].src.File = TGSI_FILE_ADDRESS;
-      out[n].src.SwizzleX = TGSI_SWIZZLE_X;
-      out[n].src.SwizzleY = TGSI_SWIZZLE_X;
-      out[n].src.SwizzleZ = TGSI_SWIZZLE_X;
-      out[n].src.SwizzleW = TGSI_SWIZZLE_X;
-      out[n].src.Indirect = 0;
-      out[n].src.Index = 0;
+      out[n].src.SwizzleX = dst.IndirectSwizzle;
+      out[n].src.SwizzleY = dst.IndirectSwizzle;
+      out[n].src.SwizzleZ = dst.IndirectSwizzle;
+      out[n].src.SwizzleW = dst.IndirectSwizzle;
+      out[n].src.Index = dst.IndirectIndex;
       n++;
    }
 
@@ -507,6 +626,19 @@ ureg_emit_dst( struct ureg_program *ureg,
 }
 
 
+static void validate( unsigned opcode,
+                      unsigned nr_dst,
+                      unsigned nr_src )
+{
+#ifdef DEBUG
+   const struct tgsi_opcode_info *info = tgsi_get_opcode_info( opcode );
+   assert(info);
+   if(info) {
+      assert(nr_dst == info->num_dst);
+      assert(nr_src == info->num_src);
+   }
+#endif
+}
 
 unsigned
 ureg_emit_insn(struct ureg_program *ureg,
@@ -517,13 +649,14 @@ ureg_emit_insn(struct ureg_program *ureg,
 {
    union tgsi_any_token *out;
 
+   validate( opcode, num_dst, num_src );
+   
    out = get_tokens( ureg, DOMAIN_INSN, 1 );
    out[0].value = 0;
    out[0].insn.Type = TGSI_TOKEN_TYPE_INSTRUCTION;
    out[0].insn.NrTokens = 0;
    out[0].insn.Opcode = opcode;
    out[0].insn.Saturate = saturate;
-   out[0].insn.NrTokens = 0;
    out[0].insn.NumDstRegs = num_dst;
    out[0].insn.NumSrcRegs = num_src;
    out[0].insn.Padding = 0;
@@ -541,6 +674,9 @@ ureg_emit_label(struct ureg_program *ureg,
                 unsigned *label_token )
 {
    union tgsi_any_token *out, *insn;
+
+   if(!label_token)
+      return;
 
    out = get_tokens( ureg, DOMAIN_INSN, 1 );
    insn = retrieve_token( ureg, DOMAIN_INSN, insn_token );
@@ -630,6 +766,53 @@ ureg_insn(struct ureg_program *ureg,
    ureg_fixup_insn_size( ureg, insn );
 }
 
+void
+ureg_tex_insn(struct ureg_program *ureg,
+              unsigned opcode,
+              const struct ureg_dst *dst,
+              unsigned nr_dst,
+              unsigned target,
+              const struct ureg_src *src,
+              unsigned nr_src )
+{
+   unsigned insn, i;
+   boolean saturate;
+
+   saturate = nr_dst ? dst[0].Saturate : FALSE;
+
+   insn = ureg_emit_insn( ureg, opcode, saturate, nr_dst, nr_src );
+
+   ureg_emit_texture( ureg, insn, target );                             \
+
+   for (i = 0; i < nr_dst; i++)
+      ureg_emit_dst( ureg, dst[i] );
+
+   for (i = 0; i < nr_src; i++)
+      ureg_emit_src( ureg, src[i] );
+
+   ureg_fixup_insn_size( ureg, insn );
+}
+
+
+void
+ureg_label_insn(struct ureg_program *ureg,
+                unsigned opcode,
+                const struct ureg_src *src,
+                unsigned nr_src,
+                unsigned *label_token )
+{
+   unsigned insn, i;
+
+   insn = ureg_emit_insn( ureg, opcode, FALSE, 0, nr_src );
+
+   ureg_emit_label( ureg, insn, label_token );                  \
+
+   for (i = 0; i < nr_src; i++)
+      ureg_emit_src( ureg, src[i] );
+
+   ureg_fixup_insn_size( ureg, insn );
+}
+
 
 
 static void emit_decl( struct ureg_program *ureg,
@@ -705,13 +888,28 @@ static void emit_decls( struct ureg_program *ureg )
 {
    unsigned i;
 
-   for (i = 0; i < ureg->nr_inputs; i++) {
-      emit_decl( ureg, 
-                 TGSI_FILE_INPUT, 
-                 i,
-                 ureg->input[i].semantic_name,
-                 ureg->input[i].semantic_index,
-                 ureg->input[i].interp );
+   if (ureg->processor == TGSI_PROCESSOR_VERTEX) {
+      for (i = 0; i < UREG_MAX_INPUT; i++) {
+         if (ureg->vs_inputs[i/32] & (1 << (i%32))) {
+            emit_decl_range( ureg, TGSI_FILE_INPUT, i, 1 );
+         }
+      }
+   } else if (ureg->processor == TGSI_PROCESSOR_GEOMETRY) {
+      for (i = 0; i < UREG_MAX_INPUT; i++) {
+         if (ureg->gs_inputs[i/32] & (1 << (i%32))) {
+            emit_decl_range( ureg, TGSI_FILE_INPUT, i, 1 );
+         }
+      }
+   }
+   else {
+      for (i = 0; i < ureg->nr_fs_inputs; i++) {
+         emit_decl( ureg, 
+                    TGSI_FILE_INPUT, 
+                    i,
+                    ureg->fs_input[i].semantic_name,
+                    ureg->fs_input[i].semantic_index,
+                    ureg->fs_input[i].interp );
+      }
    }
 
    for (i = 0; i < ureg->nr_outputs; i++) {
@@ -723,22 +921,31 @@ static void emit_decls( struct ureg_program *ureg )
                  TGSI_INTERPOLATE_CONSTANT );
    }
 
-   if (ureg->nr_samplers) {
+   for (i = 0; i < ureg->nr_samplers; i++) {
       emit_decl_range( ureg, 
                        TGSI_FILE_SAMPLER,
-                       0, ureg->nr_samplers );
+                       ureg->sampler[i].Index, 1 );
    }
 
-   if (ureg->nr_constants) {
-      emit_decl_range( ureg,
-                       TGSI_FILE_CONSTANT,
-                       0, ureg->nr_constants );
+   if (ureg->nr_constant_ranges) {
+      for (i = 0; i < ureg->nr_constant_ranges; i++)
+         emit_decl_range( ureg,
+                          TGSI_FILE_CONSTANT,
+                          ureg->constant_range[i].first, 
+                          (ureg->constant_range[i].last + 1 -
+                           ureg->constant_range[i].first) );
    }
 
    if (ureg->nr_temps) {
       emit_decl_range( ureg,
                        TGSI_FILE_TEMPORARY,
                        0, ureg->nr_temps );
+   }
+
+   if (ureg->nr_addrs) {
+      emit_decl_range( ureg,
+                       TGSI_FILE_ADDRESS,
+                       0, ureg->nr_addrs );
    }
 
    for (i = 0; i < ureg->nr_immediates; i++) {
@@ -764,7 +971,7 @@ static void copy_instructions( struct ureg_program *ureg )
 
 
 static void
-fixup_header_size(struct ureg_program *ureg )
+fixup_header_size(struct ureg_program *ureg)
 {
    union tgsi_any_token *out = retrieve_token( ureg, DOMAIN_DECL, 1 );
 
@@ -812,6 +1019,15 @@ const struct tgsi_token *ureg_finalize( struct ureg_program *ureg )
                    ureg->domain[DOMAIN_DECL].count);
       tgsi_dump( tokens, 0 );
    }
+
+#if DEBUG
+   if (tokens && !tgsi_sanity_check(tokens)) {
+      debug_printf("tgsi_ureg.c, sanity check failed on generated tokens:\n");
+      tgsi_dump(tokens, 0);
+      assert(0);
+   }
+#endif
+
    
    return tokens;
 }
@@ -828,11 +1044,32 @@ void *ureg_create_shader( struct ureg_program *ureg,
 
    if (ureg->processor == TGSI_PROCESSOR_VERTEX)
       return pipe->create_vs_state( pipe, &state );
+   else if (ureg->processor == TGSI_PROCESSOR_GEOMETRY)
+      return pipe->create_gs_state( pipe, &state );
    else
       return pipe->create_fs_state( pipe, &state );
 }
 
 
+const struct tgsi_token *ureg_get_tokens( struct ureg_program *ureg,
+                                          unsigned *nr_tokens )
+{
+   const struct tgsi_token *tokens;
+
+   ureg_finalize(ureg);
+
+   tokens = &ureg->domain[DOMAIN_DECL].tokens[0].token;
+
+   if (nr_tokens) 
+      *nr_tokens = ureg->domain[DOMAIN_DECL].size;
+
+   ureg->domain[DOMAIN_DECL].tokens = 0;
+   ureg->domain[DOMAIN_DECL].size = 0;
+   ureg->domain[DOMAIN_DECL].order = 0;
+   ureg->domain[DOMAIN_DECL].count = 0;
+
+   return tokens;
+}
 
 
 struct ureg_program *ureg_create( unsigned processor )

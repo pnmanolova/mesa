@@ -22,41 +22,62 @@
 
 #include "r300_texture.h"
 
-static void r300_setup_texture_state(struct r300_texture* tex,
-                                     unsigned width,
-                                     unsigned height,
-                                     unsigned pitch,
-                                     unsigned levels)
+static void r300_setup_texture_state(struct r300_texture* tex)
 {
     struct r300_texture_state* state = &tex->state;
+    struct pipe_texture *pt = &tex->tex;
 
-    state->format0 = R300_TX_WIDTH((width - 1) & 0x7ff) |
-        R300_TX_HEIGHT((height - 1) & 0x7ff) |
-        R300_TX_NUM_LEVELS(levels) |
+    state->format0 = R300_TX_WIDTH((pt->width[0] - 1) & 0x7ff) |
+        R300_TX_HEIGHT((pt->height[0] - 1) & 0x7ff) |
+        R300_TX_DEPTH(util_logbase2(pt->depth[0]) & 0xf) |
+        R300_TX_NUM_LEVELS(pt->last_level) |
         R300_TX_PITCH_EN;
 
     /* XXX */
-    state->format1 = r300_translate_texformat(tex->tex.format);
+    state->format1 = r300_translate_texformat(pt->format);
+    if (pt->target == PIPE_TEXTURE_CUBE) {
+	state->format1 |= R300_TX_FORMAT_CUBIC_MAP;
+    }
+    if (pt->target == PIPE_TEXTURE_3D) {
+	state->format1 |= R300_TX_FORMAT_3D;
+    }
 
-    state->format2 = pitch - 1;
+    state->format2 = (r300_texture_get_stride(tex, 0) / pt->block.size) - 1;
 
     /* Assume (somewhat foolishly) that oversized textures will
      * not be permitted by the state tracker. */
-    if (width > 2048) {
+    if (pt->width[0] > 2048) {
         state->format2 |= R500_TXWIDTH_BIT11;
     }
-    if (height > 2048) {
+    if (pt->height[0] > 2048) {
         state->format2 |= R500_TXHEIGHT_BIT11;
     }
 
-    debug_printf("r300: Set texture state (%dx%d, pitch %d, %d levels)\n",
-            width, height, pitch, levels);
+    debug_printf("r300: Set texture state (%dx%d, %d levels)\n",
+		 pt->width[0], pt->height[0], pt->last_level);
+}
+
+/**
+ * Return the stride, in bytes, of the texture images of the given texture
+ * at the given level.
+ */
+unsigned r300_texture_get_stride(struct r300_texture* tex, unsigned level)
+{
+    if (tex->stride_override)
+        return tex->stride_override;
+
+    if (level > tex->tex.last_level) {
+        debug_printf("%s: level (%u) > last_level (%u)\n", __FUNCTION__, level, tex->tex.last_level);
+        return 0;
+    }
+
+    return align(pf_get_stride(&tex->tex.block, tex->tex.width[level]), 32);
 }
 
 static void r300_setup_miptree(struct r300_texture* tex)
 {
     struct pipe_texture* base = &tex->tex;
-    int stride, size, offset;
+    int stride, size;
     int i;
 
     for (i = 0; i <= base->last_level; i++) {
@@ -74,7 +95,7 @@ static void r300_setup_miptree(struct r300_texture* tex)
          * XXX
          * POT, uncompressed, unmippmapped textures can be aligned to 32,
          * instead of 64. */
-        stride = align(pf_get_stride(&base->block, base->width[i]), 32);
+        stride = r300_texture_get_stride(tex, i);
         size = stride * base->nblocksy[i] * base->depth[i];
 
         tex->offset[i] = align(tex->size, 32);
@@ -84,10 +105,6 @@ static void r300_setup_miptree(struct r300_texture* tex)
                 "(%dx%dx%d px, pitch %d bytes)\n",
                 i, base->width[i], base->height[i], base->depth[i],
                 stride);
-        /* Save stride of first level to the texture. */
-        if (i == 0) {
-            tex->stride = stride;
-        }
     }
 }
 
@@ -108,8 +125,7 @@ static struct pipe_texture*
 
     r300_setup_miptree(tex);
 
-    r300_setup_texture_state(tex, template->width[0], template->height[0],
-            template->width[0], template->last_level);
+    r300_setup_texture_state(tex);
 
     tex->buffer = screen->buffer_create(screen, 1024,
                                         PIPE_BUFFER_USAGE_PIXEL,
@@ -189,15 +205,63 @@ static struct pipe_texture*
     pipe_reference_init(&tex->tex.reference, 1);
     tex->tex.screen = screen;
 
-    tex->stride = *stride;
+    tex->stride_override = *stride;
 
     /* XXX */
-    r300_setup_texture_state(tex, tex->tex.width[0], tex->tex.height[0],
-            tex->stride, 0);
+    r300_setup_texture_state(tex);
 
     pipe_buffer_reference(&tex->buffer, buffer);
 
     return (struct pipe_texture*)tex;
+}
+
+static struct pipe_video_surface *
+r300_video_surface_create(struct pipe_screen *screen,
+                          enum pipe_video_chroma_format chroma_format,
+                          unsigned width, unsigned height)
+{
+    struct r300_video_surface *r300_vsfc;
+    struct pipe_texture template;
+
+    assert(screen);
+    assert(width && height);
+
+    r300_vsfc = CALLOC_STRUCT(r300_video_surface);
+    if (!r300_vsfc)
+       return NULL;
+
+    pipe_reference_init(&r300_vsfc->base.reference, 1);
+    r300_vsfc->base.screen = screen;
+    r300_vsfc->base.chroma_format = chroma_format;
+    r300_vsfc->base.width = width;
+    r300_vsfc->base.height = height;
+
+    memset(&template, 0, sizeof(struct pipe_texture));
+    template.target = PIPE_TEXTURE_2D;
+    template.format = PIPE_FORMAT_X8R8G8B8_UNORM;
+    template.last_level = 0;
+    template.width[0] = util_next_power_of_two(width);
+    template.height[0] = util_next_power_of_two(height);
+    template.depth[0] = 1;
+    pf_get_block(template.format, &template.block);
+    template.tex_usage = PIPE_TEXTURE_USAGE_SAMPLER |
+                         PIPE_TEXTURE_USAGE_RENDER_TARGET;
+
+    r300_vsfc->tex = screen->texture_create(screen, &template);
+    if (!r300_vsfc->tex)
+    {
+        FREE(r300_vsfc);
+        return NULL;
+    }
+
+    return &r300_vsfc->base;
+}
+
+static void r300_video_surface_destroy(struct pipe_video_surface *vsfc)
+{
+    struct r300_video_surface *r300_vsfc = r300_video_surface(vsfc);
+    pipe_texture_reference(&r300_vsfc->tex, NULL);
+    FREE(r300_vsfc);
 }
 
 void r300_init_screen_texture_functions(struct pipe_screen* screen)
@@ -207,6 +271,9 @@ void r300_init_screen_texture_functions(struct pipe_screen* screen)
     screen->get_tex_surface = r300_get_tex_surface;
     screen->tex_surface_destroy = r300_tex_surface_destroy;
     screen->texture_blanket = r300_texture_blanket;
+
+    screen->video_surface_create = r300_video_surface_create;
+    screen->video_surface_destroy= r300_video_surface_destroy;
 }
 
 boolean r300_get_texture_buffer(struct pipe_texture* texture,
@@ -221,7 +288,7 @@ boolean r300_get_texture_buffer(struct pipe_texture* texture,
     pipe_buffer_reference(buffer, tex->buffer);
 
     if (stride) {
-        *stride = tex->stride;
+        *stride = r300_texture_get_stride(tex, 0);
     }
 
     return TRUE;

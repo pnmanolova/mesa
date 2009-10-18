@@ -44,6 +44,11 @@
 #include "teximage.h"
 #include "texobj.h"
 #include "texstore.h"
+#include "texstate.h"
+
+
+/** Set this to 1 to help debug FBO incompleteness problems */
+#define DEBUG_FBO 0
 
 
 /**
@@ -308,12 +313,29 @@ _mesa_framebuffer_renderbuffer(GLcontext *ctx, struct gl_framebuffer *fb,
 static void
 att_incomplete(const char *msg)
 {
-#if 0
-   _mesa_printf("attachment incomplete: %s\n", msg);
+#if DEBUG_FBO
+   _mesa_debug(NULL, "attachment incomplete: %s\n", msg);
 #else
    (void) msg;
 #endif
 }
+
+
+/**
+ * For debug only.
+ */
+static void
+fbo_incomplete(const char *msg, int index)
+{
+#if DEBUG_FBO
+   _mesa_debug(NULL, "FBO Incomplete: %s [%d]\n", msg, index);
+#else
+   (void) msg;
+   (void) index;
+#endif
+}
+
+
 
 
 /**
@@ -464,20 +486,6 @@ test_attachment_completeness(const GLcontext *ctx, GLenum format,
       /* complete */
       return;
    }
-}
-
-
-/**
- * Helpful for debugging
- */
-static void
-fbo_incomplete(const char *msg, int index)
-{
-   (void) msg;
-   (void) index;
-   /*
-   _mesa_debug(NULL, "FBO Incomplete: %s [%d]\n", msg, index);
-   */
 }
 
 
@@ -710,12 +718,6 @@ _mesa_BindRenderbufferEXT(GLenum target, GLuint renderbuffer)
    }
 
    FLUSH_CURRENT(ctx, _NEW_BUFFERS);
-   /* The above doesn't fully flush the drivers in the way that a
-    * glFlush does, but that is required here:
-    */
-   if (ctx->Driver.Flush)
-      ctx->Driver.Flush(ctx);
-
 
    if (renderbuffer) {
       newRb = _mesa_lookup_renderbuffer(ctx, renderbuffer);
@@ -1127,7 +1129,7 @@ check_begin_texture_render(GLcontext *ctx, struct gl_framebuffer *fb)
       struct gl_renderbuffer_attachment *att = fb->Attachment + i;
       struct gl_texture_object *texObj = att->Texture;
       if (texObj
-          && att->Texture->Image[att->CubeMapFace][att->TextureLevel]) {
+          && texObj->Image[att->CubeMapFace][att->TextureLevel]) {
          ctx->Driver.RenderTexture(ctx, fb, att);
       }
    }
@@ -1205,9 +1207,6 @@ _mesa_BindFramebufferEXT(GLenum target, GLuint framebuffer)
    }
 
    FLUSH_CURRENT(ctx, _NEW_BUFFERS);
-   if (ctx->Driver.Flush) {  
-      ctx->Driver.Flush(ctx);
-   }
 
    if (framebuffer) {
       /* Binding a user-created framebuffer object */
@@ -1286,11 +1285,6 @@ _mesa_DeleteFramebuffersEXT(GLsizei n, const GLuint *framebuffers)
 
    ASSERT_OUTSIDE_BEGIN_END(ctx);
    FLUSH_CURRENT(ctx, _NEW_BUFFERS);
-   /* The above doesn't fully flush the drivers in the way that a
-    * glFlush does, but that is required here:
-    */
-   if (ctx->Driver.Flush)
-      ctx->Driver.Flush(ctx);
 
    for (i = 0; i < n; i++) {
       if (framebuffers[i] > 0) {
@@ -1524,11 +1518,6 @@ framebuffer_texture(GLcontext *ctx, const char *caller, GLenum target,
    }
 
    FLUSH_CURRENT(ctx, _NEW_BUFFERS);
-   /* The above doesn't fully flush the drivers in the way that a
-    * glFlush does, but that is required here:
-    */
-   if (ctx->Driver.Flush)
-      ctx->Driver.Flush(ctx);
 
    _glthread_LOCK_MUTEX(fb->Mutex);
    if (texObj) {
@@ -1705,11 +1694,6 @@ _mesa_FramebufferRenderbufferEXT(GLenum target, GLenum attachment,
 
 
    FLUSH_CURRENT(ctx, _NEW_BUFFERS);
-   /* The above doesn't fully flush the drivers in the way that a
-    * glFlush does, but that is required here:
-    */
-   if (ctx->Driver.Flush)
-      ctx->Driver.Flush(ctx);
 
    assert(ctx->Driver.FramebufferRenderbuffer);
    ctx->Driver.FramebufferRenderbuffer(ctx, fb, attachment, rb);
@@ -1786,11 +1770,6 @@ _mesa_GetFramebufferAttachmentParameterivEXT(GLenum target, GLenum attachment,
    }
 
    FLUSH_CURRENT(ctx, _NEW_BUFFERS);
-   /* The above doesn't fully flush the drivers in the way that a
-    * glFlush does, but that is required here:
-    */
-   if (ctx->Driver.Flush)
-      ctx->Driver.Flush(ctx);
 
    switch (pname) {
    case GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE_EXT:
@@ -1948,18 +1927,18 @@ _mesa_GenerateMipmapEXT(GLenum target)
       return;
    }
 
-   texUnit = &ctx->Texture.Unit[ctx->Texture.CurrentUnit];
+   texUnit = _mesa_get_current_tex_unit(ctx);
    texObj = _mesa_select_tex_object(ctx, texUnit, target);
 
    _mesa_lock_texture(ctx, texObj);
    if (target == GL_TEXTURE_CUBE_MAP) {
-      int face;
-
+      GLuint face;
       for (face = 0; face < 6; face++)
 	 ctx->Driver.GenerateMipmap(ctx,
 				    GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + face,
 				    texObj);
-   } else {
+   }
+   else {
       ctx->Driver.GenerateMipmap(ctx, target, texObj);
    }
    _mesa_unlock_texture(ctx, texObj);

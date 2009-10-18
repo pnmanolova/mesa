@@ -35,6 +35,7 @@ nv50_screen_is_format_supported(struct pipe_screen *pscreen,
 {
 	if (tex_usage & PIPE_TEXTURE_USAGE_RENDER_TARGET) {
 		switch (format) {
+		case PIPE_FORMAT_X8R8G8B8_UNORM:
 		case PIPE_FORMAT_A8R8G8B8_UNORM:
 		case PIPE_FORMAT_R5G6B5_UNORM:
 			return TRUE;
@@ -55,6 +56,7 @@ nv50_screen_is_format_supported(struct pipe_screen *pscreen,
 	} else {
 		switch (format) {
 		case PIPE_FORMAT_A8R8G8B8_UNORM:
+		case PIPE_FORMAT_X8R8G8B8_UNORM:
 		case PIPE_FORMAT_A1R5G5B5_UNORM:
 		case PIPE_FORMAT_A4R4G4B4_UNORM:
 		case PIPE_FORMAT_R5G6B5_UNORM:
@@ -87,12 +89,10 @@ nv50_screen_get_param(struct pipe_screen *pscreen, int param)
 		return 1;
 	case PIPE_CAP_GLSL:
 		return 0;
-	case PIPE_CAP_S3TC:
-		return 1;
 	case PIPE_CAP_ANISOTROPIC_FILTER:
 		return 1;
 	case PIPE_CAP_POINT_SPRITE:
-		return 0;
+		return 1;
 	case PIPE_CAP_MAX_RENDER_TARGETS:
 		return 8;
 	case PIPE_CAP_OCCLUSION_QUERY:

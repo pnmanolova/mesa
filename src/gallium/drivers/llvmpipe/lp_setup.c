@@ -44,6 +44,7 @@
 #include "pipe/p_thread.h"
 #include "util/u_math.h"
 #include "util/u_memory.h"
+#include "lp_bld_debug.h"
 #include "lp_tile_cache.h"
 #include "lp_tile_soa.h"
 
@@ -114,6 +115,7 @@ struct setup_context {
 /**
  * Execute fragment shader for the four fragments in the quad.
  */
+ALIGN_STACK
 static void
 shade_quads(struct llvmpipe_context *llvmpipe,
             struct quad_header *quads[],
@@ -123,7 +125,7 @@ shade_quads(struct llvmpipe_context *llvmpipe,
    struct quad_header *quad = quads[0];
    const unsigned x = quad->input.x0;
    const unsigned y = quad->input.y0;
-   uint8_t *tile = lp_get_cached_tile(llvmpipe->cbuf_cache[0], x, y);
+   uint8_t *tile;
    uint8_t *color;
    void *depth;
    uint32_t ALIGN16_ATTRIB mask[4][NUM_CHANNELS];
@@ -149,7 +151,13 @@ shade_quads(struct llvmpipe_context *llvmpipe,
          mask[q][chan_index] = quads[q]->inout.mask & (1 << chan_index) ? ~0 : 0;
 
    /* color buffer */
-   color = &TILE_PIXEL(tile, x & (TILE_SIZE-1), y & (TILE_SIZE-1), 0);
+   if(llvmpipe->framebuffer.nr_cbufs >= 1 &&
+      llvmpipe->framebuffer.cbufs[0]) {
+      tile = lp_get_cached_tile(llvmpipe->cbuf_cache[0], x, y);
+      color = &TILE_PIXEL(tile, x & (TILE_SIZE-1), y & (TILE_SIZE-1), 0);
+   }
+   else
+      color = NULL;
 
    /* depth buffer */
    if(llvmpipe->zsbuf_map) {
@@ -162,12 +170,12 @@ shade_quads(struct llvmpipe_context *llvmpipe,
    else
       depth = NULL;
 
-   /* TODO: blend color */
+   /* XXX: This will most likely fail on 32bit x86 without -mstackrealign */
+   assert(lp_check_alignment(mask, 16));
 
-   assert((((uintptr_t)mask) & 0xf) == 0);
-   assert((((uintptr_t)depth) & 0xf) == 0);
-   assert((((uintptr_t)color) & 0xf) == 0);
-   assert((((uintptr_t)llvmpipe->jit_context.blend_color) & 0xf) == 0);
+   assert(lp_check_alignment(depth, 16));
+   assert(lp_check_alignment(color, 16));
+   assert(lp_check_alignment(llvmpipe->jit_context.blend_color, 16));
 
    /* run shader */
    fs->current->jit_function( &llvmpipe->jit_context,

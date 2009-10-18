@@ -179,7 +179,6 @@ dri_get_buffers(__DRIdrawablePrivate * dPriv)
 
       switch (buffers[i].attachment) {
       case __DRI_BUFFER_FRONT_LEFT:
-	 continue;
       case __DRI_BUFFER_FAKE_FRONT_LEFT:
 	 index = ST_SURFACE_FRONT_LEFT;
 	 format = drawable->color_format;
@@ -189,12 +188,10 @@ dri_get_buffers(__DRIdrawablePrivate * dPriv)
 	 format = drawable->color_format;
 	 break;
       case __DRI_BUFFER_DEPTH:
-	 index = ST_SURFACE_DEPTH;
-	 format = drawable->depth_format;
-	 break;
+      case __DRI_BUFFER_DEPTH_STENCIL:
       case __DRI_BUFFER_STENCIL:
 	 index = ST_SURFACE_DEPTH;
-	 format = drawable->stencil_format;
+	 format = drawable->depth_stencil_format;
 	 break;
       case __DRI_BUFFER_ACCUM:
       default:
@@ -214,6 +211,22 @@ dri_get_buffers(__DRIdrawablePrivate * dPriv)
 					format,
 					dri_drawable->w,
 					dri_drawable->h, buffers[i].pitch);
+
+      switch (buffers[i].attachment) {
+      case __DRI_BUFFER_FRONT_LEFT:
+      case __DRI_BUFFER_FAKE_FRONT_LEFT:
+      case __DRI_BUFFER_BACK_LEFT:
+	 drawable->color_format = surface->format;
+	 break;
+      case __DRI_BUFFER_DEPTH:
+      case __DRI_BUFFER_DEPTH_STENCIL:
+      case __DRI_BUFFER_STENCIL:
+	 drawable->depth_stencil_format = surface->format;
+	 break;
+      case __DRI_BUFFER_ACCUM:
+      default:
+	 assert(0);
+      }
 
       st_set_framebuffer_surface(drawable->stfb, index, surface);
       pipe_surface_reference(&surface, NULL);
@@ -240,10 +253,11 @@ void dri2_set_tex_buffer2(__DRIcontext *pDRICtx, GLint target,
    dri_get_buffers(drawable->dPriv);
    st_get_framebuffer_surface(drawable->stfb, ST_SURFACE_FRONT_LEFT, &ps);
 
+   if (!ps)
+      return;
+
    st_bind_texture_surface(ps, target == GL_TEXTURE_2D ? ST_TEXTURE_2D :
-                           ST_TEXTURE_RECT, 0,
-                           format == GLX_TEXTURE_FORMAT_RGBA_EXT ?
-                           PIPE_FORMAT_R8G8B8A8_UNORM : PIPE_FORMAT_R8G8B8X8_UNORM);
+                           ST_TEXTURE_RECT, 0, drawable->color_format);
 }
 
 void dri2_set_tex_buffer(__DRIcontext *pDRICtx, GLint target,
@@ -311,43 +325,31 @@ dri_create_buffer(__DRIscreenPrivate * sPriv,
    switch(visual->depthBits) {
    default:
    case 0:
-      drawable->depth_format = PIPE_FORMAT_NONE;
+      drawable->depth_stencil_format = PIPE_FORMAT_NONE;
       break;
    case 16:
-      drawable->depth_format = PIPE_FORMAT_Z16_UNORM;
+      drawable->depth_stencil_format = PIPE_FORMAT_Z16_UNORM;
       break;
    case 24:
       if (visual->stencilBits == 0) {
-	 drawable->depth_format = (screen->d_depth_bits_last) ?
+	 drawable->depth_stencil_format = (screen->d_depth_bits_last) ?
 	    PIPE_FORMAT_X8Z24_UNORM:
 	    PIPE_FORMAT_Z24X8_UNORM;
       } else {
-	 drawable->depth_format = (screen->sd_depth_bits_last) ?
+	 drawable->depth_stencil_format = (screen->sd_depth_bits_last) ?
 	    PIPE_FORMAT_S8Z24_UNORM:
 	    PIPE_FORMAT_Z24S8_UNORM;
       }
       break;
    case 32:
-      drawable->depth_format = PIPE_FORMAT_Z32_UNORM;
-      break;
-   }
-
-   switch(visual->stencilBits) {
-   default:
-   case 0:
-      drawable->stencil_format = PIPE_FORMAT_NONE;
-      break;
-   case 8:
-      drawable->stencil_format = (screen->sd_depth_bits_last) ?
-	 PIPE_FORMAT_S8Z24_UNORM:
-         PIPE_FORMAT_Z24S8_UNORM;
+      drawable->depth_stencil_format = PIPE_FORMAT_Z32_UNORM;
       break;
    }
 
    drawable->stfb = st_create_framebuffer(visual,
 					  drawable->color_format,
-					  drawable->depth_format,
-					  drawable->stencil_format,
+					  drawable->depth_stencil_format,
+					  drawable->depth_stencil_format,
 					  dPriv->w,
 					  dPriv->h, (void *)drawable);
    if (drawable->stfb == NULL)
@@ -364,11 +366,11 @@ dri_create_buffer(__DRIscreenPrivate * sPriv,
 
    if (visual->doubleBufferMode)
       drawable->attachments[i++] = __DRI_BUFFER_BACK_LEFT;
-   else
-      drawable->attachments[i++] = __DRI_BUFFER_FAKE_FRONT_LEFT;
-   if (visual->depthBits)
+   if (visual->depthBits && visual->stencilBits)
+      drawable->attachments[i++] = __DRI_BUFFER_DEPTH_STENCIL;
+   else if (visual->depthBits)
       drawable->attachments[i++] = __DRI_BUFFER_DEPTH;
-   if (visual->stencilBits)
+   else if (visual->stencilBits)
       drawable->attachments[i++] = __DRI_BUFFER_STENCIL;
    drawable->num_attachments = i;
 

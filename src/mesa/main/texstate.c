@@ -31,9 +31,7 @@
 #include "glheader.h"
 #include "mfeatures.h"
 #include "colormac.h"
-#if FEATURE_colortable
 #include "colortab.h"
-#endif
 #include "context.h"
 #include "enums.h"
 #include "macros.h"
@@ -99,16 +97,22 @@ _mesa_copy_texture_state( const GLcontext *src, GLcontext *dst )
       dst->Texture.Unit[u].BumpTarget = src->Texture.Unit[u].BumpTarget;
       COPY_4V(dst->Texture.Unit[u].RotMatrix, src->Texture.Unit[u].RotMatrix);
 
+      /*
+       * XXX strictly speaking, we should compare texture names/ids and
+       * bind textures in the dest context according to id.  For now, only
+       * copy bindings if the contexts share the same pool of textures to
+       * avoid refcounting bugs.
+       */
+      if (dst->Shared == src->Shared) {
+         /* copy texture object bindings, not contents of texture objects */
+         _mesa_lock_context_textures(dst);
 
-      /* copy texture object bindings, not contents of texture objects */
-      _mesa_lock_context_textures(dst);
-
-      for (tex = 0; tex < NUM_TEXTURE_TARGETS; tex++) {
-         _mesa_reference_texobj(&dst->Texture.Unit[u].CurrentTex[tex],
-                                src->Texture.Unit[u].CurrentTex[tex]);
+         for (tex = 0; tex < NUM_TEXTURE_TARGETS; tex++) {
+            _mesa_reference_texobj(&dst->Texture.Unit[u].CurrentTex[tex],
+                                   src->Texture.Unit[u].CurrentTex[tex]);
+         }
+         _mesa_unlock_context_textures(dst);
       }
-
-      _mesa_unlock_context_textures(dst);
    }
 }
 
@@ -303,10 +307,6 @@ _mesa_ActiveTextureARB(GLenum texture)
       /* update current stack pointer */
       ctx->CurrentStack = &ctx->TextureMatrixStack[texUnit];
    }
-
-   if (ctx->Driver.ActiveTexture) {
-      (*ctx->Driver.ActiveTexture)( ctx, (GLuint) texUnit );
-   }
 }
 
 
@@ -356,9 +356,6 @@ update_texture_matrices( GLcontext *ctx )
 	 if (ctx->Texture.Unit[u]._ReallyEnabled &&
 	     ctx->TextureMatrixStack[u].Top->type != MATRIX_IDENTITY)
 	    ctx->Texture._TexMatEnabled |= ENABLE_TEXMAT(u);
-
-	 if (ctx->Driver.TextureMatrix)
-	    ctx->Driver.TextureMatrix( ctx, u, ctx->TextureMatrixStack[u].Top);
       }
    }
 }
@@ -729,14 +726,7 @@ init_texture_unit( GLcontext *ctx, GLuint unit )
    ASSIGN_4V( texUnit->GenT.EyePlane, 0.0, 1.0, 0.0, 0.0 );
    ASSIGN_4V( texUnit->GenR.EyePlane, 0.0, 0.0, 0.0, 0.0 );
    ASSIGN_4V( texUnit->GenQ.EyePlane, 0.0, 0.0, 0.0, 0.0 );
-   ASSIGN_4V( texUnit->GenS.ObjectPlane, 1.0, 0.0, 0.0, 0.0 );
-   ASSIGN_4V( texUnit->GenT.ObjectPlane, 0.0, 1.0, 0.0, 0.0 );
-   ASSIGN_4V( texUnit->GenR.ObjectPlane, 0.0, 0.0, 0.0, 0.0 );
-   ASSIGN_4V( texUnit->GenQ.ObjectPlane, 0.0, 0.0, 0.0, 0.0 );
-   ASSIGN_4V( texUnit->GenS.EyePlane, 1.0, 0.0, 0.0, 0.0 );
-   ASSIGN_4V( texUnit->GenT.EyePlane, 0.0, 1.0, 0.0, 0.0 );
-   ASSIGN_4V( texUnit->GenR.EyePlane, 0.0, 0.0, 0.0, 0.0 );
-   ASSIGN_4V( texUnit->GenQ.EyePlane, 0.0, 0.0, 0.0, 0.0 );
+
    /* no mention of this in spec, but maybe id matrix expected? */
    ASSIGN_4V( texUnit->RotMatrix, 1.0, 0.0, 0.0, 1.0 );
 
@@ -760,9 +750,7 @@ _mesa_init_texture(GLcontext *ctx)
    ctx->Texture.CurrentUnit = 0;      /* multitexture */
    ctx->Texture._EnabledUnits = 0x0;
    ctx->Texture.SharedPalette = GL_FALSE;
-#if FEATURE_colortable
    _mesa_init_colortable(&ctx->Texture.Palette);
-#endif
 
    for (u = 0; u < MAX_TEXTURE_UNITS; u++)
       init_texture_unit(ctx, u);
@@ -803,10 +791,8 @@ _mesa_free_texture_data(GLcontext *ctx)
    for (tgt = 0; tgt < NUM_TEXTURE_TARGETS; tgt++)
       ctx->Driver.DeleteTexture(ctx, ctx->Texture.ProxyTex[tgt]);
 
-#if FEATURE_colortable
    for (u = 0; u < MAX_TEXTURE_IMAGE_UNITS; u++)
       _mesa_free_colortable_data(&ctx->Texture.Unit[u].ColorTable);
-#endif
 }
 
 

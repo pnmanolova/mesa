@@ -37,7 +37,6 @@
 
 #include "util/u_format.h"
 
-#include "lp_bld_flow.h"
 #include "lp_bld_format.h"
 
 
@@ -103,7 +102,6 @@ add_load_rgba_test(LLVMModuleRef module,
    LLVMBasicBlockRef block;
    LLVMBuilderRef builder;
    LLVMValueRef rgba;
-   struct lp_build_loop_state loop;
 
    args[0] = LLVMPointerType(LLVMInt8Type(), 0);
    args[1] = LLVMPointerType(LLVMVectorType(LLVMFloatType(), 4), 0);
@@ -117,12 +115,8 @@ add_load_rgba_test(LLVMModuleRef module,
    builder = LLVMCreateBuilder();
    LLVMPositionBuilderAtEnd(builder, block);
 
-   lp_build_loop_begin(builder, LLVMConstInt(LLVMInt32Type(), 1, 0), &loop);
-
-   rgba = lp_build_load_rgba(builder, format, ptr);
+   rgba = lp_build_load_rgba_aos(builder, format, ptr);
    LLVMBuildStore(builder, rgba, rgba_ptr);
-
-   lp_build_loop_end(builder, LLVMConstInt(LLVMInt32Type(), 4, 0), NULL, &loop);
 
    LLVMBuildRetVoid(builder);
 
@@ -160,7 +154,7 @@ add_store_rgba_test(LLVMModuleRef module,
 
    rgba = LLVMBuildLoad(builder, rgba_ptr, "");
 
-   lp_build_store_rgba(builder, format, ptr, rgba);
+   lp_build_store_rgba_aos(builder, format, ptr, rgba);
 
    LLVMBuildRetVoid(builder);
 
@@ -263,6 +257,11 @@ int main(int argc, char **argv)
 {
    unsigned i;
    int ret;
+
+#ifdef LLVM_NATIVE_ARCH
+   LLVMLinkInJIT();
+   LLVMInitializeNativeTarget();
+#endif
 
    for (i = 0; i < sizeof(test_cases)/sizeof(test_cases[0]); ++i)
       if(!test_format(&test_cases[i]))

@@ -45,6 +45,9 @@
 #include "main/fbobject.h"
 #include "main/texrender.h"
 #endif
+#if FEATURE_ARB_sync
+#include "main/syncobj.h"
+#endif
 
 #include "shader/program.h"
 #include "shader/prog_execute.h"
@@ -53,6 +56,7 @@
 #include "swrast/swrast.h"
 
 #include "driverfuncs.h"
+#include "meta.h"
 
 
 
@@ -97,12 +101,12 @@ _mesa_init_driver_functions(struct dd_function_table *driver)
    driver->TexSubImage2D = _mesa_store_texsubimage2d;
    driver->TexSubImage3D = _mesa_store_texsubimage3d;
    driver->GetTexImage = _mesa_get_teximage;
-   driver->CopyTexImage1D = _swrast_copy_teximage1d;
-   driver->CopyTexImage2D = _swrast_copy_teximage2d;
-   driver->CopyTexSubImage1D = _swrast_copy_texsubimage1d;
-   driver->CopyTexSubImage2D = _swrast_copy_texsubimage2d;
-   driver->CopyTexSubImage3D = _swrast_copy_texsubimage3d;
-   driver->GenerateMipmap = _mesa_generate_mipmap;
+   driver->CopyTexImage1D = _mesa_meta_CopyTexImage1D;
+   driver->CopyTexImage2D = _mesa_meta_CopyTexImage2D;
+   driver->CopyTexSubImage1D = _mesa_meta_CopyTexSubImage1D;
+   driver->CopyTexSubImage2D = _mesa_meta_CopyTexSubImage2D;
+   driver->CopyTexSubImage3D = _mesa_meta_CopyTexSubImage3D;
+   driver->GenerateMipmap = _mesa_meta_GenerateMipmap;
    driver->TestProxyTexImage = _mesa_test_proxy_teximage;
    driver->CompressedTexImage1D = _mesa_store_compressed_teximage1d;
    driver->CompressedTexImage2D = _mesa_store_compressed_teximage2d;
@@ -121,15 +125,14 @@ _mesa_init_driver_functions(struct dd_function_table *driver)
    driver->UnmapTexture = NULL;
    driver->TextureMemCpy = _mesa_memcpy; 
    driver->IsTextureResident = NULL;
-   driver->PrioritizeTexture = NULL;
    driver->ActiveTexture = NULL;
    driver->UpdateTexturePalette = NULL;
 
    /* imaging */
-   driver->CopyColorTable = _swrast_CopyColorTable;
-   driver->CopyColorSubTable = _swrast_CopyColorSubTable;
-   driver->CopyConvolutionFilter1D = _swrast_CopyConvolutionFilter1D;
-   driver->CopyConvolutionFilter2D = _swrast_CopyConvolutionFilter2D;
+   driver->CopyColorTable = _mesa_meta_CopyColorTable;
+   driver->CopyColorSubTable = _mesa_meta_CopyColorSubTable;
+   driver->CopyConvolutionFilter1D = _mesa_meta_CopyConvolutionFilter1D;
+   driver->CopyConvolutionFilter2D = _mesa_meta_CopyConvolutionFilter2D;
 
    /* Vertex/fragment programs */
    driver->BindProgram = NULL;
@@ -179,7 +182,6 @@ _mesa_init_driver_functions(struct dd_function_table *driver)
    driver->TexGen = NULL;
    driver->TexEnv = NULL;
    driver->TexParameter = NULL;
-   driver->TextureMatrix = NULL;
    driver->Viewport = NULL;
 
    /* vertex arrays */
@@ -200,6 +202,7 @@ _mesa_init_driver_functions(struct dd_function_table *driver)
    driver->GetDoublev = NULL;
    driver->GetFloatv = NULL;
    driver->GetIntegerv = NULL;
+   driver->GetInteger64v = NULL;
    driver->GetPointerv = NULL;
    
    /* buffer objects */
@@ -207,6 +210,10 @@ _mesa_init_driver_functions(struct dd_function_table *driver)
 
    /* query objects */
    _mesa_init_query_object_functions(driver);
+
+#if FEATURE_ARB_sync
+   _mesa_init_sync_object_functions(driver);
+#endif
 
 #if FEATURE_EXT_framebuffer_object
    driver->NewFramebuffer = _mesa_new_framebuffer;

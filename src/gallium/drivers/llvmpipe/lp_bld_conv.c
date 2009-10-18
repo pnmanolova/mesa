@@ -63,6 +63,7 @@
 
 #include "util/u_debug.h"
 #include "util/u_math.h"
+#include "util/u_cpu_detect.h"
 
 #include "lp_bld_type.h"
 #include "lp_bld_const.h"
@@ -86,7 +87,7 @@
  */
 LLVMValueRef
 lp_build_clamped_float_to_unsigned_norm(LLVMBuilderRef builder,
-                                        union lp_type src_type,
+                                        struct lp_type src_type,
                                         unsigned dst_width,
                                         LLVMValueRef src)
 {
@@ -122,7 +123,7 @@ lp_build_clamped_float_to_unsigned_norm(LLVMBuilderRef builder,
       int shift = dst_width - n;
       res = LLVMBuildShl(builder, res, lp_build_int_const_scalar(src_type, shift), "");
 
-      /* Fill in the empty lower bits for added precision? */
+      /* TODO: Fill in the empty lower bits for additional precision? */
 #if 0
       {
          LLVMValueRef msb;
@@ -152,7 +153,7 @@ lp_build_clamped_float_to_unsigned_norm(LLVMBuilderRef builder,
 LLVMValueRef
 lp_build_unsigned_norm_to_float(LLVMBuilderRef builder,
                                 unsigned src_width,
-                                union lp_type dst_type,
+                                struct lp_type dst_type,
                                 LLVMValueRef src)
 {
    LLVMTypeRef vec_type = lp_build_vec_type(dst_type);
@@ -244,12 +245,12 @@ lp_build_const_pack_shuffle(unsigned n)
  * Expand the bit width.
  *
  * This will only change the number of bits the values are represented, not the
- * values themselved.
+ * values themselves.
  */
 static void
 lp_build_expand(LLVMBuilderRef builder,
-               union lp_type src_type,
-               union lp_type dst_type,
+               struct lp_type src_type,
+               struct lp_type dst_type,
                LLVMValueRef src,
                LLVMValueRef *dst, unsigned num_dsts)
 {
@@ -266,7 +267,7 @@ lp_build_expand(LLVMBuilderRef builder,
    dst[0] = src;
 
    while(src_type.width < dst_type.width) {
-      union lp_type new_type = src_type;
+      struct lp_type new_type = src_type;
       LLVMTypeRef new_vec_type;
 
       new_type.width *= 2;
@@ -314,8 +315,8 @@ lp_build_expand(LLVMBuilderRef builder,
  */
 static LLVMValueRef
 lp_build_pack2(LLVMBuilderRef builder,
-               union lp_type src_type,
-               union lp_type dst_type,
+               struct lp_type src_type,
+               struct lp_type dst_type,
                boolean clamped,
                LLVMValueRef lo,
                LLVMValueRef hi)
@@ -334,8 +335,7 @@ lp_build_pack2(LLVMBuilderRef builder,
    assert(!src_type.floating);
    assert(!dst_type.floating);
 
-#if defined(PIPE_ARCH_X86) || defined(PIPE_ARCH_X86_64)
-   if(src_type.width * src_type.length == 128) {
+   if(util_cpu_caps.has_sse2 && src_type.width * src_type.length == 128) {
       /* All X86 non-interleaved pack instructions all take signed inputs and
        * saturate them, so saturate beforehand. */
       if(!src_type.sign && !clamped) {
@@ -349,7 +349,7 @@ lp_build_pack2(LLVMBuilderRef builder,
 
       switch(src_type.width) {
       case 32:
-         if(dst_type.sign)
+         if(dst_type.sign || !util_cpu_caps.has_sse4_1)
             res = lp_build_intrinsic_binary(builder, "llvm.x86.sse2.packssdw.128", src_vec_type, lo, hi);
          else
             /* PACKUSDW is the only instrinsic with a consistent signature */
@@ -372,7 +372,6 @@ lp_build_pack2(LLVMBuilderRef builder,
       res = LLVMBuildBitCast(builder, res, dst_vec_type, "");
       return res;
    }
-#endif
 
    lo = LLVMBuildBitCast(builder, lo, dst_vec_type, "");
    hi = LLVMBuildBitCast(builder, hi, dst_vec_type, "");
@@ -391,11 +390,11 @@ lp_build_pack2(LLVMBuilderRef builder,
  * TODO: Handle saturation consistently.
  */
 static LLVMValueRef
-lp_build_trunc(LLVMBuilderRef builder,
-               union lp_type src_type,
-               union lp_type dst_type,
-               boolean clamped,
-               const LLVMValueRef *src, unsigned num_srcs)
+lp_build_pack(LLVMBuilderRef builder,
+              struct lp_type src_type,
+              struct lp_type dst_type,
+              boolean clamped,
+              const LLVMValueRef *src, unsigned num_srcs)
 {
    LLVMValueRef tmp[LP_MAX_VECTOR_LENGTH];
    unsigned i;
@@ -410,7 +409,7 @@ lp_build_trunc(LLVMBuilderRef builder,
       tmp[i] = src[i];
 
    while(src_type.width > dst_type.width) {
-      union lp_type new_type = src_type;
+      struct lp_type new_type = src_type;
 
       new_type.width /= 2;
       new_type.length *= 2;
@@ -442,12 +441,12 @@ lp_build_trunc(LLVMBuilderRef builder,
  */
 void
 lp_build_conv(LLVMBuilderRef builder,
-              union lp_type src_type,
-              union lp_type dst_type,
+              struct lp_type src_type,
+              struct lp_type dst_type,
               const LLVMValueRef *src, unsigned num_srcs,
               LLVMValueRef *dst, unsigned num_dsts)
 {
-   union lp_type tmp_type;
+   struct lp_type tmp_type;
    LLVMValueRef tmp[LP_MAX_VECTOR_LENGTH];
    unsigned num_tmps;
    unsigned i;
@@ -470,7 +469,7 @@ lp_build_conv(LLVMBuilderRef builder,
     * Clamp if necessary
     */
 
-   if(src_type.value != dst_type.value) {
+   if(memcmp(&src_type, &dst_type, sizeof src_type) != 0) {
       struct lp_build_context bld;
       double src_min = lp_const_min(src_type);
       double dst_min = lp_const_min(dst_type);
@@ -565,7 +564,7 @@ lp_build_conv(LLVMBuilderRef builder,
 
    if(tmp_type.width > dst_type.width) {
       assert(num_dsts == 1);
-      tmp[0] = lp_build_trunc(builder, tmp_type, dst_type, TRUE, tmp, num_tmps);
+      tmp[0] = lp_build_pack(builder, tmp_type, dst_type, TRUE, tmp, num_tmps);
       tmp_type.width = dst_type.width;
       tmp_type.length = dst_type.length;
       num_tmps = 1;
@@ -656,8 +655,8 @@ lp_build_conv(LLVMBuilderRef builder,
  */
 void
 lp_build_conv_mask(LLVMBuilderRef builder,
-                   union lp_type src_type,
-                   union lp_type dst_type,
+                   struct lp_type src_type,
+                   struct lp_type dst_type,
                    const LLVMValueRef *src, unsigned num_srcs,
                    LLVMValueRef *dst, unsigned num_dsts)
 {
@@ -689,7 +688,7 @@ lp_build_conv_mask(LLVMBuilderRef builder,
 
    if(src_type.width > dst_type.width) {
       assert(num_dsts == 1);
-      dst[0] = lp_build_trunc(builder, src_type, dst_type, TRUE, src, num_srcs);
+      dst[0] = lp_build_pack(builder, src_type, dst_type, TRUE, src, num_srcs);
    }
    else if(src_type.width < dst_type.width) {
       assert(num_srcs == 1);

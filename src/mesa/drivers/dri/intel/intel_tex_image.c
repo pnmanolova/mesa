@@ -1,15 +1,11 @@
 
-#include <stdlib.h>
-#include <stdio.h>
-
 #include "main/glheader.h"
 #include "main/macros.h"
 #include "main/mtypes.h"
 #include "main/enums.h"
-#include "main/colortab.h"
+#include "main/bufferobj.h"
 #include "main/convolve.h"
 #include "main/context.h"
-#include "main/simple_list.h"
 #include "main/texcompress.h"
 #include "main/texformat.h"
 #include "main/texgetimage.h"
@@ -205,8 +201,11 @@ try_pbo_upload(struct intel_context *intel,
    struct intel_buffer_object *pbo = intel_buffer_object(unpack->BufferObj);
    GLuint src_offset, src_stride;
    GLuint dst_offset, dst_stride;
+   dri_bo *dst_buffer = intel_region_buffer(intel,
+					    intelImage->mt->region,
+					    INTEL_WRITE_FULL);
 
-   if (unpack->BufferObj->Name == 0 ||
+   if (!_mesa_is_bufferobj(unpack->BufferObj) ||
        intel->ctx._ImageTransferState ||
        unpack->SkipPixels || unpack->SkipRows) {
       DBG("%s: failure 1\n", __FUNCTION__);
@@ -223,11 +222,13 @@ try_pbo_upload(struct intel_context *intel,
 
    dst_offset = intel_miptree_image_offset(intelImage->mt,
                                            intelImage->face,
-                                           intelImage->level);
+                                           intelImage->level,
+                                           0 /* zslice */);
 
    dst_stride = intelImage->mt->pitch;
 
-   intelFlush(&intel->ctx);
+   if (drm_intel_bo_references(intel->batch->buf, dst_buffer))
+      intelFlush(&intel->ctx);
    LOCK_HARDWARE(intel);
    {
       dri_bo *src_buffer = intel_bufferobj_buffer(intel, pbo, INTEL_READ);
@@ -264,7 +265,7 @@ try_pbo_zcopy(struct intel_context *intel,
    GLuint src_offset, src_stride;
    GLuint dst_offset, dst_stride;
 
-   if (unpack->BufferObj->Name == 0 ||
+   if (!_mesa_is_bufferobj(unpack->BufferObj) ||
        intel->ctx._ImageTransferState ||
        unpack->SkipPixels || unpack->SkipRows) {
       DBG("%s: failure 1\n", __FUNCTION__);
@@ -281,8 +282,8 @@ try_pbo_zcopy(struct intel_context *intel,
 
    dst_offset = intel_miptree_image_offset(intelImage->mt,
                                            intelImage->face,
-                                           intelImage->level);
-
+                                           intelImage->level,
+                                           0 /* zslice */);
    dst_stride = intelImage->mt->pitch;
 
    if (src_stride != dst_stride || dst_offset != 0 || src_offset != 0) {
@@ -319,8 +320,6 @@ intelTexImage(GLcontext * ctx,
 
    DBG("%s target %s level %d %dx%dx%d border %d\n", __FUNCTION__,
        _mesa_lookup_enum_by_nr(target), level, width, height, depth, border);
-
-   intelFlush(ctx);
 
    intelImage->face = target_to_face(target);
    intelImage->level = level;
@@ -427,7 +426,7 @@ intelTexImage(GLcontext * ctx,
     */
    if (dims <= 2 &&
        intelImage->mt &&
-       unpack->BufferObj->Name != 0 &&
+       _mesa_is_bufferobj(unpack->BufferObj) &&
        check_pbo_format(internalFormat, format,
                         type, intelImage->base.TexFormat)) {
 
@@ -482,13 +481,20 @@ intelTexImage(GLcontext * ctx,
    LOCK_HARDWARE(intel);
 
    if (intelImage->mt) {
-      if (pixels != NULL)
+      if (pixels != NULL) {
+	 /* Flush any queued rendering with the texture before mapping. */
+	 if (drm_intel_bo_references(intel->batch->buf,
+				     intelImage->mt->region->buffer)) {
+	    intelFlush(ctx);
+	 }
          texImage->Data = intel_miptree_image_map(intel,
                                                   intelImage->mt,
                                                   intelImage->face,
                                                   intelImage->level,
                                                   &dstRowStride,
                                                   intelImage->base.ImageOffsets);
+      }
+
       texImage->RowStride = dstRowStride / intelImage->mt->cpp;
    }
    else {
@@ -550,11 +556,6 @@ intelTexImage(GLcontext * ctx,
    }
 
    UNLOCK_HARDWARE(intel);
-
-   /* GL_SGIS_generate_mipmap */
-   if (level == texObj->BaseLevel && texObj->GenerateMipmap) {
-      intel_generate_mipmap(ctx, target, texObj);
-   }
 }
 
 

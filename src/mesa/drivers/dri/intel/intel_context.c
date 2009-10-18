@@ -162,6 +162,9 @@ intelGetString(GLcontext * ctx, GLenum name)
       case PCI_CHIP_G41_G:
          chipset = "Intel(R) G41";
          break;
+      case PCI_CHIP_B43_G:
+         chipset = "Intel(R) B43";
+         break;
       case PCI_CHIP_ILD_G:
          chipset = "Intel(R) IGDNG_D";
          break;
@@ -504,7 +507,8 @@ intel_flush(GLcontext *ctx, GLboolean needs_mi_flush)
 
       if (screen->dri2.loader &&
           (screen->dri2.loader->base.version >= 2)
-	  && (screen->dri2.loader->flushFrontBuffer != NULL)) {
+	  && (screen->dri2.loader->flushFrontBuffer != NULL) &&
+          intel->driDrawable && intel->driDrawable->loaderPrivate) {
 	 (*screen->dri2.loader->flushFrontBuffer)(intel->driDrawable,
 						  intel->driDrawable->loaderPrivate);
 
@@ -584,11 +588,6 @@ intelInitDriverFunctions(struct dd_function_table *functions)
    functions->GetString = intelGetString;
    functions->UpdateState = intelInvalidateState;
 
-   functions->CopyColorTable = _swrast_CopyColorTable;
-   functions->CopyColorSubTable = _swrast_CopyColorSubTable;
-   functions->CopyConvolutionFilter1D = _swrast_CopyConvolutionFilter1D;
-   functions->CopyConvolutionFilter2D = _swrast_CopyConvolutionFilter2D;
-
    intelInitTextureFuncs(functions);
    intelInitTextureImageFuncs(functions);
    intelInitTextureSubImageFuncs(functions);
@@ -598,6 +597,7 @@ intelInitDriverFunctions(struct dd_function_table *functions)
    intelInitBufferFuncs(functions);
    intelInitPixelFuncs(functions);
    intelInitBufferObjectFuncs(functions);
+   intel_init_syncobj_functions(functions);
 }
 
 
@@ -918,6 +918,14 @@ intelDestroyContext(__DRIcontextPrivate * driContextPriv)
 GLboolean
 intelUnbindContext(__DRIcontextPrivate * driContextPriv)
 {
+   struct intel_context *intel =
+      (struct intel_context *) driContextPriv->driverPrivate;
+
+   /* Deassociate the context with the drawables.
+    */
+   intel->driDrawable = NULL;
+   intel->driReadDrawable = NULL;
+
    return GL_TRUE;
 }
 
@@ -976,41 +984,35 @@ intelMakeCurrent(__DRIcontextPrivate * driContextPriv,
 
       _mesa_make_current(&intel->ctx, &intel_fb->Base, readFb);
 
-      /* The drawbuffer won't always be updated by _mesa_make_current: 
-       */
-      if (intel->ctx.DrawBuffer == &intel_fb->Base) {
+      intel->driReadDrawable = driReadPriv;
 
-	 if (intel->driReadDrawable != driReadPriv)
-	    intel->driReadDrawable = driReadPriv;
+      if (intel->driDrawable != driDrawPriv) {
+         if (driDrawPriv->swap_interval == (unsigned)-1) {
+            int i;
 
-	 if (intel->driDrawable != driDrawPriv) {
-	    if (driDrawPriv->swap_interval == (unsigned)-1) {
-	       int i;
+            driDrawPriv->vblFlags = (intel->intelScreen->irq_active != 0)
+               ? driGetDefaultVBlankFlags(&intel->optionCache)
+               : VBLANK_FLAG_NO_IRQ;
 
-	       driDrawPriv->vblFlags = (intel->intelScreen->irq_active != 0)
-		  ? driGetDefaultVBlankFlags(&intel->optionCache)
-		 : VBLANK_FLAG_NO_IRQ;
+            /* Prevent error printf if one crtc is disabled, this will
+             * be properly calculated in intelWindowMoved() next.
+             */
+            driDrawPriv->vblFlags = intelFixupVblank(intel, driDrawPriv);
 
-	       /* Prevent error printf if one crtc is disabled, this will
-		* be properly calculated in intelWindowMoved() next.
-		*/
-		driDrawPriv->vblFlags = intelFixupVblank(intel, driDrawPriv);
+            (*psp->systemTime->getUST) (&intel_fb->swap_ust);
+            driDrawableInitVBlank(driDrawPriv);
+            intel_fb->vbl_waited = driDrawPriv->vblSeq;
 
-	       (*psp->systemTime->getUST) (&intel_fb->swap_ust);
-	       driDrawableInitVBlank(driDrawPriv);
-	       intel_fb->vbl_waited = driDrawPriv->vblSeq;
-
-	       for (i = 0; i < 2; i++) {
-		  if (intel_fb->color_rb[i])
-		     intel_fb->color_rb[i]->vbl_pending = driDrawPriv->vblSeq;
-	       }
-	    }
-	    intel->driDrawable = driDrawPriv;
-	    intelWindowMoved(intel);
-	 }
-
-	 intel_draw_buffer(&intel->ctx, &intel_fb->Base);
+            for (i = 0; i < 2; i++) {
+               if (intel_fb->color_rb[i])
+                  intel_fb->color_rb[i]->vbl_pending = driDrawPriv->vblSeq;
+            }
+         }
+         intel->driDrawable = driDrawPriv;
+         intelWindowMoved(intel);
       }
+
+      intel_draw_buffer(&intel->ctx, &intel_fb->Base);
    }
    else {
       _mesa_make_current(NULL, NULL, NULL);

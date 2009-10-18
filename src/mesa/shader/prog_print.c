@@ -794,7 +794,7 @@ _mesa_fprint_program_opt(FILE *f,
       else if (mode == PROG_PRINT_NV)
          _mesa_fprintf(f, "!!VP1.0\n");
       else
-         _mesa_fprintf(f, "# Vertex Program/Shader\n");
+         _mesa_fprintf(f, "# Vertex Program/Shader %u\n", prog->Id);
       break;
    case GL_FRAGMENT_PROGRAM_ARB:
    case GL_FRAGMENT_PROGRAM_NV:
@@ -803,7 +803,7 @@ _mesa_fprint_program_opt(FILE *f,
       else if (mode == PROG_PRINT_NV)
          _mesa_fprintf(f, "!!FP1.0\n");
       else
-         _mesa_fprintf(f, "# Fragment Program/Shader\n");
+         _mesa_fprintf(f, "# Fragment Program/Shader %u\n", prog->Id);
       break;
    case MESA_GEOMETRY_PROGRAM:
       _mesa_fprintf(f, "# Geometry Shader\n");
@@ -914,7 +914,8 @@ _mesa_fprint_parameter_list(FILE *f,
    if (!list)
       return;
 
-   _mesa_fprintf(f, "param list %p\n", (void *) list);
+   if (0)
+      _mesa_fprintf(f, "param list %p\n", (void *) list);
    _mesa_fprintf(f, "dirty state flags: 0x%x\n", list->StateFlags);
    for (i = 0; i < list->NumParameters; i++){
       struct gl_program_parameter *param = list->Parameters + i;

@@ -101,7 +101,12 @@ void radeonFreeTexImageData(GLcontext *ctx, struct gl_texture_image *timage)
 /* Set Data pointer and additional data for mapped texture image */
 static void teximage_set_map_data(radeon_texture_image *image)
 {
-	radeon_mipmap_level *lvl = &image->mt->levels[image->mtlevel];
+	radeon_mipmap_level *lvl;
+
+	if (!image->mt)
+		return;
+
+	lvl = &image->mt->levels[image->mtlevel];
 
 	image->base.Data = image->mt->bo->ptr + lvl->faces[image->mtface].offset;
 	image->base.RowStride = lvl->rowstride / image->mt->bpp;
@@ -579,7 +584,7 @@ static void radeon_teximage(
 	}
 
 	if (!t->mt)
-		radeon_try_alloc_miptree(rmesa, t, texImage, face, level);
+		radeon_try_alloc_miptree(rmesa, t, image, face, level);
 	if (t->mt && radeon_miptree_matches_image(t->mt, texImage, face, level)) {
 		radeon_mipmap_level *lvl;
 		image->mt = t->mt;
@@ -658,11 +663,6 @@ static void radeon_teximage(
 
 			if (dims == 3)
 				_mesa_free(dstImageOffsets);
-		}
-
-		/* SGIS_generate_mipmap */
-		if (level == texObj->BaseLevel && texObj->GenerateMipmap) {
-			radeon_generate_mipmap(ctx, target, texObj);
 		}
 	}
 
@@ -791,11 +791,6 @@ static void radeon_texsubimage(GLcontext* ctx, int dims, GLenum target, int leve
 							     width, height, depth,
 							     format, type, pixels, packing))
 				_mesa_error(ctx, GL_OUT_OF_MEMORY, "glTexSubImage");
-		}
-
-		/* GL_SGIS_generate_mipmap */
-		if (level == texObj->BaseLevel && texObj->GenerateMipmap) {
-			radeon_generate_mipmap(ctx, target, texObj);
 		}
 	}
 
@@ -966,7 +961,7 @@ int radeon_validate_texture_miptree(GLcontext * ctx, struct gl_texture_object *t
 	if (!t->mt) {
 		if (RADEON_DEBUG & RADEON_TEXTURE)
 			fprintf(stderr, " Allocate new miptree\n");
-		radeon_try_alloc_miptree(rmesa, t, &baseimage->base, 0, texObj->BaseLevel);
+		radeon_try_alloc_miptree(rmesa, t, baseimage, 0, texObj->BaseLevel);
 		if (!t->mt) {
 			_mesa_problem(ctx, "radeon_validate_texture failed to alloc miptree");
 			return GL_FALSE;
@@ -979,7 +974,7 @@ int radeon_validate_texture_miptree(GLcontext * ctx, struct gl_texture_object *t
 			radeon_texture_image *image = get_radeon_texture_image(texObj->Image[face][level]);
 			if (RADEON_DEBUG & RADEON_TEXTURE)
 				fprintf(stderr, " face %i, level %i... %p vs %p ", face, level, t->mt, image->mt);
-			if (t->mt == image->mt) {
+			if (t->mt == image->mt || (!image->mt && !image->base.Data)) {
 				if (RADEON_DEBUG & RADEON_TEXTURE)
 					fprintf(stderr, "OK\n");
 

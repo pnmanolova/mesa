@@ -18,7 +18,7 @@ AC_CONFIG_AUX_DIR([bin])
 AC_CANONICAL_HOST
 
 dnl Versions for external dependencies
-LIBDRM_REQUIRED=2.4.3
+LIBDRM_REQUIRED=2.4.15
 DRI2PROTO_REQUIRED=1.99.3
 
 dnl Check for progs
@@ -230,6 +230,8 @@ else
         LIB_EXTENSION='dylib' ;;
     cygwin* )
         LIB_EXTENSION='dll' ;;
+    aix* )
+        LIB_EXTENSION='a' ;;
     * )
         LIB_EXTENSION='so' ;;
     esac
@@ -417,7 +419,7 @@ WINDOW_SYSTEM=""
 GALLIUM_DIRS="auxiliary drivers state_trackers"
 GALLIUM_WINSYS_DIRS=""
 GALLIUM_WINSYS_DRM_DIRS=""
-GALLIUM_AUXILIARY_DIRS="rbug draw translate cso_cache pipebuffer tgsi sct rtasm util indices"
+GALLIUM_AUXILIARY_DIRS="rbug draw translate cso_cache pipebuffer tgsi sct rtasm util indices vl"
 GALLIUM_DRIVERS_DIRS="softpipe failover trace identity"
 GALLIUM_STATE_TRACKERS_DIRS=""
 
@@ -1148,6 +1150,11 @@ yes)
         if test "$tracker" = egl && test "x$enable_egl" != xyes; then
             AC_MSG_ERROR([cannot build egl state tracker without EGL library])
         fi
+        if test "$tracker" = xorg; then
+	    PKG_CHECK_MODULES(XEXT, [xextproto >= 7.0.99.1],
+                  HAVE_XEXTPROTO_71="yes"; DEFINES="$DEFINES -DHAVE_XEXTPROTO_71",
+                  HAVE_XEXTPROTO_71="no")
+        fi
     done
     GALLIUM_STATE_TRACKERS_DIRS="$state_trackers"
     ;;
@@ -1185,7 +1192,7 @@ AC_ARG_ENABLE([gallium-intel],
     [enable_gallium_intel=yes])
 if test "x$enable_gallium_intel" = xyes; then
     GALLIUM_WINSYS_DRM_DIRS="$GALLIUM_WINSYS_DRM_DIRS intel"
-    GALLIUM_DRIVERS_DIRS="$GALLIUM_DRIVERS_DIRS i915simple"
+    GALLIUM_DRIVERS_DIRS="$GALLIUM_DRIVERS_DIRS i915"
 fi
 
 dnl
@@ -1202,7 +1209,7 @@ if test "x$enable_gallium_radeon" = xyes; then
 fi
 
 dnl
-dnl Gallium Radeon configuration
+dnl Gallium Nouveau configuration
 dnl
 AC_ARG_ENABLE([gallium-nouveau],
     [AS_HELP_STRING([--enable-gallium-nouveau],

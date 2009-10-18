@@ -334,14 +334,27 @@ def generate(env):
         else:
             ccflags += ['-O3', '-g3']
         if env['profile']:
-            ccflags += ['-pg']
+            # See http://code.google.com/p/jrfonseca/wiki/Gprof2Dot#Which_options_should_I_pass_to_gcc_when_compiling_for_profiling?
+            ccflags += [
+                '-fno-omit-frame-pointer',
+                '-fno-optimize-sibling-calls',
+            ]
         if env['machine'] == 'x86':
             ccflags += [
                 '-m32',
                 #'-march=pentium4',
-                '-mmmx', '-msse', '-msse2', # enable SIMD intrinsics
                 #'-mfpmath=sse',
             ]
+            if platform != 'windows':
+                # XXX: -mstackrealign causes stack corruption on MinGW. Ditto
+                # for -mincoming-stack-boundary=2.  Still enable it on other
+                # platforms for now, but we can't rely on it for cross platform
+                # code. We have to use __attribute__((force_align_arg_pointer))
+                # instead.
+                ccflags += [
+                    '-mmmx', '-msse', '-msse2', # enable SIMD intrinsics
+                    '-mstackrealign', # ensure stack is aligned
+                ]
         if env['machine'] == 'x86_64':
             ccflags += ['-m64']
         # See also:

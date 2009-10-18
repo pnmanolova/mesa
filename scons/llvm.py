@@ -29,9 +29,7 @@ Tool-specific initialization for LLVM
 
 import os
 import os.path
-import subprocess
 
-import SCons.Action
 import SCons.Errors
 import SCons.Util
 
@@ -53,27 +51,26 @@ def generate(env):
 
         llvm_bin_dir = os.path.join(llvm_dir, llvm_subdir, 'bin')
         if not os.path.isdir(llvm_bin_dir):
-            raise SCons.Errors.InternalError, "LLVM build directory not found"
+            llvm_bin_dir = os.path.join(llvm_dir, 'bin')
+            if not os.path.isdir(llvm_bin_dir):
+                raise SCons.Errors.InternalError, "LLVM binary directory not found"
 
         env.PrependENVPath('PATH', llvm_bin_dir)
 
     if env.Detect('llvm-config'):
-        pipe = SCons.Action._subproc(env, 
-                                     ['llvm-config', '--version'],
-                                     stdin = 'devnull',
-                                     stderr = 'devnull',
-                                     stdout = subprocess.PIPE)
-        if pipe.wait() != 0:
-            return
-        line = pipe.stdout.read().strip()
-        if not line:
-            return
-        env['LLVM_VERSION'] = line
+        version = env.backtick('llvm-config --version').rstrip()
 
-        env.ParseConfig('llvm-config --cppflags')
-        env.ParseConfig('llvm-config --libs jit interpreter nativecodegen bitwriter')
-        env.ParseConfig('llvm-config --ldflags')
-        env['LINK'] = env['CXX']
+        try:
+            env.ParseConfig('llvm-config --cppflags')
+            env.ParseConfig('llvm-config --libs jit interpreter nativecodegen bitwriter')
+            env.ParseConfig('llvm-config --ldflags')
+        except OSError:
+            print 'llvm-config version %s failed' % version
+        else:
+            if env['platform'] == 'windows':
+                env.Append(LIBS = ['imagehlp', 'psapi'])
+            env['LINK'] = env['CXX']
+            env['LLVM_VERSION'] = version
 
 def exists(env):
     return True

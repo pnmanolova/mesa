@@ -25,6 +25,7 @@
 #include "r300_emit.h"
 
 #include "r300_fs.h"
+#include "r300_state_derived.h"
 #include "r300_vs.h"
 
 void r300_emit_blend_state(struct r300_context* r300,
@@ -105,7 +106,7 @@ void r300_emit_dsa_state(struct r300_context* r300,
     OUT_CS(dsa->z_buffer_control);
     OUT_CS(dsa->z_stencil_control);
     OUT_CS(dsa->stencil_ref_mask);
-    OUT_CS_REG(R300_ZB_ZTOP, dsa->z_buffer_top);
+    OUT_CS_REG(R300_ZB_ZTOP, r300->ztop_state.z_buffer_top);
     if (r300screen->caps->is_r500) {
         /* OUT_CS_REG(R500_ZB_STENCILREFMASK_BF, dsa->stencil_ref_bf); */
     }
@@ -211,7 +212,7 @@ void r300_emit_fragment_program_code(struct r300_context* r300,
     }
 
     if (constants->Count) {
-        OUT_CS_ONE_REG(R300_PFS_PARAM_0_X, constants->Count * 4);
+        OUT_CS_REG_SEQ(R300_PFS_PARAM_0_X, constants->Count * 4);
         for(i = 0; i < constants->Count; ++i) {
             const float * data = get_shader_constant(r300, &constants->Constants[i], externals);
             OUT_CS(pack_float24(data[0]));
@@ -282,7 +283,7 @@ void r300_emit_fb_state(struct r300_context* r300,
     for (i = 0; i < fb->nr_cbufs; i++) {
         tex = (struct r300_texture*)fb->cbufs[i]->texture;
         assert(tex && tex->buffer && "cbuf is marked, but NULL!");
-        pixpitch = tex->stride / tex->tex.block.size;
+        pixpitch = r300_texture_get_stride(tex, 0) / tex->tex.block.size;
 
         OUT_CS_REG_SEQ(R300_RB3D_COLOROFFSET0 + (4 * i), 1);
         OUT_CS_RELOC(tex->buffer, 0, 0, RADEON_GEM_DOMAIN_VRAM, 0);
@@ -299,7 +300,7 @@ void r300_emit_fb_state(struct r300_context* r300,
     if (fb->zsbuf) {
         tex = (struct r300_texture*)fb->zsbuf->texture;
         assert(tex && tex->buffer && "zsbuf is marked, but NULL!");
-        pixpitch = tex->stride / tex->tex.block.size;
+        pixpitch = r300_texture_get_stride(tex, 0) / tex->tex.block.size;
 
         OUT_CS_REG_SEQ(R300_ZB_DEPTHOFFSET, 1);
         OUT_CS_RELOC(tex->buffer, 0, 0, RADEON_GEM_DOMAIN_VRAM, 0);
@@ -319,31 +320,38 @@ void r300_emit_fb_state(struct r300_context* r300,
     END_CS;
 }
 
-void r300_emit_query_begin(struct r300_context* r300,
-                           struct r300_query* query)
+void r300_emit_query_start(struct r300_context *r300)
+
 {
+    struct r300_capabilities *caps = r300_screen(r300->context.screen)->caps;
+    struct r300_query *query = r300->query_current;
     CS_LOCALS(r300);
+
+    if (!query)
+	return;
 
     /* XXX This will almost certainly not return good results
      * for overlapping queries. */
-    BEGIN_CS(2);
+    BEGIN_CS(4);
+    if (caps->family == CHIP_FAMILY_RV530) {
+	OUT_CS_REG(RV530_FG_ZBREG_DEST, RV530_FG_ZBREG_DEST_PIPE_SELECT_ALL);
+    } else {
+	OUT_CS_REG(R300_SU_REG_DEST, R300_RASTER_PIPE_SELECT_ALL);
+    }
     OUT_CS_REG(R300_ZB_ZPASS_DATA, 0);
     END_CS;
+    query->begin_emitted = TRUE;
 }
 
-void r300_emit_query_end(struct r300_context* r300,
-                         struct r300_query* query)
+
+static void r300_emit_query_finish(struct r300_context *r300,
+				   struct r300_query *query)
 {
     struct r300_capabilities* caps = r300_screen(r300->context.screen)->caps;
     CS_LOCALS(r300);
 
-    if (!r300->winsys->add_buffer(r300->winsys, r300->oqbo,
-                0, RADEON_GEM_DOMAIN_GTT)) {
-        debug_printf("r300: There wasn't room for the OQ buffer!?"
-                " Oh noes!\n");
-    }
-
     assert(caps->num_frag_pipes);
+
     BEGIN_CS(6 * caps->num_frag_pipes + 2);
     /* I'm not so sure I like this switch, but it's hard to be elegant
      * when there's so many special cases...
@@ -380,6 +388,7 @@ void r300_emit_query_end(struct r300_context* r300,
             OUT_CS_REG_SEQ(R300_ZB_ZPASS_ADDR, 1);
             OUT_CS_RELOC(r300->oqbo, query->offset + (sizeof(uint32_t) * 0),
                     0, RADEON_GEM_DOMAIN_GTT, 0);
+	    break;
         default:
             debug_printf("r300: Implementation error: Chipset reports %d"
                     " pixel pipes!\n", caps->num_frag_pipes);
@@ -390,6 +399,55 @@ void r300_emit_query_end(struct r300_context* r300,
     OUT_CS_REG(R300_SU_REG_DEST, 0xF);
     END_CS;
 
+}
+
+static void rv530_emit_query_single(struct r300_context *r300,
+				    struct r300_query *query)
+{
+    CS_LOCALS(r300);
+
+    BEGIN_CS(8);
+    OUT_CS_REG(RV530_FG_ZBREG_DEST, RV530_FG_ZBREG_DEST_PIPE_SELECT_0);
+    OUT_CS_REG_SEQ(R300_ZB_ZPASS_ADDR, 1);
+    OUT_CS_RELOC(r300->oqbo, query->offset, 0, RADEON_GEM_DOMAIN_GTT, 0);
+    OUT_CS_REG(RV530_FG_ZBREG_DEST, RV530_FG_ZBREG_DEST_PIPE_SELECT_ALL);
+    END_CS;
+}
+
+static void rv530_emit_query_double(struct r300_context *r300,
+				    struct r300_query *query)
+{
+    CS_LOCALS(r300);
+
+    BEGIN_CS(14);
+    OUT_CS_REG(RV530_FG_ZBREG_DEST, RV530_FG_ZBREG_DEST_PIPE_SELECT_0);
+    OUT_CS_REG_SEQ(R300_ZB_ZPASS_ADDR, 1);
+    OUT_CS_RELOC(r300->oqbo, query->offset, 0, RADEON_GEM_DOMAIN_GTT, 0);
+    OUT_CS_REG(RV530_FG_ZBREG_DEST, RV530_FG_ZBREG_DEST_PIPE_SELECT_1);
+    OUT_CS_REG_SEQ(R300_ZB_ZPASS_ADDR, 1);
+    OUT_CS_RELOC(r300->oqbo, query->offset + sizeof(uint32_t), 0, RADEON_GEM_DOMAIN_GTT, 0);
+    OUT_CS_REG(RV530_FG_ZBREG_DEST, RV530_FG_ZBREG_DEST_PIPE_SELECT_ALL);
+    END_CS;
+}
+
+void r300_emit_query_end(struct r300_context* r300)
+{
+    struct r300_capabilities *caps = r300_screen(r300->context.screen)->caps;
+    struct r300_query *query = r300->query_current;
+
+    if (!query)
+	return;
+
+    if (query->begin_emitted == FALSE)
+        return;
+
+    if (caps->family == CHIP_FAMILY_RV530) {
+	if (caps->num_z_pipes == 2)
+	    rv530_emit_query_double(r300, query);
+	else
+	    rv530_emit_query_single(r300, query);
+    } else 
+        r300_emit_query_finish(r300, query);
 }
 
 void r300_emit_rs_state(struct r300_context* r300, struct r300_rs_state* rs)
@@ -473,7 +531,8 @@ void r300_emit_texture(struct r300_context* r300,
     CS_LOCALS(r300);
 
     BEGIN_CS(16);
-    OUT_CS_REG(R300_TX_FILTER0_0 + (offset * 4), sampler->filter0);
+    OUT_CS_REG(R300_TX_FILTER0_0 + (offset * 4), sampler->filter0 |
+        (offset << 28));
     OUT_CS_REG(R300_TX_FILTER1_0 + (offset * 4), sampler->filter1);
     OUT_CS_REG(R300_TX_BORDER_COLOR_0 + (offset * 4), sampler->border_color);
 
@@ -490,9 +549,9 @@ void r300_emit_vertex_buffer(struct r300_context* r300)
 {
     CS_LOCALS(r300);
 
-    debug_printf("r300: Preparing vertex buffer %p for render, "
+    DBG(r300, DBG_DRAW, "r300: Preparing vertex buffer %p for render, "
             "vertex size %d\n", r300->vbo,
-            r300->vertex_info.vinfo.size);
+            r300->vertex_info->vinfo.size);
     /* Set the pointer to our vertex buffer. The emitted values are this:
      * PACKET3 [3D_LOAD_VBPNTR]
      * COUNT   [1]
@@ -503,8 +562,8 @@ void r300_emit_vertex_buffer(struct r300_context* r300)
     BEGIN_CS(7);
     OUT_CS_PKT3(R300_PACKET3_3D_LOAD_VBPNTR, 3);
     OUT_CS(1);
-    OUT_CS(r300->vertex_info.vinfo.size |
-            (r300->vertex_info.vinfo.size << 8));
+    OUT_CS(r300->vertex_info->vinfo.size |
+            (r300->vertex_info->vinfo.size << 8));
     OUT_CS(r300->vbo_offset);
     OUT_CS_RELOC(r300->vbo, 0, RADEON_GEM_DOMAIN_GTT, 0, 0);
     END_CS;
@@ -516,30 +575,30 @@ void r300_emit_vertex_format_state(struct r300_context* r300)
     CS_LOCALS(r300);
 
     BEGIN_CS(26);
-    OUT_CS_REG(R300_VAP_VTX_SIZE, r300->vertex_info.vinfo.size);
+    OUT_CS_REG(R300_VAP_VTX_SIZE, r300->vertex_info->vinfo.size);
 
     OUT_CS_REG_SEQ(R300_VAP_VTX_STATE_CNTL, 2);
-    OUT_CS(r300->vertex_info.vinfo.hwfmt[0]);
-    OUT_CS(r300->vertex_info.vinfo.hwfmt[1]);
+    OUT_CS(r300->vertex_info->vinfo.hwfmt[0]);
+    OUT_CS(r300->vertex_info->vinfo.hwfmt[1]);
     OUT_CS_REG_SEQ(R300_VAP_OUTPUT_VTX_FMT_0, 2);
-    OUT_CS(r300->vertex_info.vinfo.hwfmt[2]);
-    OUT_CS(r300->vertex_info.vinfo.hwfmt[3]);
+    OUT_CS(r300->vertex_info->vinfo.hwfmt[2]);
+    OUT_CS(r300->vertex_info->vinfo.hwfmt[3]);
     /* for (i = 0; i < 4; i++) {
      *    debug_printf("hwfmt%d: 0x%08x\n", i,
-     *            r300->vertex_info.vinfo.hwfmt[i]);
+     *            r300->vertex_info->vinfo.hwfmt[i]);
      * } */
 
     OUT_CS_REG_SEQ(R300_VAP_PROG_STREAM_CNTL_0, 8);
     for (i = 0; i < 8; i++) {
-        OUT_CS(r300->vertex_info.vap_prog_stream_cntl[i]);
+        OUT_CS(r300->vertex_info->vap_prog_stream_cntl[i]);
         /* debug_printf("prog_stream_cntl%d: 0x%08x\n", i,
-         *        r300->vertex_info.vap_prog_stream_cntl[i]); */
+         *        r300->vertex_info->vap_prog_stream_cntl[i]); */
     }
     OUT_CS_REG_SEQ(R300_VAP_PROG_STREAM_CNTL_EXT_0, 8);
     for (i = 0; i < 8; i++) {
-        OUT_CS(r300->vertex_info.vap_prog_stream_cntl_ext[i]);
+        OUT_CS(r300->vertex_info->vap_prog_stream_cntl_ext[i]);
         /* debug_printf("prog_stream_cntl_ext%d: 0x%08x\n", i,
-         *        r300->vertex_info.vap_prog_stream_cntl_ext[i]); */
+         *        r300->vertex_info->vap_prog_stream_cntl_ext[i]); */
     }
     END_CS;
 }
@@ -656,6 +715,9 @@ void r300_emit_dirty_state(struct r300_context* r300)
 
     r300_update_derived_state(r300);
 
+    /* Clean out BOs. */
+    r300->winsys->reset_bos(r300->winsys);
+
     /* XXX check size */
 validate:
     /* Color buffers... */
@@ -681,7 +743,8 @@ validate:
     /* ...textures... */
     for (i = 0; i < r300->texture_count; i++) {
         tex = r300->textures[i];
-        assert(tex && tex->buffer && "texture is marked, but NULL!");
+        if (!tex)
+	    continue;
         if (!r300->winsys->add_buffer(r300->winsys, tex->buffer,
                     RADEON_GEM_DOMAIN_GTT | RADEON_GEM_DOMAIN_VRAM, 0)) {
             r300->context.flush(&r300->context, 0, NULL);
@@ -713,6 +776,11 @@ validate:
         }
         invalid = TRUE;
         goto validate;
+    }
+
+    if (r300->dirty_state & R300_NEW_QUERY) {
+        r300_emit_query_start(r300);
+        r300->dirty_state &= ~R300_NEW_QUERY;
     }
 
     if (r300->dirty_state & R300_NEW_BLEND) {
@@ -768,12 +836,13 @@ validate:
     if (r300->dirty_state &
             (R300_ANY_NEW_SAMPLERS | R300_ANY_NEW_TEXTURES)) {
         for (i = 0; i < MIN2(r300->sampler_count, r300->texture_count); i++) {
-            if (r300->dirty_state &
-                    ((R300_NEW_SAMPLER << i) | (R300_NEW_TEXTURE << i))) {
-                r300_emit_texture(r300,
-                        r300->sampler_states[i],
-                        r300->textures[i],
-                        i);
+  	    if (r300->dirty_state &
+		((R300_NEW_SAMPLER << i) | (R300_NEW_TEXTURE << i))) {
+		if (r300->textures[i]) 
+		    r300_emit_texture(r300,
+				      r300->sampler_states[i],
+				      r300->textures[i],
+				      i);
                 r300->dirty_state &=
                     ~((R300_NEW_SAMPLER << i) | (R300_NEW_TEXTURE << i));
                 dirty_tex++;

@@ -33,7 +33,10 @@
 #include "image.h"
 #include "readpix.h"
 #include "state.h"
+#include "glapi/dispatch.h"
 
+
+#if FEATURE_drawpix
 
 
 /**
@@ -47,12 +50,10 @@ valid_fragment_program(GLcontext *ctx)
 }
 
 
-#if _HAVE_FULL_GL
-
 /*
  * Execute glDrawPixels
  */
-void GLAPIENTRY
+static void GLAPIENTRY
 _mesa_DrawPixels( GLsizei width, GLsizei height,
                   GLenum format, GLenum type, const GLvoid *pixels )
 {
@@ -140,7 +141,7 @@ end:
 }
 
 
-void GLAPIENTRY
+static void GLAPIENTRY
 _mesa_CopyPixels( GLint srcx, GLint srcy, GLsizei width, GLsizei height,
                   GLenum type )
 {
@@ -225,11 +226,8 @@ end:
    _mesa_set_vp_override(ctx, GL_FALSE);
 }
 
-#endif /* _HAVE_FULL_GL */
 
-
-
-void GLAPIENTRY
+static void GLAPIENTRY
 _mesa_Bitmap( GLsizei width, GLsizei height,
               GLfloat xorig, GLfloat yorig, GLfloat xmove, GLfloat ymove,
               const GLubyte *bitmap )
@@ -264,27 +262,30 @@ _mesa_Bitmap( GLsizei width, GLsizei height,
 
    if (ctx->RenderMode == GL_RENDER) {
       /* Truncate, to satisfy conformance tests (matches SGI's OpenGL). */
-      const GLfloat epsilon = 0.0001F;
-      GLint x = IFLOOR(ctx->Current.RasterPos[0] + epsilon - xorig);
-      GLint y = IFLOOR(ctx->Current.RasterPos[1] + epsilon - yorig);
+      if (width > 0 && height > 0) {
+         const GLfloat epsilon = 0.0001F;
+         GLint x = IFLOOR(ctx->Current.RasterPos[0] + epsilon - xorig);
+         GLint y = IFLOOR(ctx->Current.RasterPos[1] + epsilon - yorig);
 
-      if (ctx->Unpack.BufferObj->Name) {
-         /* unpack from PBO */
-         if (!_mesa_validate_pbo_access(2, &ctx->Unpack, width, height, 1,
-                                        GL_COLOR_INDEX, GL_BITMAP,
-                                        (GLvoid *) bitmap)) {
-            _mesa_error(ctx, GL_INVALID_OPERATION,
-                        "glBitmap(invalid PBO access)");
-            return;
+         if (ctx->Unpack.BufferObj->Name) {
+            /* unpack from PBO */
+            if (!_mesa_validate_pbo_access(2, &ctx->Unpack, width, height, 1,
+                                           GL_COLOR_INDEX, GL_BITMAP,
+                                           (GLvoid *) bitmap)) {
+               _mesa_error(ctx, GL_INVALID_OPERATION,
+                           "glBitmap(invalid PBO access)");
+               return;
+            }
+            if (_mesa_bufferobj_mapped(ctx->Unpack.BufferObj)) {
+               /* buffer is mapped - that's an error */
+               _mesa_error(ctx, GL_INVALID_OPERATION,
+                           "glBitmap(PBO is mapped)");
+               return;
+            }
          }
-         if (_mesa_bufferobj_mapped(ctx->Unpack.BufferObj)) {
-            /* buffer is mapped - that's an error */
-            _mesa_error(ctx, GL_INVALID_OPERATION, "glBitmap(PBO is mapped)");
-            return;
-         }
+
+         ctx->Driver.Bitmap( ctx, x, y, width, height, &ctx->Unpack, bitmap );
       }
-
-      ctx->Driver.Bitmap( ctx, x, y, width, height, &ctx->Unpack, bitmap );
    }
 #if _HAVE_FULL_GL
    else if (ctx->RenderMode == GL_FEEDBACK) {
@@ -306,3 +307,15 @@ _mesa_Bitmap( GLsizei width, GLsizei height,
    ctx->Current.RasterPos[0] += xmove;
    ctx->Current.RasterPos[1] += ymove;
 }
+
+
+void
+_mesa_init_drawpix_dispatch(struct _glapi_table *disp)
+{
+   SET_Bitmap(disp, _mesa_Bitmap);
+   SET_CopyPixels(disp, _mesa_CopyPixels);
+   SET_DrawPixels(disp, _mesa_DrawPixels);
+}
+
+
+#endif /* FEATURE_drawpix */

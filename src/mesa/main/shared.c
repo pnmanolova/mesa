@@ -37,13 +37,13 @@
 #include "shared.h"
 #include "shader/program.h"
 #include "shader/shader_api.h"
-#if FEATURE_dlist
 #include "dlist.h"
-#endif
 #if FEATURE_ATI_fragment_shader
 #include "shader/atifragshader.h"
 #endif
-
+#if FEATURE_ARB_sync
+#include "syncobj.h"
+#endif
 
 /**
  * Allocate and initialize a shared context state structure.
@@ -127,6 +127,10 @@ _mesa_alloc_shared_state(GLcontext *ctx)
    shared->RenderBuffers = _mesa_NewHashTable();
 #endif
 
+#if FEATURE_ARB_sync
+   make_empty_list(& shared->SyncObjects);
+#endif
+
    return shared;
 }
 
@@ -137,11 +141,9 @@ _mesa_alloc_shared_state(GLcontext *ctx)
 static void
 delete_displaylist_cb(GLuint id, void *data, void *userData)
 {
-#if FEATURE_dlist
    struct gl_display_list *list = (struct gl_display_list *) data;
    GLcontext *ctx = (GLcontext *) userData;
    _mesa_delete_list(ctx, list);
-#endif
 }
 
 
@@ -334,6 +336,17 @@ _mesa_free_shared_state(GLcontext *ctx, struct gl_shared_state *shared)
 
 #if FEATURE_ARB_vertex_buffer_object
    ctx->Driver.DeleteBuffer(ctx, shared->NullBufferObj);
+#endif
+
+#if FEATURE_ARB_sync
+   {
+      struct simple_node *node;
+      struct simple_node *temp;
+
+      foreach_s(node, temp, & shared->SyncObjects) {
+	 _mesa_unref_sync_object(ctx, (struct gl_sync_object *) node);
+      }
+   }
 #endif
 
    /*

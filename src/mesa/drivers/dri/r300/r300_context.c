@@ -84,6 +84,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define need_GL_EXT_framebuffer_object
 #define need_GL_EXT_fog_coord
 #define need_GL_EXT_gpu_program_parameters
+#define need_GL_EXT_provoking_vertex
 #define need_GL_EXT_secondary_color
 #define need_GL_EXT_stencil_two_side
 #define need_GL_ATI_separate_stencil
@@ -116,6 +117,7 @@ const struct dri_extension card_extensions[] = {
   {"GL_EXT_packed_depth_stencil",	NULL},
   {"GL_EXT_fog_coord",			GL_EXT_fog_coord_functions },
   {"GL_EXT_gpu_program_parameters",     GL_EXT_gpu_program_parameters_functions},
+  {"GL_EXT_provoking_vertex",           GL_EXT_provoking_vertex_functions },
   {"GL_EXT_secondary_color", 		GL_EXT_secondary_color_functions},
   {"GL_EXT_shadow_funcs",		NULL},
   {"GL_EXT_stencil_two_side",		GL_EXT_stencil_two_side_functions},
@@ -374,11 +376,21 @@ static void r300InitConstValues(GLcontext *ctx, radeonScreenPtr screen)
 	if (screen->chip_family >= CHIP_FAMILY_RV515) {
 		ctx->Const.FragmentProgram.MaxNativeTemps = R500_PFS_NUM_TEMP_REGS;
 		ctx->Const.FragmentProgram.MaxNativeAttribs = 11;	/* copy i915... */
-		ctx->Const.FragmentProgram.MaxNativeParameters = R500_PFS_NUM_CONST_REGS;
-		ctx->Const.FragmentProgram.MaxNativeAluInstructions = R500_PFS_MAX_INST;
-		ctx->Const.FragmentProgram.MaxNativeTexInstructions = R500_PFS_MAX_INST;
-		ctx->Const.FragmentProgram.MaxNativeInstructions = R500_PFS_MAX_INST;
-		ctx->Const.FragmentProgram.MaxNativeTexIndirections = R500_PFS_MAX_INST;
+
+		/* The hardware limits are higher than this,
+		 * but the non-KMS DRM interface artificially limits us
+		 * to this many instructions.
+		 *
+		 * We could of course work around it in the KMS path,
+		 * but it would be a mess, so it seems wiser
+		 * to leave it as is. Going forward, the Gallium driver
+		 * will not be subject to these limitations.
+		 */
+		ctx->Const.FragmentProgram.MaxNativeParameters = 255;
+		ctx->Const.FragmentProgram.MaxNativeAluInstructions = 255;
+		ctx->Const.FragmentProgram.MaxNativeTexInstructions = 255;
+		ctx->Const.FragmentProgram.MaxNativeInstructions = 255;
+		ctx->Const.FragmentProgram.MaxNativeTexIndirections = 255;
 		ctx->Const.FragmentProgram.MaxNativeAddressRegs = 0;
 	} else {
 		ctx->Const.FragmentProgram.MaxNativeTemps = R300_PFS_NUM_TEMP_REGS;

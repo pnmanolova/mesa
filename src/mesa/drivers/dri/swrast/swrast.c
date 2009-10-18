@@ -43,6 +43,7 @@
 #include "tnl/t_pipeline.h"
 #include "vbo/vbo.h"
 #include "drivers/common/driverfuncs.h"
+#include "drivers/common/meta.h"
 #include "utils.h"
 
 #include "swrast_priv.h"
@@ -62,9 +63,11 @@
 #define need_GL_SGI_color_table
 
 /* sw extensions not associated with some GL version */
+#define need_GL_ARB_draw_elements_base_vertex
 #define need_GL_ARB_shader_objects
 #define need_GL_ARB_vertex_array_object
 #define need_GL_ARB_vertex_program
+#define need_GL_ARB_sync
 #define need_GL_APPLE_vertex_array_object
 #define need_GL_ATI_fragment_shader
 #define need_GL_ATI_separate_stencil
@@ -94,9 +97,12 @@ const struct dri_extension card_extensions[] =
     { "GL_EXT_histogram",		GL_EXT_histogram_functions },
     { "GL_SGI_color_table",		GL_SGI_color_table_functions },
 
+    { "GL_ARB_depth_clamp",		NULL },
+    { "GL_ARB_draw_elements_base_vertex", GL_ARB_draw_elements_base_vertex_functions },
     { "GL_ARB_shader_objects",		GL_ARB_shader_objects_functions },
     { "GL_ARB_vertex_array_object",	GL_ARB_vertex_array_object_functions },
     { "GL_ARB_vertex_program",		GL_ARB_vertex_program_functions },
+    { "GL_ARB_sync",			GL_ARB_sync_functions },
     { "GL_APPLE_vertex_array_object",	GL_APPLE_vertex_array_object_functions },
     { "GL_ATI_fragment_shader",		GL_ATI_fragment_shader_functions },
     { "GL_ATI_separate_stencil",	GL_ATI_separate_stencil_functions },
@@ -107,8 +113,10 @@ const struct dri_extension card_extensions[] =
     { "GL_EXT_paletted_texture",	GL_EXT_paletted_texture_functions },
     { "GL_EXT_stencil_two_side",	GL_EXT_stencil_two_side_functions },
     { "GL_MESA_resize_buffers",		GL_MESA_resize_buffers_functions },
+    { "GL_NV_depth_clamp",		NULL },
     { "GL_NV_vertex_program",		GL_NV_vertex_program_functions },
     { "GL_NV_fragment_program",		GL_NV_fragment_program_functions },
+    { "GL_NV_fragment_program_option",	NULL },
     { NULL,				NULL }
 };
 
@@ -643,6 +651,8 @@ driCreateNewContext(__DRIscreen *screen, const __DRIconfig *config,
     _mesa_enable_2_0_extensions(mesaCtx);
     _mesa_enable_2_1_extensions(mesaCtx);
 
+    _mesa_meta_init(mesaCtx);
+
     return ctx;
 }
 
@@ -654,6 +664,7 @@ driDestroyContext(__DRIcontext *ctx)
 
     if (ctx) {
 	mesaCtx = &ctx->Base;
+        _mesa_meta_free(mesaCtx);
 	_swsetup_DestroyContext( mesaCtx );
 	_swrast_DestroyContext( mesaCtx );
 	_tnl_DestroyContext( mesaCtx );

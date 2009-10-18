@@ -542,7 +542,7 @@ fenced_buffer_list_dump(struct fenced_buffer_list *fenced_list)
       debug_printf("%10p %7u %7u\n",
                    fenced_buf,
                    fenced_buf->base.base.size,
-                   fenced_buf->base.base.reference.count);
+                   p_atomic_read(&fenced_buf->base.base.reference.count));
       curr = next; 
       next = curr->next;
    }
@@ -556,7 +556,7 @@ fenced_buffer_list_dump(struct fenced_buffer_list *fenced_list)
       debug_printf("%10p %7u %7u %10p %s\n",
                    fenced_buf,
                    fenced_buf->base.base.size,
-                   fenced_buf->base.base.reference.count,
+                   p_atomic_read(&fenced_buf->base.base.reference.count),
                    fenced_buf->fence,
                    signaled == 0 ? "y" : "n");
       curr = next; 
@@ -584,7 +584,7 @@ fenced_buffer_list_destroy(struct fenced_buffer_list *fenced_list)
    }
 
 #ifdef DEBUG
-   //assert(!fenced_list->numUnfenced);
+   /*assert(!fenced_list->numUnfenced);*/
 #endif
       
    pipe_mutex_unlock(fenced_list->mutex);

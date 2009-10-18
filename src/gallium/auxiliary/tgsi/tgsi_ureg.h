@@ -31,6 +31,10 @@
 #include "pipe/p_compiler.h"
 #include "pipe/p_shader_tokens.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+   
 struct ureg_program;
 
 /* Almost a tgsi_src_register, but we need to pull in the Absolute
@@ -48,6 +52,8 @@ struct ureg_src
    unsigned Absolute    : 1;  /* BOOL */
    int      Index       : 16; /* SINT */
    unsigned Negate      : 1;  /* BOOL */
+   int      IndirectIndex   : 16; /* SINT */
+   int      IndirectSwizzle : 2;  /* TGSI_SWIZZLE_ */
 };
 
 /* Very similar to a tgsi_dst_register, removing unsupported fields
@@ -64,6 +70,8 @@ struct ureg_dst
    int      Index       : 16; /* SINT */
    unsigned Pad1        : 5;
    unsigned Pad2        : 1;  /* BOOL */
+   int      IndirectIndex   : 16; /* SINT */
+   int      IndirectSwizzle : 2;  /* TGSI_SWIZZLE_ */
 };
 
 struct pipe_context;
@@ -74,9 +82,20 @@ ureg_create( unsigned processor );
 const struct tgsi_token *
 ureg_finalize( struct ureg_program * );
 
+/* Create and return a shader:
+ */
 void *
 ureg_create_shader( struct ureg_program *,
                     struct pipe_context *pipe );
+
+
+/* Alternately, return the built token stream and hand ownership of
+ * that memory to the caller:
+ */
+const struct tgsi_token *
+ureg_get_tokens( struct ureg_program *ureg,
+                 unsigned *nr_tokens );
+
 
 void 
 ureg_destroy( struct ureg_program * );
@@ -108,8 +127,11 @@ ureg_DECL_fs_input( struct ureg_program *,
 
 struct ureg_src
 ureg_DECL_vs_input( struct ureg_program *,
-                    unsigned semantic_name,
-                    unsigned semantic_index );
+                    unsigned index );
+
+struct ureg_src
+ureg_DECL_gs_input( struct ureg_program *,
+                    unsigned index );
 
 struct ureg_dst
 ureg_DECL_output( struct ureg_program *,
@@ -122,7 +144,8 @@ ureg_DECL_immediate( struct ureg_program *,
                      unsigned nr );
 
 struct ureg_src
-ureg_DECL_constant( struct ureg_program * );
+ureg_DECL_constant( struct ureg_program *,
+                    unsigned index );
 
 struct ureg_dst
 ureg_DECL_temporary( struct ureg_program * );
@@ -131,12 +154,21 @@ void
 ureg_release_temporary( struct ureg_program *ureg,
                         struct ureg_dst tmp );
 
+struct ureg_dst
+ureg_DECL_address( struct ureg_program * );
+
+/* Supply an index to the sampler declaration as this is the hook to
+ * the external pipe_sampler state.  Users of this function probably
+ * don't want just any sampler, but a specific one which they've set
+ * up state for in the context.
+ */
 struct ureg_src
-ureg_DECL_sampler( struct ureg_program * );
+ureg_DECL_sampler( struct ureg_program *,
+                   unsigned index );
 
 
 static INLINE struct ureg_src
-ureg_DECL_immediate4f( struct ureg_program *ureg,
+ureg_imm4f( struct ureg_program *ureg,
                        float a, float b,
                        float c, float d)
 {
@@ -149,7 +181,7 @@ ureg_DECL_immediate4f( struct ureg_program *ureg,
 }
 
 static INLINE struct ureg_src
-ureg_DECL_immediate3f( struct ureg_program *ureg,
+ureg_imm3f( struct ureg_program *ureg,
                        float a, float b,
                        float c)
 {
@@ -161,7 +193,7 @@ ureg_DECL_immediate3f( struct ureg_program *ureg,
 }
 
 static INLINE struct ureg_src
-ureg_DECL_immediate2f( struct ureg_program *ureg,
+ureg_imm2f( struct ureg_program *ureg,
                        float a, float b)
 {
    float v[2];
@@ -171,7 +203,7 @@ ureg_DECL_immediate2f( struct ureg_program *ureg,
 }
 
 static INLINE struct ureg_src
-ureg_DECL_immediate1f( struct ureg_program *ureg,
+ureg_imm1f( struct ureg_program *ureg,
                        float a)
 {
    float v[1];
@@ -214,6 +246,24 @@ ureg_insn(struct ureg_program *ureg,
           unsigned nr_dst,
           const struct ureg_src *src,
           unsigned nr_src );
+
+
+void
+ureg_tex_insn(struct ureg_program *ureg,
+              unsigned opcode,
+              const struct ureg_dst *dst,
+              unsigned nr_dst,
+              unsigned target,
+              const struct ureg_src *src,
+              unsigned nr_src );
+
+
+void
+ureg_label_insn(struct ureg_program *ureg,
+                unsigned opcode,
+                const struct ureg_src *src,
+                unsigned nr_src,
+                unsigned *label);
 
 
 /***********************************************************************
@@ -392,6 +442,7 @@ static INLINE void ureg_##op( struct ureg_program *ureg,                \
 static INLINE struct ureg_src 
 ureg_negate( struct ureg_src reg )
 {
+   assert(reg.File != TGSI_FILE_NULL);
    reg.Negate ^= 1;
    return reg;
 }
@@ -399,6 +450,7 @@ ureg_negate( struct ureg_src reg )
 static INLINE struct ureg_src
 ureg_abs( struct ureg_src reg )
 {
+   assert(reg.File != TGSI_FILE_NULL);
    reg.Absolute = 1;
    reg.Negate = 0;
    return reg;
@@ -412,6 +464,12 @@ ureg_swizzle( struct ureg_src reg,
                     (reg.SwizzleY << 2) |
                     (reg.SwizzleZ << 4) |
                     (reg.SwizzleW << 6));
+
+   assert(reg.File != TGSI_FILE_NULL);
+   assert(x < 4);
+   assert(y < 4);
+   assert(z < 4);
+   assert(w < 4);
 
    reg.SwizzleX = (swz >> (x*2)) & 0x3;
    reg.SwizzleY = (swz >> (y*2)) & 0x3;
@@ -430,6 +488,7 @@ static INLINE struct ureg_dst
 ureg_writemask( struct ureg_dst reg,
                 unsigned writemask )
 {
+   assert(reg.File != TGSI_FILE_NULL);
    reg.WriteMask &= writemask;
    return reg;
 }
@@ -437,7 +496,30 @@ ureg_writemask( struct ureg_dst reg,
 static INLINE struct ureg_dst 
 ureg_saturate( struct ureg_dst reg )
 {
+   assert(reg.File != TGSI_FILE_NULL);
    reg.Saturate = 1;
+   return reg;
+}
+
+static INLINE struct ureg_dst 
+ureg_dst_indirect( struct ureg_dst reg, struct ureg_src addr )
+{
+   assert(reg.File != TGSI_FILE_NULL);
+   assert(addr.File == TGSI_FILE_ADDRESS);
+   reg.Indirect = 1;
+   reg.IndirectIndex = addr.Index;
+   reg.IndirectSwizzle = addr.SwizzleX;
+   return reg;
+}
+
+static INLINE struct ureg_src 
+ureg_src_indirect( struct ureg_src reg, struct ureg_src addr )
+{
+   assert(reg.File != TGSI_FILE_NULL);
+   assert(addr.File == TGSI_FILE_ADDRESS);
+   reg.Indirect = 1;
+   reg.IndirectIndex = addr.Index;
+   reg.IndirectSwizzle = addr.SwizzleX;
    return reg;
 }
 
@@ -449,6 +531,8 @@ ureg_dst( struct ureg_src src )
    dst.File      = src.File;
    dst.WriteMask = TGSI_WRITEMASK_XYZW;
    dst.Indirect  = src.Indirect;
+   dst.IndirectIndex = src.IndirectIndex;
+   dst.IndirectSwizzle = src.IndirectSwizzle;
    dst.Saturate  = 0;
    dst.Index     = src.Index;
    dst.Pad1      = 0;
@@ -469,6 +553,8 @@ ureg_src( struct ureg_dst dst )
    src.SwizzleW  = TGSI_SWIZZLE_W;
    src.Pad       = 0;
    src.Indirect  = dst.Indirect;
+   src.IndirectIndex = dst.IndirectIndex;
+   src.IndirectSwizzle = dst.IndirectSwizzle;
    src.Absolute  = 0;
    src.Index     = dst.Index;
    src.Negate    = 0;
@@ -477,5 +563,61 @@ ureg_src( struct ureg_dst dst )
 }
 
 
+
+static INLINE struct ureg_dst
+ureg_dst_undef( void )
+{
+   struct ureg_dst dst;
+
+   dst.File      = TGSI_FILE_NULL;
+   dst.WriteMask = 0;
+   dst.Indirect  = 0;
+   dst.IndirectIndex = 0;
+   dst.IndirectSwizzle = 0;
+   dst.Saturate  = 0;
+   dst.Index     = 0;
+   dst.Pad1      = 0;
+   dst.Pad2      = 0;
+
+   return dst;
+}
+
+static INLINE struct ureg_src
+ureg_src_undef( void )
+{
+   struct ureg_src src;
+
+   src.File      = TGSI_FILE_NULL;
+   src.SwizzleX  = 0;
+   src.SwizzleY  = 0;
+   src.SwizzleZ  = 0;
+   src.SwizzleW  = 0;
+   src.Pad       = 0;
+   src.Indirect  = 0;
+   src.IndirectIndex = 0;
+   src.IndirectSwizzle = 0;
+   src.Absolute  = 0;
+   src.Index     = 0;
+   src.Negate    = 0;
+   
+   return src;
+}
+
+static INLINE boolean
+ureg_src_is_undef( struct ureg_src src )
+{
+   return src.File == TGSI_FILE_NULL;
+}
+
+static INLINE boolean
+ureg_dst_is_undef( struct ureg_dst dst )
+{
+   return dst.File == TGSI_FILE_NULL;
+}
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

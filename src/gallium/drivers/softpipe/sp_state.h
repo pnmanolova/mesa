@@ -88,6 +88,7 @@ struct sp_fragment_shader {
 struct sp_vertex_shader {
    struct pipe_shader_state shader;
    struct draw_vertex_shader *draw_data;
+   int max_sampler;             /* -1 if no samplers */
 };
 
 /** Subclass of pipe_shader_state */

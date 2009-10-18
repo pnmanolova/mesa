@@ -20,10 +20,11 @@
  * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
  * USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#include "util/u_debug.h"
 #include "util/u_math.h"
 #include "util/u_pack_color.h"
 
-#include "util/u_debug.h"
+#include "tgsi/tgsi_parse.h"
 
 #include "pipe/p_config.h"
 #include "pipe/internal/p_winsys_screen.h"
@@ -45,23 +46,46 @@ static void* r300_create_blend_state(struct pipe_context* pipe,
 {
     struct r300_blend_state* blend = CALLOC_STRUCT(r300_blend_state);
 
+    {
+	unsigned eqRGB = state->rgb_func;
+	unsigned srcRGB = state->rgb_src_factor;
+	unsigned dstRGB = state->rgb_dst_factor;
+
+	unsigned eqA = state->alpha_func;
+	unsigned srcA = state->alpha_src_factor;
+	unsigned dstA = state->alpha_dst_factor;
+
+	if (srcA != srcRGB ||
+	    dstA != dstRGB ||
+	    eqA != eqRGB) {
+	    blend->alpha_blend_control =
+		r300_translate_blend_function(eqA) |
+		(r300_translate_blend_factor(srcA) <<
+                    R300_SRC_BLEND_SHIFT) |
+                (r300_translate_blend_factor(dstA) <<
+		 R300_DST_BLEND_SHIFT);
+	    blend->blend_control |= R300_ALPHA_BLEND_ENABLE |
+		R300_SEPARATE_ALPHA_ENABLE;
+	} else {
+	    blend->alpha_blend_control = R300_COMB_FCN_ADD_CLAMP |
+		(R300_BLEND_GL_ONE << R300_SRC_BLEND_SHIFT) |
+		(R300_BLEND_GL_ZERO << R300_DST_BLEND_SHIFT);
+	}
+    }
     if (state->blend_enable) {
         /* XXX for now, always do separate alpha...
          * is it faster to do it with one reg? */
-        blend->blend_control = R300_ALPHA_BLEND_ENABLE |
-                R300_SEPARATE_ALPHA_ENABLE |
-                R300_READ_ENABLE |
+        blend->blend_control |= R300_READ_ENABLE |
                 r300_translate_blend_function(state->rgb_func) |
                 (r300_translate_blend_factor(state->rgb_src_factor) <<
                     R300_SRC_BLEND_SHIFT) |
                 (r300_translate_blend_factor(state->rgb_dst_factor) <<
                     R300_DST_BLEND_SHIFT);
-        blend->alpha_blend_control =
-                r300_translate_blend_function(state->alpha_func) |
-                (r300_translate_blend_factor(state->alpha_src_factor) <<
-                    R300_SRC_BLEND_SHIFT) |
-                (r300_translate_blend_factor(state->alpha_dst_factor) <<
-                    R300_DST_BLEND_SHIFT);
+    } else {
+	blend->blend_control = 
+	    R300_COMB_FCN_ADD_CLAMP |
+	    (R300_BLEND_GL_ONE << R300_SRC_BLEND_SHIFT) |
+	    (R300_BLEND_GL_ZERO << R300_DST_BLEND_SHIFT);
     }
 
     /* PIPE_LOGICOP_* don't need to be translated, fortunately. */
@@ -223,9 +247,6 @@ static void*
             R300_FG_ALPHA_FUNC_ENABLE;
         dsa->alpha_reference = CLAMP(state->alpha.ref_value * 1023.0f,
                                      0, 1023);
-    } else {
-        /* XXX need to fix this to be dynamically set
-        dsa->z_buffer_top = R300_ZTOP_ENABLE; */
     }
 
     return (void*)dsa;
@@ -429,6 +450,9 @@ static void r300_bind_rs_state(struct pipe_context* pipe, void* state)
 
     r300->rs_state = rs;
     r300->dirty_state |= R300_NEW_RASTERIZER;
+    r300->dirty_state |= R300_NEW_RS_BLOCK;
+    r300->dirty_state |= R300_NEW_SCISSOR;
+    r300->dirty_state |= R300_NEW_VIEWPORT;
 }
 
 /* Free rasterizer state. */

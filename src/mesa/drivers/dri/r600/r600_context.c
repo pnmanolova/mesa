@@ -59,6 +59,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "radeon_debug.h"
 #include "r600_context.h"
 #include "radeon_common_context.h"
+#include "radeon_buffer_objects.h"
 #include "radeon_span.h"
 #include "r600_cmdbuf.h"
 #include "r600_emit.h"
@@ -85,6 +86,7 @@ int hw_tcl_on = 1;
 #define need_GL_EXT_framebuffer_object
 #define need_GL_EXT_fog_coord
 #define need_GL_EXT_gpu_program_parameters
+#define need_GL_EXT_provoking_vertex
 #define need_GL_EXT_secondary_color
 #define need_GL_EXT_stencil_two_side
 #define need_GL_ATI_separate_stencil
@@ -117,6 +119,7 @@ const struct dri_extension card_extensions[] = {
   {"GL_EXT_packed_depth_stencil",	NULL},
   {"GL_EXT_fog_coord",			GL_EXT_fog_coord_functions },
   {"GL_EXT_gpu_program_parameters",     GL_EXT_gpu_program_parameters_functions},
+  {"GL_EXT_provoking_vertex",           GL_EXT_provoking_vertex_functions },
   {"GL_EXT_secondary_color", 		GL_EXT_secondary_color_functions},
   {"GL_EXT_shadow_funcs",		NULL},
   {"GL_EXT_stencil_two_side",		GL_EXT_stencil_two_side_functions},
@@ -128,6 +131,8 @@ const struct dri_extension card_extensions[] = {
   {"GL_EXT_texture_lod_bias",		NULL},
   {"GL_EXT_texture_mirror_clamp",	NULL},
   {"GL_EXT_texture_rectangle",		NULL},
+  {"GL_EXT_vertex_array_bgra",          NULL},
+  {"GL_EXT_texture_sRGB",               NULL},
   {"GL_ATI_separate_stencil",		GL_ATI_separate_stencil_functions},
   {"GL_ATI_texture_env_combine3",	NULL},
   {"GL_ATI_texture_mirror_once",	NULL},
@@ -254,6 +259,7 @@ GLboolean r600CreateContext(const __GLcontextModes * glVisual,
 	r600InitTextureFuncs(&functions);
 	r700InitShaderFuncs(&functions);
 	r700InitIoctlFuncs(&functions);
+    radeonInitBufferObjectFuncs(&functions);
 
 	if (!radeonInitContext(&r600->radeon, &functions,
 			       glVisual, driContextPriv,
@@ -281,8 +287,8 @@ GLboolean r600CreateContext(const __GLcontextModes * glVisual,
 	ctx->Const.MaxTextureMaxAnisotropy = 16.0;
 	ctx->Const.MaxTextureLodBias = 16.0;
 
-	ctx->Const.MaxTextureLevels = 13;
-	ctx->Const.MaxTextureRectSize = 4096;
+	ctx->Const.MaxTextureLevels = 13; /* hw support 14 */
+	ctx->Const.MaxTextureRectSize = 4096; /* hw support 8192 */
 
 	ctx->Const.MinPointSize   = 0x0001 / 8.0;
 	ctx->Const.MinPointSizeAA = 0x0001 / 8.0;
@@ -327,26 +333,27 @@ GLboolean r600CreateContext(const __GLcontextModes * glVisual,
 	_tnl_allow_pixel_fog(ctx, GL_FALSE);
 	_tnl_allow_vertex_fog(ctx, GL_TRUE);
 
-	/* currently bogus data */
-	ctx->Const.VertexProgram.MaxInstructions = VSF_MAX_FRAGMENT_LENGTH / 4;
-	ctx->Const.VertexProgram.MaxNativeInstructions =
-		VSF_MAX_FRAGMENT_LENGTH / 4;
-	ctx->Const.VertexProgram.MaxNativeAttribs = 16;	/* r420 */
-	ctx->Const.VertexProgram.MaxTemps = 32;
-	ctx->Const.VertexProgram.MaxNativeTemps =
-		/*VSF_MAX_FRAGMENT_TEMPS */ 32;
-	ctx->Const.VertexProgram.MaxNativeParameters = 256;	/* r420 */
-	ctx->Const.VertexProgram.MaxNativeAddressRegs = 1;
+	/* 256 for reg-based consts, inline consts also supported */
+	ctx->Const.VertexProgram.MaxInstructions = 8192; /* in theory no limit */
+	ctx->Const.VertexProgram.MaxNativeInstructions = 8192;
+	ctx->Const.VertexProgram.MaxNativeAttribs = 160;
+	ctx->Const.VertexProgram.MaxTemps = 128;
+	ctx->Const.VertexProgram.MaxNativeTemps = 128;
+	ctx->Const.VertexProgram.MaxNativeParameters = 256;
+	ctx->Const.VertexProgram.MaxNativeAddressRegs = 1; /* ??? */
 
-	ctx->Const.FragmentProgram.MaxNativeTemps = PFS_NUM_TEMP_REGS;
-	ctx->Const.FragmentProgram.MaxNativeAttribs = 11;	/* copy i915... */
-	ctx->Const.FragmentProgram.MaxNativeParameters = PFS_NUM_CONST_REGS;
-	ctx->Const.FragmentProgram.MaxNativeAluInstructions = PFS_MAX_ALU_INST;
-	ctx->Const.FragmentProgram.MaxNativeTexInstructions = PFS_MAX_TEX_INST;
-	ctx->Const.FragmentProgram.MaxNativeInstructions =
-	    PFS_MAX_ALU_INST + PFS_MAX_TEX_INST;
-	ctx->Const.FragmentProgram.MaxNativeTexIndirections =
-	    PFS_MAX_TEX_INDIRECT;
+	ctx->Const.FragmentProgram.MaxNativeTemps = 128;
+	ctx->Const.FragmentProgram.MaxNativeAttribs = 32;
+	ctx->Const.FragmentProgram.MaxNativeParameters = 256;
+	ctx->Const.FragmentProgram.MaxNativeAluInstructions = 8192;
+	/* 8 per clause on r6xx, 16 on rv670/r7xx */
+	if ((screen->chip_family == CHIP_FAMILY_RV670) ||
+	    (screen->chip_family >= CHIP_FAMILY_RV770))
+		ctx->Const.FragmentProgram.MaxNativeTexInstructions = 16;
+	else
+		ctx->Const.FragmentProgram.MaxNativeTexInstructions = 8;
+	ctx->Const.FragmentProgram.MaxNativeInstructions = 8192;
+	ctx->Const.FragmentProgram.MaxNativeTexIndirections = 8; /* ??? */
 	ctx->Const.FragmentProgram.MaxNativeAddressRegs = 0;	/* and these are?? */
 	ctx->VertexProgram._MaintainTnlProgram = GL_TRUE;
 	ctx->FragmentProgram._MaintainTexEnvProgram = GL_TRUE;
@@ -371,6 +378,8 @@ GLboolean r600CreateContext(const __GLcontextModes * glVisual,
 		_mesa_enable_extension(ctx, "GL_EXT_texture_compression_s3tc");
 	}
 
+    r700InitDraw(ctx);
+
 	radeon_fbo_init(&r600->radeon);
    	radeonInitSpanFuncs( ctx );
 
@@ -382,9 +391,6 @@ GLboolean r600CreateContext(const __GLcontextModes * glVisual,
 
 	if (driQueryOptionb(&r600->radeon.optionCache, "no_rast")) {
 		radeon_warning("disabling 3D acceleration\n");
-#if R200_MERGED
-		FALLBACK(&r600->radeon, RADEON_FALLBACK_DISABLE, 1);
-#endif
 	}
 
 	return GL_TRUE;

@@ -195,6 +195,15 @@ struct tgsi_exec_labels
 /* The maximum total number of vertices */
 #define TGSI_MAX_TOTAL_VERTICES (TGSI_MAX_PRIM_VERTICES * TGSI_MAX_PRIMITIVES * PIPE_MAX_ATTRIBS)
 
+/** function call/activation record */
+struct tgsi_call_record
+{
+   uint CondStackTop;
+   uint LoopStackTop;
+   uint ContStackTop;
+   uint ReturnAddr;
+};
+
 /**
  * Run-time virtual machine state for executing TGSI shader.
  */
@@ -243,6 +252,14 @@ struct tgsi_exec_machine
    uint LoopStack[TGSI_EXEC_MAX_LOOP_NESTING];
    int LoopStackTop;
 
+   /** Loop label stack */
+   uint LoopLabelStack[TGSI_EXEC_MAX_LOOP_NESTING];
+   int LoopLabelStackTop;
+
+   /** Loop counter stack (x = count, y = current, z = step) */
+   struct tgsi_exec_vector LoopCounterStack[TGSI_EXEC_MAX_LOOP_NESTING];
+   int LoopCounterStackTop;
+   
    /** Loop continue mask stack (see comments in tgsi_exec.c) */
    uint ContStack[TGSI_EXEC_MAX_LOOP_NESTING];
    int ContStackTop;
@@ -252,7 +269,7 @@ struct tgsi_exec_machine
    int FuncStackTop;
 
    /** Function call stack for saving/restoring the program counter */
-   uint CallStack[TGSI_EXEC_MAX_CALL_NESTING];
+   struct tgsi_call_record CallStack[TGSI_EXEC_MAX_CALL_NESTING];
    int CallStackTop;
 
    struct tgsi_full_instruction *Instructions;

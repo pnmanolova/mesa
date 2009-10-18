@@ -80,6 +80,12 @@ extern void intelFallback(struct intel_context *intel, GLuint bit,
 
 #define INTEL_MAX_FIXUP 64
 
+struct intel_sync_object {
+   struct gl_sync_object Base;
+
+   /** Batch associated with this sync object */
+   drm_intel_bo *bo;
+};
 
 /**
  * intel_context is derived from Mesa's context class: GLcontext.
@@ -248,9 +254,6 @@ struct intel_context
    intel_line_func draw_line;
    intel_tri_func draw_tri;
 
-   /* These refer to the current drawing buffer:
-    */
-   struct gl_texture_object *frame_buffer_texobj;
    /**
     * Set to true if a single constant cliprect should be used in the
     * batchbuffer.  Otherwise, cliprects must be calculated at batchbuffer
@@ -290,7 +293,6 @@ struct intel_context
 
    GLboolean use_texture_tiling;
    GLboolean use_early_z;
-
    drm_clip_rect_t fboRect;     /**< cliprect for FBO rendering */
 
    int perf_boxes;
@@ -469,6 +471,8 @@ extern void intelFinish(GLcontext * ctx);
 extern void intelFlush(GLcontext * ctx);
 
 extern void intelInitDriverFunctions(struct dd_function_table *functions);
+
+void intel_init_syncobj_functions(struct dd_function_table *functions);
 
 
 /* ================================================================

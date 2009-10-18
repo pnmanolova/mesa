@@ -1,6 +1,6 @@
 /*
  * Mesa 3-D graphics library
- * Version:  7.5
+ * Version:  7.7
  *
  * Copyright (C) 1999-2008  Brian Paul   All Rights Reserved.
  * Copyright (C) 2009  VMware, Inc.  All Rights Reserved.
@@ -40,6 +40,7 @@
 #include "main/mfeatures.h"
 #include "glapi/glapi.h"
 #include "math/m_matrix.h"	/* GLmatrix */
+#include "main/simple_list.h"	/* struct simple_node */
 
 /**
  * Internal token
@@ -90,6 +91,7 @@
 /*@{*/
 struct _mesa_HashTable;
 struct gl_attrib_node;
+struct gl_list_extensions;
 struct gl_meta_state;
 struct gl_pixelstore_attrib;
 struct gl_program_cache;
@@ -213,7 +215,7 @@ typedef enum
    VERT_RESULT_BFC0 = 13,
    VERT_RESULT_BFC1 = 14,
    VERT_RESULT_EDGE = 15,
-   VERT_RESULT_VAR0 = 16  /**< shader varying */,
+   VERT_RESULT_VAR0 = 16,  /**< shader varying */
    VERT_RESULT_MAX = (VERT_RESULT_VAR0 + MAX_VARYING)
 } gl_vert_result;
 
@@ -900,29 +902,6 @@ struct gl_list_attrib
 
 
 /**
- * Used by device drivers to hook new commands into display lists.
- */
-struct gl_list_instruction
-{
-   GLuint Size;
-   void (*Execute)( GLcontext *ctx, void *data );
-   void (*Destroy)( GLcontext *ctx, void *data );
-   void (*Print)( GLcontext *ctx, void *data );
-};
-
-#define MAX_DLIST_EXT_OPCODES 16
-
-/**
- * Used by device drivers to hook new commands into display lists.
- */
-struct gl_list_extensions
-{
-   struct gl_list_instruction Opcode[MAX_DLIST_EXT_OPCODES];
-   GLuint NumOpcodes;
-};
-
-
-/**
  * Multisample attribute group (GL_MULTISAMPLE_BIT).
  */
 struct gl_multisample_attrib
@@ -1562,6 +1541,7 @@ struct gl_transform_attrib
    GLboolean Normalize;				/**< Normalize all normals? */
    GLboolean RescaleNormals;			/**< GL_EXT_rescale_normal */
    GLboolean RasterPositionUnclipped;           /**< GL_IBM_rasterpos_clip */
+   GLboolean DepthClamp;			/**< GL_ARB_depth_clamp */
 
    GLboolean CullVertexFlag;	/**< True if GL_CULL_VERTEX_EXT is enabled */
    GLfloat CullEyePos[4];
@@ -1913,7 +1893,6 @@ struct gl_vertex_program
    struct gl_program Base;   /**< base class */
    GLboolean IsNVProgram;    /**< is this a GL_NV_vertex_program program? */
    GLboolean IsPositionInvariant;
-   void *TnlData;		/**< should probably use Base.DriverData */
 };
 
 
@@ -2052,10 +2031,10 @@ struct ati_fragment_shader
    struct atifs_instruction *Instructions[2];
    struct atifs_setupinst *SetupInst[2];
    GLfloat Constants[8][4];
-   GLbitfield LocalConstDef;  /** Indicates which constants have been set */
+   GLbitfield LocalConstDef;  /**< Indicates which constants have been set */
    GLubyte numArithInstr[2];
    GLubyte regsAssigned[2];
-   GLubyte NumPasses;         /** 1 or 2 */
+   GLubyte NumPasses;         /**< 1 or 2 */
    GLubyte cur_pass;
    GLubyte last_optype;
    GLboolean interpinp1;
@@ -2069,7 +2048,7 @@ struct ati_fragment_shader
 struct gl_ati_fragment_shader_state
 {
    GLboolean Enabled;
-   GLboolean _Enabled;                      /** enabled and valid shader? */
+   GLboolean _Enabled;                  /**< enabled and valid shader? */
    GLboolean Compiling;
    GLfloat GlobalConstants[8][4];
    struct ati_fragment_shader *Current;
@@ -2097,6 +2076,21 @@ struct gl_query_state
    struct _mesa_HashTable *QueryObjects;
    struct gl_query_object *CurrentOcclusionObject; /* GL_ARB_occlusion_query */
    struct gl_query_object *CurrentTimerObject;     /* GL_EXT_timer_query */
+};
+
+
+/** Sync object state */
+struct gl_sync_object {
+   struct simple_node link;
+   GLenum Type;               /**< GL_SYNC_FENCE */
+   GLuint Name;               /**< Fence name */
+   GLint RefCount;            /**< Reference count */
+   GLboolean DeletePending;   /**< Object was deleted while there were still
+			       * live references (e.g., sync not yet finished)
+			       */
+   GLenum SyncCondition;
+   GLbitfield Flags;          /**< Flags passed to glFenceSync */
+   GLuint StatusFlag:1;       /**< Has the sync object been signaled? */
 };
 
 
@@ -2165,6 +2159,9 @@ struct gl_shader_program
 #define GLSL_OPT       0x4  /**< Force optimizations (override pragmas) */
 #define GLSL_NO_OPT    0x8  /**< Force no optimizations (override pragmas) */
 #define GLSL_UNIFORMS 0x10  /**< Print glUniform calls */
+#define GLSL_NOP_VERT 0x20  /**< Force no-op vertex shaders */
+#define GLSL_NOP_FRAG 0x40  /**< Force no-op fragment shaders */
+#define GLSL_USE_PROG 0x80  /**< Log glUseProgram calls */
 
 
 /**
@@ -2178,6 +2175,7 @@ struct gl_shader_state
    GLboolean EmitContReturn;            /**< Emit CONT/RET opcodes? */
    GLboolean EmitCondCodes;             /**< Use condition codes? */
    GLboolean EmitComments;              /**< Annotated instructions */
+   GLboolean EmitNVTempInitialization;  /**< 0-fill NV temp registers */
    void *MemPool;
    GLbitfield Flags;                    /**< Mask of GLSL_x flags */
    struct gl_sl_pragmas DefaultPragmas; /**< Default #pragma settings */
@@ -2247,6 +2245,10 @@ struct gl_shared_state
 #if FEATURE_EXT_framebuffer_object
    struct _mesa_HashTable *RenderBuffers;
    struct _mesa_HashTable *FrameBuffers;
+#endif
+
+#if FEATURE_ARB_sync
+   struct simple_node SyncObjects;
 #endif
 
    void *DriverData;  /**< Device driver shared state */
@@ -2562,6 +2564,12 @@ struct gl_constants
 
    GLbitfield SupportedBumpUnits; /**> units supporting GL_ATI_envmap_bumpmap as targets */
 
+   /**
+    * Maximum amount of time, measured in nanseconds, that the server can wait.
+    */
+   GLuint64 MaxServerWaitTimeout;
+
+
    /**< GL_EXT_provoking_vertex */
    GLboolean QuadsFollowProvokingVertexConvention;
 };
@@ -2576,7 +2584,9 @@ struct gl_extensions
    GLboolean dummy;  /* don't remove this! */
    GLboolean ARB_copy_buffer;
    GLboolean ARB_depth_texture;
+   GLboolean ARB_depth_clamp;
    GLboolean ARB_draw_buffers;
+   GLboolean ARB_draw_elements_base_vertex;
    GLboolean ARB_fragment_program;
    GLboolean ARB_fragment_program_shadow;
    GLboolean ARB_fragment_shader;
@@ -2595,6 +2605,7 @@ struct gl_extensions
    GLboolean ARB_shading_language_120;
    GLboolean ARB_shadow;
    GLboolean ARB_shadow_ambient; /* or GL_ARB_shadow_ambient */
+   GLboolean ARB_sync;
    GLboolean ARB_texture_border_clamp;
    GLboolean ARB_texture_compression;
    GLboolean ARB_texture_cube_map;
@@ -2681,6 +2692,7 @@ struct gl_extensions
    GLboolean MESA_texture_signed_rgba;
    GLboolean NV_blend_square;
    GLboolean NV_fragment_program;
+   GLboolean NV_fragment_program_option;
    GLboolean NV_light_max_exponent;
    GLboolean NV_point_sprite;
    GLboolean NV_texgen_reflection;
@@ -3157,7 +3169,7 @@ struct __GLcontextRec
    struct gl_shine_tab *_ShineTabList;  /**< MRU list of inactive shine tables */
    /**@}*/
 
-   struct gl_list_extensions ListExt; /**< driver dlist extensions */
+   struct gl_list_extensions *ListExt; /**< driver dlist extensions */
 
    /** \name For debugging/development only */
    /*@{*/
@@ -3213,11 +3225,12 @@ extern int MESA_DEBUG_FLAGS;
 #endif
 
 
+/** The MESA_VERBOSE var is a bitmask of these flags */
 enum _verbose
 {
    VERBOSE_VARRAY		= 0x0001,
    VERBOSE_TEXTURE		= 0x0002,
-   VERBOSE_IMMEDIATE		= 0x0004,
+   VERBOSE_MATERIAL		= 0x0004,
    VERBOSE_PIPELINE		= 0x0008,
    VERBOSE_DRIVER		= 0x0010,
    VERBOSE_STATE		= 0x0020,
@@ -3227,9 +3240,12 @@ enum _verbose
    VERBOSE_PRIMS		= 0x0400,
    VERBOSE_VERTS		= 0x0800,
    VERBOSE_DISASSEM		= 0x1000,
+   VERBOSE_DRAW                 = 0x2000,
+   VERBOSE_SWAPBUFFERS          = 0x4000
 };
 
 
+/** The MESA_DEBUG_FLAGS var is a bitmask of these flags */
 enum _debug
 {
    DEBUG_ALWAYS_FLUSH		= 0x1
