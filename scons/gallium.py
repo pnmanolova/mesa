@@ -263,7 +263,10 @@ def generate(env):
         if msvc and env['toolchain'] != 'winddk':
             cppdefines += [
                 'VC_EXTRALEAN',
+                '_CRT_SECURE_NO_WARNINGS',
                 '_CRT_SECURE_NO_DEPRECATE',
+                '_SCL_SECURE_NO_WARNINGS',
+                '_SCL_SECURE_NO_DEPRECATE',
             ]
         if debug:
             cppdefines += ['_DEBUG']
@@ -343,10 +346,18 @@ def generate(env):
             ccflags += [
                 '-m32',
                 #'-march=pentium4',
-                '-mmmx', '-msse', '-msse2', # enable SIMD intrinsics
-                '-mstackrealign', # ensure stack is aligned -- do not enabled -msse without it!
                 #'-mfpmath=sse',
             ]
+            if platform != 'windows':
+                # XXX: -mstackrealign causes stack corruption on MinGW. Ditto
+                # for -mincoming-stack-boundary=2.  Still enable it on other
+                # platforms for now, but we can't rely on it for cross platform
+                # code. We have to use __attribute__((force_align_arg_pointer))
+                # instead.
+                ccflags += [
+                    '-mmmx', '-msse', '-msse2', # enable SIMD intrinsics
+                    '-mstackrealign', # ensure stack is aligned
+                ]
         if env['machine'] == 'x86_64':
             ccflags += ['-m64']
         # See also:

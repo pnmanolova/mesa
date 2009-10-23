@@ -545,12 +545,6 @@ struct dd_function_table {
                                    struct gl_texture_object *t );
 
    /**
-    * Called by glPrioritizeTextures().
-    */
-   void (*PrioritizeTexture)( GLcontext *ctx,  struct gl_texture_object *t,
-                              GLclampf priority );
-
-   /**
     * Called by glActiveTextureARB() to set current texture unit.
     */
    void (*ActiveTexture)( GLcontext *ctx, GLuint texUnitNumber );
@@ -717,7 +711,6 @@ struct dd_function_table {
    void (*TexParameter)(GLcontext *ctx, GLenum target,
                         struct gl_texture_object *texObj,
                         GLenum pname, const GLfloat *params);
-   void (*TextureMatrix)(GLcontext *ctx, GLuint unit, const GLmatrix *mat);
    /** Set the viewport */
    void (*Viewport)(GLcontext *ctx, GLint x, GLint y, GLsizei w, GLsizei h);
    /*@}*/

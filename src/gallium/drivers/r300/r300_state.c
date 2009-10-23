@@ -20,8 +20,10 @@
  * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
  * USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#include "util/u_debug.h"
+#include "draw/draw_context.h"
+
 #include "util/u_math.h"
+#include "util/u_memory.h"
 #include "util/u_pack_color.h"
 
 #include "tgsi/tgsi_parse.h"
@@ -31,6 +33,7 @@
 
 #include "r300_context.h"
 #include "r300_reg.h"
+#include "r300_screen.h"
 #include "r300_state_inlines.h"
 #include "r300_fs.h"
 #include "r300_vs.h"
@@ -247,9 +250,6 @@ static void*
             R300_FG_ALPHA_FUNC_ENABLE;
         dsa->alpha_reference = CLAMP(state->alpha.ref_value * 1023.0f,
                                      0, 1023);
-    } else {
-        /* XXX need to fix this to be dynamically set
-        dsa->z_buffer_top = R300_ZTOP_ENABLE; */
     }
 
     return (void*)dsa;
@@ -332,7 +332,7 @@ static void r300_delete_fs_state(struct pipe_context* pipe, void* shader)
 {
     struct r300_fragment_shader* fs = (struct r300_fragment_shader*)shader;
     rc_constants_destroy(&fs->code.constants);
-    FREE(fs->state.tokens);
+    FREE((void*)fs->state.tokens);
     FREE(shader);
 }
 
@@ -700,7 +700,7 @@ static void r300_delete_vs_state(struct pipe_context* pipe, void* shader)
 
         rc_constants_destroy(&vs->code.constants);
         draw_delete_vertex_shader(r300->draw, vs->draw);
-        FREE(vs->state.tokens);
+        FREE((void*)vs->state.tokens);
         FREE(shader);
     } else {
         draw_delete_vertex_shader(r300->draw,

@@ -125,7 +125,6 @@ _mesa_init_driver_functions(struct dd_function_table *driver)
    driver->UnmapTexture = NULL;
    driver->TextureMemCpy = _mesa_memcpy; 
    driver->IsTextureResident = NULL;
-   driver->PrioritizeTexture = NULL;
    driver->ActiveTexture = NULL;
    driver->UpdateTexturePalette = NULL;
 
@@ -183,7 +182,6 @@ _mesa_init_driver_functions(struct dd_function_table *driver)
    driver->TexGen = NULL;
    driver->TexEnv = NULL;
    driver->TexParameter = NULL;
-   driver->TextureMatrix = NULL;
    driver->Viewport = NULL;
 
    /* vertex arrays */

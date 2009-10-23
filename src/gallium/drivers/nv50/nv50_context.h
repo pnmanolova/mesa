@@ -14,6 +14,7 @@
 #include "nouveau/nouveau_winsys.h"
 #include "nouveau/nouveau_gldefs.h"
 #include "nouveau/nouveau_stateobj.h"
+#include "nouveau/nouveau_context.h"
 
 #include "nv50_screen.h"
 #include "nv50_program.h"
@@ -120,6 +121,7 @@ struct nv50_state {
 	struct nouveau_stateobj *vtxfmt;
 	struct nouveau_stateobj *vtxbuf;
 	struct nouveau_stateobj *vtxattr;
+	unsigned vtxelt_nr;
 };
 
 struct nv50_context {
@@ -152,6 +154,8 @@ struct nv50_context {
 	unsigned sampler_nr;
 	struct nv50_miptree *miptree[PIPE_MAX_SAMPLERS];
 	unsigned miptree_nr;
+
+	uint16_t vbo_fifo;
 };
 
 static INLINE struct nv50_context *
@@ -197,6 +201,11 @@ extern void nv50_program_destroy(struct nv50_context *nv50, struct nv50_program 
 /* nv50_state_validate.c */
 extern boolean nv50_state_validate(struct nv50_context *nv50);
 extern void nv50_state_flush_notify(struct nouveau_channel *chan);
+
+extern void nv50_so_init_sifc(struct nv50_context *nv50,
+			      struct nouveau_stateobj *so,
+			      struct nouveau_bo *bo, unsigned reloc,
+			      unsigned size);
 
 /* nv50_tex.c */
 extern void nv50_tex_validate(struct nv50_context *);
