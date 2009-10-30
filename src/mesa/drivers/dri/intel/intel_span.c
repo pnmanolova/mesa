@@ -29,7 +29,6 @@
 #include "main/macros.h"
 #include "main/mtypes.h"
 #include "main/colormac.h"
-#include "main/texformat.h"
 
 #include "intel_buffers.h"
 #include "intel_fbo.h"
@@ -132,18 +131,6 @@ pwrite_8(struct intel_renderbuffer *irb, uint32_t offset, uint8_t val)
    dri_bo_subdata(irb->region->buffer, offset, 1, &val);
 }
 
-static uint32_t
-z24s8_to_s8z24(uint32_t val)
-{
-   return (val << 24) | (val >> 8);
-}
-
-static uint32_t
-s8z24_to_z24s8(uint32_t val)
-{
-   return (val >> 24) | (val << 8);
-}
-
 static uint32_t no_tile_swizzle(struct intel_renderbuffer *irb,
 				int x, int y)
 {
@@ -163,6 +150,9 @@ static uint32_t x_tile_swizzle(struct intel_renderbuffer *irb,
 	int	x_tile_number, y_tile_number;
 	int	tile_off, tile_base;
 	
+        x += irb->region->draw_x;
+        y += irb->region->draw_y;
+
 	tile_stride = (irb->region->pitch * irb->region->cpp) << 3;
 
 	xbyte = x * irb->region->cpp;
@@ -218,6 +208,9 @@ static uint32_t y_tile_swizzle(struct intel_renderbuffer *irb,
 	int	x_tile_number, y_tile_number;
 	int	tile_off, tile_base;
 	
+        x += irb->region->draw_x;
+        y += irb->region->draw_y;
+
 	tile_stride = (irb->region->pitch * irb->region->cpp) << 5;
 
 	xbyte = x * irb->region->cpp;
@@ -375,8 +368,8 @@ static uint32_t y_tile_swizzle(struct intel_renderbuffer *irb,
 
 /* z24s8 depthbuffer functions. */
 #define INTEL_VALUE_TYPE GLuint
-#define INTEL_WRITE_DEPTH(offset, d) pwrite_32(irb, offset, z24s8_to_s8z24(d))
-#define INTEL_READ_DEPTH(offset) s8z24_to_z24s8(pread_32(irb, offset))
+#define INTEL_WRITE_DEPTH(offset, d) pwrite_32(irb, offset, d)
+#define INTEL_READ_DEPTH(offset) pread_32(irb, offset)
 #define INTEL_TAG(name) name##_z24_s8
 #include "intel_depthtmp.h"
 
@@ -615,7 +608,7 @@ intel_set_span_functions(struct intel_context *intel,
    else
       tiling = I915_TILING_NONE;
 
-   switch (irb->texformat->MesaFormat) {
+   switch (irb->texformat) {
    case MESA_FORMAT_RGB565:
       switch (tiling) {
       case I915_TILING_NONE:
@@ -658,8 +651,23 @@ intel_set_span_functions(struct intel_context *intel,
 	 break;
       }
       break;
+   case MESA_FORMAT_XRGB8888:
+      switch (tiling) {
+      case I915_TILING_NONE:
+      default:
+         intelInitPointers_xRGB8888(rb);
+         break;
+      case I915_TILING_X:
+         intel_XTile_InitPointers_xRGB8888(rb);
+         break;
+      case I915_TILING_Y:
+         intel_YTile_InitPointers_xRGB8888(rb);
+         break;
+      }
+      break;
    case MESA_FORMAT_ARGB8888:
-      if (rb->AlphaBits == 0) { /* XXX: Need xRGB8888 Mesa format */
+      if (0 /*rb->AlphaBits == 0*/) { /* XXX: Need xRGB8888 Mesa format */
+         /* XXX remove this code someday when we enable XRGB surfaces */
 	 /* 8888 RGBx */
 	 switch (tiling) {
 	 case I915_TILING_NONE:
@@ -709,20 +717,7 @@ intel_set_span_functions(struct intel_context *intel,
        * S8Z24 depth reads
        * S8Z24 stencil reads.
        */
-      if (rb->_ActualFormat == GL_DEPTH_COMPONENT24) {
-	 switch (tiling) {
-	 case I915_TILING_NONE:
-	 default:
-	    intelInitDepthPointers_z24(rb);
-	    break;
-	 case I915_TILING_X:
-	    intel_XTile_InitDepthPointers_z24(rb);
-	    break;
-	 case I915_TILING_Y:
-	    intel_YTile_InitDepthPointers_z24(rb);
-	    break;
-	 }
-      } else if (rb->_ActualFormat == GL_DEPTH24_STENCIL8_EXT) {
+      if (rb->Format == MESA_FORMAT_S8_Z24) {
 	 switch (tiling) {
 	 case I915_TILING_NONE:
 	 default:
@@ -735,7 +730,7 @@ intel_set_span_functions(struct intel_context *intel,
 	    intel_YTile_InitDepthPointers_z24_s8(rb);
 	    break;
 	 }
-      } else if (rb->_ActualFormat == GL_STENCIL_INDEX8_EXT) {
+      } else if (rb->Format == MESA_FORMAT_S8) {
 	 switch (tiling) {
 	 case I915_TILING_NONE:
 	 default:

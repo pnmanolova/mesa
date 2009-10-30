@@ -22,10 +22,16 @@
 
 /* r300_emit: Functions for emitting state. */
 
-#include "r300_emit.h"
+#include "util/u_math.h"
 
+#include "r300_context.h"
+#include "r300_cs.h"
+#include "r300_emit.h"
 #include "r300_fs.h"
+#include "r300_screen.h"
 #include "r300_state_derived.h"
+#include "r300_state_inlines.h"
+#include "r300_texture.h"
 #include "r300_vs.h"
 
 void r300_emit_blend_state(struct r300_context* r300,
@@ -96,19 +102,23 @@ void r300_emit_dsa_state(struct r300_context* r300,
     struct r300_screen* r300screen = r300_screen(r300->context.screen);
     CS_LOCALS(r300);
 
-    BEGIN_CS(r300screen->caps->is_r500 ? 8 : 8);
+    BEGIN_CS(r300screen->caps->is_r500 ? 10 : 8);
     OUT_CS_REG(R300_FG_ALPHA_FUNC, dsa->alpha_function);
-    /* XXX figure out the r300 counterpart for this */
-    if (r300screen->caps->is_r500) {
-        /* OUT_CS_REG(R500_FG_ALPHA_VALUE, dsa->alpha_reference); */
-    }
+
+    /* not needed since we use the 8bit alpha ref */
+    /*if (r300screen->caps->is_r500) {
+        OUT_CS_REG(R500_FG_ALPHA_VALUE, dsa->alpha_reference);
+    }*/
+
     OUT_CS_REG_SEQ(R300_ZB_CNTL, 3);
     OUT_CS(dsa->z_buffer_control);
     OUT_CS(dsa->z_stencil_control);
     OUT_CS(dsa->stencil_ref_mask);
     OUT_CS_REG(R300_ZB_ZTOP, r300->ztop_state.z_buffer_top);
+
+    /* XXX it seems r3xx doesn't support STENCILREFMASK_BF */
     if (r300screen->caps->is_r500) {
-        /* OUT_CS_REG(R500_ZB_STENCILREFMASK_BF, dsa->stencil_ref_bf); */
+        OUT_CS_REG(R500_ZB_STENCILREFMASK_BF, dsa->stencil_ref_bf);
     }
     END_CS;
 }
@@ -320,8 +330,7 @@ void r300_emit_fb_state(struct r300_context* r300,
     END_CS;
 }
 
-void r300_emit_query_start(struct r300_context *r300)
-
+static void r300_emit_query_start(struct r300_context *r300)
 {
     struct r300_capabilities *caps = r300_screen(r300->context.screen)->caps;
     struct r300_query *query = r300->query_current;
@@ -334,9 +343,9 @@ void r300_emit_query_start(struct r300_context *r300)
      * for overlapping queries. */
     BEGIN_CS(4);
     if (caps->family == CHIP_FAMILY_RV530) {
-	OUT_CS_REG(RV530_FG_ZBREG_DEST, RV530_FG_ZBREG_DEST_PIPE_SELECT_ALL);
+        OUT_CS_REG(RV530_FG_ZBREG_DEST, RV530_FG_ZBREG_DEST_PIPE_SELECT_ALL);
     } else {
-	OUT_CS_REG(R300_SU_REG_DEST, R300_RASTER_PIPE_SELECT_ALL);
+        OUT_CS_REG(R300_SU_REG_DEST, R300_RASTER_PIPE_SELECT_ALL);
     }
     OUT_CS_REG(R300_ZB_ZPASS_DATA, 0);
     END_CS;
@@ -345,7 +354,7 @@ void r300_emit_query_start(struct r300_context *r300)
 
 
 static void r300_emit_query_finish(struct r300_context *r300,
-				   struct r300_query *query)
+                                   struct r300_query *query)
 {
     struct r300_capabilities* caps = r300_screen(r300->context.screen)->caps;
     CS_LOCALS(r300);
@@ -388,7 +397,7 @@ static void r300_emit_query_finish(struct r300_context *r300,
             OUT_CS_REG_SEQ(R300_ZB_ZPASS_ADDR, 1);
             OUT_CS_RELOC(r300->oqbo, query->offset + (sizeof(uint32_t) * 0),
                     0, RADEON_GEM_DOMAIN_GTT, 0);
-	    break;
+            break;
         default:
             debug_printf("r300: Implementation error: Chipset reports %d"
                     " pixel pipes!\n", caps->num_frag_pipes);
@@ -398,11 +407,10 @@ static void r300_emit_query_finish(struct r300_context *r300,
     /* And, finally, reset it to normal... */
     OUT_CS_REG(R300_SU_REG_DEST, 0xF);
     END_CS;
-
 }
 
 static void rv530_emit_query_single(struct r300_context *r300,
-				    struct r300_query *query)
+                                    struct r300_query *query)
 {
     CS_LOCALS(r300);
 
@@ -415,7 +423,7 @@ static void rv530_emit_query_single(struct r300_context *r300,
 }
 
 static void rv530_emit_query_double(struct r300_context *r300,
-				    struct r300_query *query)
+                                    struct r300_query *query)
 {
     CS_LOCALS(r300);
 
@@ -442,10 +450,10 @@ void r300_emit_query_end(struct r300_context* r300)
         return;
 
     if (caps->family == CHIP_FAMILY_RV530) {
-	if (caps->num_z_pipes == 2)
-	    rv530_emit_query_double(r300, query);
-	else
-	    rv530_emit_query_single(r300, query);
+        if (caps->num_z_pipes == 2)
+            rv530_emit_query_double(r300, query);
+        else
+            rv530_emit_query_single(r300, query);
     } else 
         r300_emit_query_finish(r300, query);
 }
@@ -528,10 +536,17 @@ void r300_emit_texture(struct r300_context* r300,
                        struct r300_texture* tex,
                        unsigned offset)
 {
+    uint32_t filter0 = sampler->filter0;
     CS_LOCALS(r300);
 
+    /* to emulate 1D textures through 2D ones correctly */
+    if (tex->tex.height[0] == 1) {
+        filter0 &= ~R300_TX_WRAP_T_MASK;
+        filter0 |= R300_TX_WRAP_T(R300_TX_CLAMP_TO_EDGE);
+    }
+
     BEGIN_CS(16);
-    OUT_CS_REG(R300_TX_FILTER0_0 + (offset * 4), sampler->filter0 |
+    OUT_CS_REG(R300_TX_FILTER0_0 + (offset * 4), filter0 |
         (offset << 28));
     OUT_CS_REG(R300_TX_FILTER1_0 + (offset * 4), sampler->filter1);
     OUT_CS_REG(R300_TX_BORDER_COLOR_0 + (offset * 4), sampler->border_color);

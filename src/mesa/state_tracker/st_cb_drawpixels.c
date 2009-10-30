@@ -35,6 +35,7 @@
 #include "main/bufferobj.h"
 #include "main/macros.h"
 #include "main/texformat.h"
+#include "main/texstore.h"
 #include "main/state.h"
 #include "shader/program.h"
 #include "shader/prog_parameter.h"
@@ -62,6 +63,7 @@
 #include "util/u_tile.h"
 #include "util/u_draw_quad.h"
 #include "util/u_math.h"
+#include "util/u_rect.h"
 #include "shader/prog_instruction.h"
 #include "cso_cache/cso_context.h"
 
@@ -338,7 +340,7 @@ make_texture(struct st_context *st,
    GLcontext *ctx = st->ctx;
    struct pipe_context *pipe = st->pipe;
    struct pipe_screen *screen = pipe->screen;
-   const struct gl_texture_format *mformat;
+   gl_format mformat;
    struct pipe_texture *pt;
    enum pipe_format pipeFormat;
    GLuint cpp;
@@ -350,7 +352,7 @@ make_texture(struct st_context *st,
    mformat = st_ChooseTextureFormat(ctx, baseFormat, format, type);
    assert(mformat);
 
-   pipeFormat = st_mesa_format_to_pipe_format(mformat->MesaFormat);
+   pipeFormat = st_mesa_format_to_pipe_format(mformat);
    assert(pipeFormat);
    cpp = st_sizeof_format(pipeFormat);
 
@@ -403,21 +405,22 @@ make_texture(struct st_context *st,
       /* map texture transfer */
       dest = screen->transfer_map(screen, transfer);
 
+
       /* Put image into texture transfer.
        * Note that the image is actually going to be upside down in
        * the texture.  We deal with that with texcoords.
        */
-      success = mformat->StoreImage(ctx, 2,           /* dims */
-                                    baseFormat,       /* baseInternalFormat */
-                                    mformat,          /* gl_texture_format */
-                                    dest,             /* dest */
-                                    0, 0, 0,          /* dstX/Y/Zoffset */
-                                    transfer->stride, /* dstRowStride, bytes */
-                                    &dstImageOffsets, /* dstImageOffsets */
-                                    width, height, 1, /* size */
-                                    format, type,     /* src format/type */
-                                    pixels,           /* data source */
-                                    unpack);
+      success = _mesa_texstore(ctx, 2,           /* dims */
+                               baseFormat,       /* baseInternalFormat */
+                               mformat,          /* gl_format */
+                               dest,             /* dest */
+                               0, 0, 0,          /* dstX/Y/Zoffset */
+                               transfer->stride, /* dstRowStride, bytes */
+                               &dstImageOffsets, /* dstImageOffsets */
+                               width, height, 1, /* size */
+                               format, type,     /* src format/type */
+                               pixels,           /* data source */
+                               unpack);
 
       /* unmap */
       screen->transfer_unmap(screen, transfer);
@@ -1075,11 +1078,19 @@ st_CopyPixels(GLcontext *ctx, GLint srcx, GLint srcy,
                                        PIPE_BUFFER_USAGE_GPU_READ);
       struct pipe_surface *psTex = screen->get_tex_surface(screen, pt, 0, 0, 0, 
                                       PIPE_BUFFER_USAGE_GPU_WRITE );
-      pipe->surface_copy(pipe,
-			 psTex, /* dest */
-			 0, 0, /* destx/y */
-			 psRead,
-			 srcx, srcy, width, height);
+      if (pipe->surface_copy) {
+         pipe->surface_copy(pipe,
+                            psTex, /* dest */
+                            0, 0, /* destx/y */
+                            psRead,
+                            srcx, srcy, width, height);
+      } else {
+         util_surface_copy(pipe, FALSE,
+                           psTex,
+                           0, 0,
+                           psRead,
+                           srcx, srcy, width, height);
+      }
       pipe_surface_reference(&psRead, NULL); 
       pipe_surface_reference(&psTex, NULL);
    }

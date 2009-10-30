@@ -20,7 +20,14 @@
  * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
  * USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#include "pipe/p_inlines.h"
+#include "util/u_memory.h"
+#include "util/u_simple_screen.h"
+
+#include "r300_context.h"
 #include "r300_screen.h"
+#include "r300_texture.h"
+#include "r300_winsys.h"
 
 /* Return the identifier behind whom the brave coders responsible for this
  * amalgamation of code, sweat, and duct tape, routinely obscure their names.
@@ -73,13 +80,10 @@ static int r300_get_param(struct pipe_screen* pscreen, int param)
     struct r300_screen* r300screen = r300_screen(pscreen);
 
     switch (param) {
-        /* XXX cases marked "IN THEORY" are possible on the hardware,
-         * but haven't been implemented yet. */
         case PIPE_CAP_MAX_TEXTURE_IMAGE_UNITS:
             /* XXX I'm told this goes up to 16 */
             return 8;
         case PIPE_CAP_NPOT_TEXTURES:
-            /* IN THEORY */
             return 0;
         case PIPE_CAP_TWO_SIDED_STENCIL:
             if (r300screen->caps->is_r500) {
@@ -88,16 +92,26 @@ static int r300_get_param(struct pipe_screen* pscreen, int param)
                 return 0;
             }
         case PIPE_CAP_GLSL:
-            if (r300screen->caps->is_r500) {
-                return 1;
-            } else {
-                return 0;
-            }
+            /* I'll be frank. This is a lie.
+             *
+             * We don't truly support GLSL on any of this driver's chipsets.
+             * To be fair, no chipset supports the full GLSL specification
+             * to the best of our knowledge, but some of the less esoteric
+             * features are still missing here.
+             *
+             * Rather than cripple ourselves intentionally, I'm going to set
+             * this flag, and as Gallium's interface continues to change, I
+             * hope that this single monolithic GLSL enable can slowly get
+             * split down into many different pieces and the state tracker
+             * will handle fallbacks transparently, like it should.
+             *
+             * ~ C.
+             */
+            return 1;
         case PIPE_CAP_ANISOTROPIC_FILTER:
             return 1;
         case PIPE_CAP_POINT_SPRITE:
-            /* IN THEORY */
-            return 0;
+            return 1;
         case PIPE_CAP_MAX_RENDER_TARGETS:
             return 4;
         case PIPE_CAP_OCCLUSION_QUERY:
@@ -105,32 +119,13 @@ static int r300_get_param(struct pipe_screen* pscreen, int param)
         case PIPE_CAP_TEXTURE_SHADOW_MAP:
             return 1;
         case PIPE_CAP_MAX_TEXTURE_2D_LEVELS:
-            if (r300screen->caps->is_r500) {
-                /* 13 == 4096x4096 */
-                return 13;
-            } else {
-                /* 12 == 2048x2048 */
-                return 12;
-            }
         case PIPE_CAP_MAX_TEXTURE_3D_LEVELS:
-            /* So, technically, the limit is the same as above, but some math
-             * shows why this is silly. Assuming RGBA, 4cpp, we can see that
-             * 4096*4096*4096 = 64.0 GiB exactly, so it's not exactly
-             * practical. However, if at some point a game really wants this,
-             * then we can remove or raise this limit. */
-            if (r300screen->caps->is_r500) {
-                /* 9 == 256x256x256 */
-                return 9;
-            } else {
-                /* 8 == 128*128*128 */
-                return 8;
-            }
         case PIPE_CAP_MAX_TEXTURE_CUBE_LEVELS:
             if (r300screen->caps->is_r500) {
-                /* 13 == 4096x4096 */
+                /* 13 == 4096 */
                 return 13;
             } else {
-                /* 12 == 2048x2048 */
+                /* 12 == 2048 */
                 return 12;
             }
         case PIPE_CAP_TEXTURE_MIRROR_CLAMP:
@@ -138,10 +133,8 @@ static int r300_get_param(struct pipe_screen* pscreen, int param)
         case PIPE_CAP_TEXTURE_MIRROR_REPEAT:
             return 1;
         case PIPE_CAP_MAX_VERTEX_TEXTURE_UNITS:
-            /* XXX guessing (what a terrible guess) */
-            return 2;
+            return 0;
         case PIPE_CAP_TGSI_CONT_SUPPORTED:
-            /* XXX */
             return 0;
         case PIPE_CAP_BLEND_EQUATION_SEPARATE:
             return 1;
@@ -179,8 +172,8 @@ static float r300_get_paramf(struct pipe_screen* pscreen, int param)
     }
 }
 
-static boolean check_tex_2d_format(enum pipe_format format, uint32_t usage,
-                                   boolean is_r500)
+static boolean check_tex_format(enum pipe_format format, uint32_t usage,
+                                boolean is_r500)
 {
     uint32_t retval = 0;
 
@@ -204,6 +197,8 @@ static boolean check_tex_2d_format(enum pipe_format format, uint32_t usage,
         case PIPE_FORMAT_DXT3_RGBA:
         case PIPE_FORMAT_DXT5_RGBA:
         case PIPE_FORMAT_YCBCR:
+        case PIPE_FORMAT_L8_UNORM:
+        case PIPE_FORMAT_A8L8_UNORM:
             retval = usage & PIPE_TEXTURE_USAGE_SAMPLER;
             break;
 
@@ -222,6 +217,7 @@ static boolean check_tex_2d_format(enum pipe_format format, uint32_t usage,
 
         /* Z buffer or texture */
         case PIPE_FORMAT_Z16_UNORM:
+        case PIPE_FORMAT_Z24X8_UNORM:
         /* Z buffer with stencil or texture */
         case PIPE_FORMAT_Z24S8_UNORM:
             retval = usage &
@@ -231,7 +227,7 @@ static boolean check_tex_2d_format(enum pipe_format format, uint32_t usage,
 
         /* Definitely unsupported formats. */
         /* Non-usable Z buffer/stencil formats. */
-        case PIPE_FORMAT_Z24X8_UNORM:
+        case PIPE_FORMAT_Z32_UNORM:
         case PIPE_FORMAT_S8Z24_UNORM:
         case PIPE_FORMAT_X8Z24_UNORM:
             debug_printf("r300: Note: Got unsupported format: %s in %s\n",
@@ -241,7 +237,6 @@ static boolean check_tex_2d_format(enum pipe_format format, uint32_t usage,
         /* XXX These don't even exist
         case PIPE_FORMAT_A32R32G32B32:
         case PIPE_FORMAT_A16R16G16B16: */
-        /* XXX Insert YUV422 packed VYUY and YVYU here */
         /* XXX What the deuce is UV88? (r3xx accel page 14)
             debug_printf("r300: Warning: Got unimplemented format: %s in %s\n",
                 pf_name(format), __FUNCTION__);
@@ -274,7 +269,6 @@ static boolean check_tex_2d_format(enum pipe_format format, uint32_t usage,
     return (retval >= usage);
 }
 
-/* XXX moar targets */
 static boolean r300_is_format_supported(struct pipe_screen* pscreen,
                                         enum pipe_format format,
                                         enum pipe_texture_target target,
@@ -282,15 +276,13 @@ static boolean r300_is_format_supported(struct pipe_screen* pscreen,
                                         unsigned geom_flags)
 {
     switch (target) {
+        case PIPE_TEXTURE_1D:   /* handle 1D textures as 2D ones */
         case PIPE_TEXTURE_2D:
-            return check_tex_2d_format(format, tex_usage,
-                r300_screen(pscreen)->caps->is_r500);
-        case PIPE_TEXTURE_1D:
         case PIPE_TEXTURE_3D:
         case PIPE_TEXTURE_CUBE:
-            debug_printf("r300: Implementation error: Unsupported format "
-                    "target: %d\n", target);
-            break;
+            return check_tex_format(format, tex_usage,
+                r300_screen(pscreen)->caps->is_r500);
+
         default:
             debug_printf("r300: Fatal: This is not a format target: %d\n",
                 target);
@@ -310,22 +302,9 @@ r300_get_tex_transfer(struct pipe_screen *screen,
 {
     struct r300_texture *tex = (struct r300_texture *)texture;
     struct r300_transfer *trans;
-    unsigned offset;  /* in bytes */
+    unsigned offset;
 
-    /* XXX Add support for these things */
-    if (texture->target == PIPE_TEXTURE_CUBE) {
-        debug_printf("PIPE_TEXTURE_CUBE is not yet supported.\n");
-        /* offset = tex->image_offset[level][face]; */
-    }
-    else if (texture->target == PIPE_TEXTURE_3D) {
-        debug_printf("PIPE_TEXTURE_3D is not yet supported.\n");
-        /* offset = tex->image_offset[level][zslice]; */
-    }
-    else {
-        offset = tex->offset[level];
-        assert(face == 0);
-        assert(zslice == 0);
-    }
+    offset = r300_texture_get_offset(tex, level, zslice, face);  /* in bytes */
 
     trans = CALLOC_STRUCT(r300_transfer);
     if (trans) {
@@ -340,6 +319,12 @@ r300_get_tex_transfer(struct pipe_screen *screen,
         trans->transfer.nblocksy = texture->nblocksy[level];
         trans->transfer.stride = r300_texture_get_stride(tex, level);
         trans->transfer.usage = usage;
+
+        /* XXX not sure whether it's required to set these two,
+               the driver doesn't use them */
+        trans->transfer.zslice = zslice;
+        trans->transfer.face = face;
+
         trans->offset = offset;
     }
     return &trans->transfer;

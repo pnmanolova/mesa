@@ -16,7 +16,7 @@ struct xorg_renderer {
    struct pipe_constant_buffer vs_const_buffer;
    struct pipe_constant_buffer fs_const_buffer;
 
-   /* we should combine these two */
+   /* we should combine these three */
    float vertices2[4][2][4];
    float vertices3[4][3][4];
 };
@@ -47,7 +47,14 @@ void renderer_draw_textures(struct xorg_renderer *r,
                             int *pos,
                             int width, int height,
                             struct pipe_texture **textures,
-                            int num_textures);
+                            int num_textures,
+                            float *src_matrix,
+                            float *mask_matrix);
+
+void renderer_draw_yuv(struct xorg_renderer *r,
+                       int src_x, int src_y, int src_w, int src_h,
+                       int dst_x, int dst_y, int dst_w, int dst_h,
+                       struct pipe_texture **textures);
 
 
 #endif

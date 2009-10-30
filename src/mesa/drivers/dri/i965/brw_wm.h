@@ -67,17 +67,18 @@ struct brw_wm_prog_key {
    GLuint flat_shade:1;
    GLuint linear_color:1;  /**< linear interpolation vs perspective interp */
    GLuint runtime_check_aads_emit:1;
+   GLuint nr_color_regions:2;
    
    GLbitfield proj_attrib_mask; /**< one bit per fragment program attribute */
    GLuint shadowtex_mask:16;
    GLuint yuvtex_mask:16;
    GLuint yuvtex_swap_mask:16;	/* UV swaped */
 
-   GLuint tex_swizzles[BRW_MAX_TEX_UNIT];
+   GLushort tex_swizzles[BRW_MAX_TEX_UNIT];
 
    GLuint program_string_id:32;
-   GLuint origin_x, origin_y;
-   GLuint drawable_height;
+   GLushort origin_x, origin_y;
+   GLushort drawable_height;
    GLuint vp_outputs_written;
 };
 
@@ -269,6 +270,12 @@ struct brw_wm_compile {
       struct brw_reg reg;
    } current_const[3];
 };
+
+
+/** Bits for prog_instruction::Aux field */
+#define INST_AUX_EOT      0x1
+#define INST_AUX_TARGET(T)  (T << 1)
+#define INST_AUX_GET_TARGET(AUX) ((AUX) >> 1)
 
 
 GLuint brw_wm_nr_args( GLuint opcode );

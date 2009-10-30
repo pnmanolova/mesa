@@ -117,12 +117,13 @@
 #include "syncobj.h"
 #endif
 #include "rastpos.h"
+#include "remap.h"
 #include "scissor.h"
 #include "shared.h"
 #include "simple_list.h"
 #include "state.h"
 #include "stencil.h"
-#include "texcompress.h"
+#include "texcompress_s3tc.h"
 #include "teximage.h"
 #include "texobj.h"
 #include "texstate.h"
@@ -132,7 +133,6 @@
 #include "viewport.h"
 #include "vtxfmt.h"
 #include "glapi/glthread.h"
-#include "glapi/glapioffsets.h"
 #include "glapi/glapitable.h"
 #include "shader/program.h"
 #include "shader/prog_print.h"
@@ -410,6 +410,8 @@ one_time_init( GLcontext *ctx )
       assert( sizeof(GLuint) == 4 );
 
       _mesa_get_cpu_features();
+
+      _mesa_init_remap_table();
 
       _mesa_init_sqrt_table();
 
@@ -719,12 +721,7 @@ init_attrib_groups(GLcontext *ctx)
    if (!_mesa_init_texture( ctx ))
       return GL_FALSE;
 
-#if FEATURE_texture_s3tc
    _mesa_init_texture_s3tc( ctx );
-#endif
-#if FEATURE_texture_fxt1
-   _mesa_init_texture_fxt1( ctx );
-#endif
 
    /* Miscellaneous */
    ctx->NewState = _NEW_ALL;
@@ -1523,6 +1520,33 @@ _mesa_record_error(GLcontext *ctx, GLenum error)
 
 
 /**
+ * Flush commands and wait for completion.
+ */
+void
+_mesa_finish(GLcontext *ctx)
+{
+   FLUSH_CURRENT( ctx, 0 );
+   if (ctx->Driver.Finish) {
+      ctx->Driver.Finish(ctx);
+   }
+}
+
+
+/**
+ * Flush commands.
+ */
+void
+_mesa_flush(GLcontext *ctx)
+{
+   FLUSH_CURRENT( ctx, 0 );
+   if (ctx->Driver.Flush) {
+      ctx->Driver.Flush(ctx);
+   }
+}
+
+
+
+/**
  * Execute glFinish().
  *
  * Calls the #ASSERT_OUTSIDE_BEGIN_END_AND_FLUSH macro and the
@@ -1533,10 +1557,7 @@ _mesa_Finish(void)
 {
    GET_CURRENT_CONTEXT(ctx);
    ASSERT_OUTSIDE_BEGIN_END_AND_FLUSH(ctx);
-   FLUSH_CURRENT( ctx, 0 );
-   if (ctx->Driver.Finish) {
-      ctx->Driver.Finish(ctx);
-   }
+   _mesa_finish(ctx);
 }
 
 
@@ -1551,10 +1572,7 @@ _mesa_Flush(void)
 {
    GET_CURRENT_CONTEXT(ctx);
    ASSERT_OUTSIDE_BEGIN_END_AND_FLUSH(ctx);
-   FLUSH_CURRENT( ctx, 0 );
-   if (ctx->Driver.Flush) {
-      ctx->Driver.Flush(ctx);
-   }
+   _mesa_flush(ctx);
 }
 
 

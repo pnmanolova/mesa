@@ -7,12 +7,12 @@
 TOP = ../../..
 include $(TOP)/configs/current
 
-OUTPUTS = glprocs.h glapitemp.h glapioffsets.h glapitable.h dispatch.h \
+OUTPUTS = glprocs.h glapitemp.h glapioffsets.h glapitable.h glapidispatch.h \
 	../main/enums.c \
+	../main/remap_helper.h \
 	../x86/glapi_x86.S \
 	../x86-64/glapi_x86-64.S \
 	../sparc/glapi_sparc.S \
-	../drivers/dri/common/extension_helper.h \
 	../../glx/x11/indirect.c \
 	../../glx/x11/indirect.h \
 	../../glx/x11/indirect_init.c \
@@ -41,6 +41,7 @@ SERVER_OUTPUTS = \
 	$(GLX_DIR)/glapitemp.h \
 	$(GLX_DIR)/glapitable.h \
 	$(GLX_DIR)/glapioffsets.h \
+	$(GLX_DIR)/glapidispatch.h \
 	$(GLX_DIR)/glprocs.h \
 	$(GLX_DIR)/dispatch.h \
 	$(SERVER_GLAPI_FILES)
@@ -86,10 +87,13 @@ glapioffsets.h $(GLX_DIR)/glapioffsets.h: gl_offsets.py $(COMMON)
 glapitable.h $(GLX_DIR)/glapitable.h: gl_table.py $(COMMON)
 	$(PYTHON2) $(PYTHON_FLAGS) $< > $@
 
-dispatch.h $(GLX_DIR)/dispatch.h: gl_table.py $(COMMON)
+glapidispatch.h $(GLX_DIR)/glapidispatch.h: gl_table.py $(COMMON)
 	$(PYTHON2) $(PYTHON_FLAGS) $< -m remap_table > $@
 
 ../main/enums.c: gl_enums.py $(COMMON)
+	$(PYTHON2) $(PYTHON_FLAGS) $< > $@
+
+../main/remap_helper.h: remap_helper.py $(COMMON)
 	$(PYTHON2) $(PYTHON_FLAGS) $< > $@
 
 ../x86/glapi_x86.S: gl_x86_asm.py $(COMMON)
@@ -99,10 +103,6 @@ dispatch.h $(GLX_DIR)/dispatch.h: gl_table.py $(COMMON)
 	$(PYTHON2) $(PYTHON_FLAGS) $< > $@
 
 ../sparc/glapi_sparc.S: gl_SPARC_asm.py $(COMMON)
-	$(PYTHON2) $(PYTHON_FLAGS) $< > $@
-
-
-../drivers/dri/common/extension_helper.h: extension_helper.py $(COMMON)
 	$(PYTHON2) $(PYTHON_FLAGS) $< > $@
 
 ../../glx/x11/indirect.c: glX_proto_send.py $(COMMON_GLX)

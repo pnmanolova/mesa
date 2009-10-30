@@ -20,8 +20,10 @@
  * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
  * USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#include "util/u_debug.h"
+#include "draw/draw_context.h"
+
 #include "util/u_math.h"
+#include "util/u_memory.h"
 #include "util/u_pack_color.h"
 
 #include "tgsi/tgsi_parse.h"
@@ -31,6 +33,7 @@
 
 #include "r300_context.h"
 #include "r300_reg.h"
+#include "r300_screen.h"
 #include "r300_state_inlines.h"
 #include "r300_fs.h"
 #include "r300_vs.h"
@@ -46,46 +49,47 @@ static void* r300_create_blend_state(struct pipe_context* pipe,
 {
     struct r300_blend_state* blend = CALLOC_STRUCT(r300_blend_state);
 
+    if (state->blend_enable)
     {
-	unsigned eqRGB = state->rgb_func;
-	unsigned srcRGB = state->rgb_src_factor;
-	unsigned dstRGB = state->rgb_dst_factor;
+        unsigned eqRGB = state->rgb_func;
+        unsigned srcRGB = state->rgb_src_factor;
+        unsigned dstRGB = state->rgb_dst_factor;
 
-	unsigned eqA = state->alpha_func;
-	unsigned srcA = state->alpha_src_factor;
-	unsigned dstA = state->alpha_dst_factor;
+        unsigned eqA = state->alpha_func;
+        unsigned srcA = state->alpha_src_factor;
+        unsigned dstA = state->alpha_dst_factor;
 
-	if (srcA != srcRGB ||
-	    dstA != dstRGB ||
-	    eqA != eqRGB) {
-	    blend->alpha_blend_control =
-		r300_translate_blend_function(eqA) |
-		(r300_translate_blend_factor(srcA) <<
-                    R300_SRC_BLEND_SHIFT) |
-                (r300_translate_blend_factor(dstA) <<
-		 R300_DST_BLEND_SHIFT);
-	    blend->blend_control |= R300_ALPHA_BLEND_ENABLE |
-		R300_SEPARATE_ALPHA_ENABLE;
-	} else {
-	    blend->alpha_blend_control = R300_COMB_FCN_ADD_CLAMP |
-		(R300_BLEND_GL_ONE << R300_SRC_BLEND_SHIFT) |
-		(R300_BLEND_GL_ZERO << R300_DST_BLEND_SHIFT);
-	}
-    }
-    if (state->blend_enable) {
-        /* XXX for now, always do separate alpha...
-         * is it faster to do it with one reg? */
-        blend->blend_control |= R300_READ_ENABLE |
-                r300_translate_blend_function(state->rgb_func) |
-                (r300_translate_blend_factor(state->rgb_src_factor) <<
-                    R300_SRC_BLEND_SHIFT) |
-                (r300_translate_blend_factor(state->rgb_dst_factor) <<
-                    R300_DST_BLEND_SHIFT);
-    } else {
-	blend->blend_control = 
-	    R300_COMB_FCN_ADD_CLAMP |
-	    (R300_BLEND_GL_ONE << R300_SRC_BLEND_SHIFT) |
-	    (R300_BLEND_GL_ZERO << R300_DST_BLEND_SHIFT);
+        /* despite the name, ALPHA_BLEND_ENABLE has nothing to do with alpha,
+         * this is just the crappy D3D naming */
+        blend->blend_control = R300_ALPHA_BLEND_ENABLE |
+            r300_translate_blend_function(eqRGB) |
+            ( r300_translate_blend_factor(srcRGB) << R300_SRC_BLEND_SHIFT) |
+            ( r300_translate_blend_factor(dstRGB) << R300_DST_BLEND_SHIFT);
+
+        /* optimization: some operations do not require the destination color */
+        if (eqRGB == PIPE_BLEND_MIN || eqA == PIPE_BLEND_MIN ||
+            eqRGB == PIPE_BLEND_MAX || eqA == PIPE_BLEND_MAX ||
+            dstRGB != PIPE_BLENDFACTOR_ZERO ||
+            dstA != PIPE_BLENDFACTOR_ZERO ||
+            srcRGB == PIPE_BLENDFACTOR_DST_COLOR ||
+            srcRGB == PIPE_BLENDFACTOR_DST_ALPHA ||
+            srcRGB == PIPE_BLENDFACTOR_INV_DST_COLOR ||
+            srcRGB == PIPE_BLENDFACTOR_INV_DST_ALPHA ||
+            srcA == PIPE_BLENDFACTOR_DST_ALPHA ||
+            srcA == PIPE_BLENDFACTOR_INV_DST_ALPHA)
+            blend->blend_control |= R300_READ_ENABLE;
+
+        /* XXX implement the optimization with DISCARD_SRC_PIXELS*/
+        /* XXX implement the optimization with SRC_ALPHA_?_NO_READ */
+
+        /* separate alpha */
+        if (srcA != srcRGB || dstA != dstRGB || eqA != eqRGB) {
+            blend->blend_control |= R300_SEPARATE_ALPHA_ENABLE;
+            blend->alpha_blend_control =
+                r300_translate_blend_function(eqA) |
+                (r300_translate_blend_factor(srcA) << R300_SRC_BLEND_SHIFT) |
+                (r300_translate_blend_factor(dstA) << R300_DST_BLEND_SHIFT);
+        }
     }
 
     /* PIPE_LOGICOP_* don't need to be translated, fortunately. */
@@ -119,25 +123,29 @@ static void r300_delete_blend_state(struct pipe_context* pipe,
     FREE(state);
 }
 
+/* Convert float to 10bit integer */
+static unsigned float_to_fixed10(float f)
+{
+    return CLAMP((unsigned)(f * 1023.9f), 0, 1023);
+}
+
 /* Set blend color.
  * Setup both R300 and R500 registers, figure out later which one to write. */
 static void r300_set_blend_color(struct pipe_context* pipe,
                                  const struct pipe_blend_color* color)
 {
     struct r300_context* r300 = r300_context(pipe);
-    ubyte ur, ug, ub, ua;
-
-    ur = float_to_ubyte(color->color[0]);
-    ug = float_to_ubyte(color->color[1]);
-    ub = float_to_ubyte(color->color[2]);
-    ua = float_to_ubyte(color->color[3]);
 
     util_pack_color(color->color, PIPE_FORMAT_A8R8G8B8_UNORM,
             &r300->blend_color_state->blend_color);
 
-    /* XXX this is wrong */
-    r300->blend_color_state->blend_color_red_alpha = ur | (ua << 16);
-    r300->blend_color_state->blend_color_green_blue = ub | (ug << 16);
+    /* XXX if FP16 blending is enabled, we should use the FP16 format */
+    r300->blend_color_state->blend_color_red_alpha =
+        float_to_fixed10(color->color[0]) |
+        (float_to_fixed10(color->color[3]) << 16);
+    r300->blend_color_state->blend_color_green_blue =
+        float_to_fixed10(color->color[2]) |
+        (float_to_fixed10(color->color[1]) << 16);
 
     r300->dirty_state |= R300_NEW_BLEND_COLOR;
 }
@@ -190,6 +198,8 @@ static void*
         r300_create_dsa_state(struct pipe_context* pipe,
                               const struct pipe_depth_stencil_alpha_state* state)
 {
+    struct r300_capabilities *caps =
+        r300_screen(r300_context(pipe)->context.screen)->caps;
     struct r300_dsa_state* dsa = CALLOC_STRUCT(r300_dsa_state);
 
     /* Depth test setup. */
@@ -234,9 +244,16 @@ static void*
             (r300_translate_stencil_op(state->stencil[1].zfail_op) <<
                 R300_S_BACK_ZFAIL_OP_SHIFT);
 
-            dsa->stencil_ref_bf = (state->stencil[1].ref_value) |
-                (state->stencil[1].valuemask << R300_STENCILMASK_SHIFT) |
-                (state->stencil[1].writemask << R300_STENCILWRITEMASK_SHIFT);
+            /* XXX it seems r3xx doesn't support STENCILREFMASK_BF */
+            if (caps->is_r500)
+            {
+                dsa->z_buffer_control |= R500_STENCIL_REFMASK_FRONT_BACK;
+                dsa->stencil_ref_bf = (state->stencil[1].ref_value) |
+                    (state->stencil[1].valuemask <<
+                    R300_STENCILMASK_SHIFT) |
+                    (state->stencil[1].writemask <<
+                    R300_STENCILWRITEMASK_SHIFT);
+            }
         }
     }
 
@@ -245,8 +262,13 @@ static void*
         dsa->alpha_function =
             r300_translate_alpha_function(state->alpha.func) |
             R300_FG_ALPHA_FUNC_ENABLE;
-        dsa->alpha_reference = CLAMP(state->alpha.ref_value * 1023.0f,
-                                     0, 1023);
+
+        /* XXX figure out why emitting 10bit alpha ref causes CS to dump */
+        /* always use 8bit alpha ref */
+        dsa->alpha_function |= float_to_ubyte(state->alpha.ref_value);
+
+        if (caps->is_r500)
+            dsa->alpha_function |= R500_FG_ALPHA_FUNC_8BIT;
     }
 
     return (void*)dsa;
@@ -329,7 +351,7 @@ static void r300_delete_fs_state(struct pipe_context* pipe, void* shader)
 {
     struct r300_fragment_shader* fs = (struct r300_fragment_shader*)shader;
     rc_constants_destroy(&fs->code.constants);
-    FREE(fs->state.tokens);
+    FREE((void*)fs->state.tokens);
     FREE(shader);
 }
 
@@ -697,7 +719,7 @@ static void r300_delete_vs_state(struct pipe_context* pipe, void* shader)
 
         rc_constants_destroy(&vs->code.constants);
         draw_delete_vertex_shader(r300->draw, vs->draw);
-        FREE(vs->state.tokens);
+        FREE((void*)vs->state.tokens);
         FREE(shader);
     } else {
         draw_delete_vertex_shader(r300->draw,

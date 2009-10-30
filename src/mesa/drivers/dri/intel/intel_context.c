@@ -189,19 +189,7 @@ intelGetString(GLcontext * ctx, GLenum name)
 static unsigned
 intel_bits_per_pixel(const struct intel_renderbuffer *rb)
 {
-   switch (rb->Base._ActualFormat) {
-   case GL_RGB5:
-   case GL_DEPTH_COMPONENT16:
-      return 16;
-   case GL_RGB8:
-   case GL_RGBA8:
-   case GL_DEPTH_COMPONENT24:
-   case GL_DEPTH24_STENCIL8_EXT:
-   case GL_STENCIL_INDEX8_EXT:
-      return 32;
-   default:
-      return 0;
-   }
+   return _mesa_get_format_bytes(rb->Base.Format) * 8;
 }
 
 void
@@ -496,7 +484,7 @@ intel_flush(GLcontext *ctx, GLboolean needs_mi_flush)
     * lands onscreen in a timely manner, even if the X Server doesn't trigger
     * a flush for us.
     */
-   if (needs_mi_flush)
+   if (!intel->driScreen->dri2.enabled && needs_mi_flush)
       intel_batchbuffer_emit_mi_flush(intel->batch);
 
    if (intel->batch->map != intel->batch->ptr)
@@ -830,7 +818,7 @@ intelDestroyContext(__DRIcontextPrivate * driContextPriv)
       _vbo_DestroyContext(&intel->ctx);
 
       _swrast_DestroyContext(&intel->ctx);
-      intel->Fallback = 0;      /* don't call _swrast_Flush later */
+      intel->Fallback = 0x0;      /* don't call _swrast_Flush later */
 
       intel_batchbuffer_free(intel->batch);
       intel->batch = NULL;
@@ -935,10 +923,23 @@ intelMakeCurrent(__DRIcontextPrivate * driContextPriv,
                  __DRIdrawablePrivate * driReadPriv)
 {
    __DRIscreenPrivate *psp = driDrawPriv->driScreenPriv;
+   struct intel_context *intel;
+   GET_CURRENT_CONTEXT(curCtx);
+
+   if (driContextPriv)
+      intel = (struct intel_context *) driContextPriv->driverPrivate;
+   else
+      intel = NULL;
+
+   /* According to the glXMakeCurrent() man page: "Pending commands to
+    * the previous context, if any, are flushed before it is released."
+    * But only flush if we're actually changing contexts.
+    */
+   if (intel_context(curCtx) && intel_context(curCtx) != intel) {
+      _mesa_flush(curCtx);
+   }
 
    if (driContextPriv) {
-      struct intel_context *intel =
-         (struct intel_context *) driContextPriv->driverPrivate;
       struct intel_framebuffer *intel_fb =
 	 (struct intel_framebuffer *) driDrawPriv->driverPrivate;
       GLframebuffer *readFb = (GLframebuffer *) driReadPriv->driverPrivate;

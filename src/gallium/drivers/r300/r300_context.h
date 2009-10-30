@@ -23,22 +23,9 @@
 #ifndef R300_CONTEXT_H
 #define R300_CONTEXT_H
 
-#include "draw/draw_context.h"
 #include "draw/draw_vertex.h"
 
 #include "pipe/p_context.h"
-
-#include "tgsi/tgsi_scan.h"
-
-#include "util/u_hash_table.h"
-#include "util/u_memory.h"
-#include "util/u_simple_list.h"
-
-#include "r300_clear.h"
-#include "r300_query.h"
-#include "r300_screen.h"
-#include "r300_state_derived.h"
-#include "r300_winsys.h"
 
 struct r300_fragment_shader;
 struct r300_vertex_shader;
@@ -194,6 +181,9 @@ struct r300_texture {
     /* Offsets into the buffer. */
     unsigned offset[PIPE_MAX_TEXTURE_LEVELS];
 
+    /* Size of one zslice or face based on the texture target */
+    unsigned layer_size[PIPE_MAX_TEXTURE_LEVELS];
+
     /**
      * If non-zero, override the natural texture layout with
      * a custom stride (in bytes).
@@ -286,6 +276,9 @@ struct r300_context {
     /* Vertex buffers for Gallium. */
     struct pipe_vertex_buffer vertex_buffers[PIPE_MAX_ATTRIBS];
     int vertex_buffer_count;
+    /* Vertex elements for Gallium. */
+    struct pipe_vertex_element vertex_elements[PIPE_MAX_ATTRIBS];
+    int vertex_element_count;
     /* Vertex shader. */
     struct r300_vertex_shader* vs;
     /* Viewport state. */
@@ -330,9 +323,8 @@ void r300_init_surface_functions(struct r300_context* r300);
 #define DBG_VP      0x0000004
 #define DBG_CS      0x0000008
 #define DBG_DRAW    0x0000010
-#define DBG_SURF    0x0000020
-#define DBG_TEX     0x0000040
-#define DBG_FALL    0x0000080
+#define DBG_TEX     0x0000020
+#define DBG_FALL    0x0000040
 /*@}*/
 
 static INLINE boolean DBG_ON(struct r300_context * ctx, unsigned flags)

@@ -52,12 +52,12 @@ struct brw_sf_prog_key {
    GLuint frontface_ccw:1;
    GLuint do_point_sprite:1;
    GLuint linear_color:1;  /**< linear interp vs. perspective interp */
-   GLuint pad:25;
-   GLenum SpriteOrigin;
+   GLuint sprite_origin_lower_left:1;
+   GLuint pad:24;
 };
 
 struct brw_sf_point_tex {
-	GLboolean CoordReplace;	
+   GLboolean CoordReplace;	
 };
 
 struct brw_sf_compile {

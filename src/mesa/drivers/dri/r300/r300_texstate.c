@@ -39,7 +39,6 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "main/imports.h"
 #include "main/context.h"
 #include "main/macros.h"
-#include "main/texformat.h"
 #include "main/teximage.h"
 #include "main/texobj.h"
 #include "main/enums.h"
@@ -156,11 +155,11 @@ void r300SetDepthTexMode(struct gl_texture_object *tObj)
 
 	t = radeon_tex_obj(tObj);
 
-	switch (tObj->Image[0][tObj->BaseLevel]->TexFormat->MesaFormat) {
+	switch (tObj->Image[0][tObj->BaseLevel]->TexFormat) {
 	case MESA_FORMAT_Z16:
 		format = formats[0];
 		break;
-	case MESA_FORMAT_Z24_S8:
+	case MESA_FORMAT_S8_Z24:
 		format = formats[1];
 		break;
 	case MESA_FORMAT_Z32:
@@ -208,14 +207,14 @@ static void setup_hardware_state(r300ContextPtr rmesa, radeonTexObj *t)
 	firstImage = t->base.Image[0][firstlevel];
 
 	if (!t->image_override
-	    && VALID_FORMAT(firstImage->TexFormat->MesaFormat)) {
-		if (firstImage->TexFormat->BaseFormat == GL_DEPTH_COMPONENT) {
+	    && VALID_FORMAT(firstImage->TexFormat)) {
+		if (firstImage->_BaseFormat == GL_DEPTH_COMPONENT) {
 			r300SetDepthTexMode(&t->base);
 		} else {
-			t->pp_txformat = tx_table[firstImage->TexFormat->MesaFormat].format;
+			t->pp_txformat = tx_table[firstImage->TexFormat].format;
 		}
 
-		t->pp_txfilter |= tx_table[firstImage->TexFormat->MesaFormat].filter;
+		t->pp_txfilter |= tx_table[firstImage->TexFormat].filter;
 	} else if (!t->image_override) {
 		_mesa_problem(NULL, "unexpected texture format in %s",
 			      __FUNCTION__);
@@ -225,10 +224,10 @@ static void setup_hardware_state(r300ContextPtr rmesa, radeonTexObj *t)
 	if (t->image_override && t->bo)
 		return;
 
-	t->pp_txsize = (((firstImage->Width - 1) << R300_TX_WIDTHMASK_SHIFT)
-			| ((firstImage->Height - 1) << R300_TX_HEIGHTMASK_SHIFT)
-			| ((firstImage->DepthLog2) << R300_TX_DEPTHMASK_SHIFT)
-			| ((t->mt->lastLevel - t->mt->firstLevel) << R300_TX_MAX_MIP_LEVEL_SHIFT));
+	t->pp_txsize = (((R300_TX_WIDTHMASK_MASK & ((firstImage->Width - 1) << R300_TX_WIDTHMASK_SHIFT)))
+			| ((R300_TX_HEIGHTMASK_MASK & ((firstImage->Height - 1) << R300_TX_HEIGHTMASK_SHIFT)))
+			| ((R300_TX_DEPTHMASK_MASK & ((firstImage->DepthLog2) << R300_TX_DEPTHMASK_SHIFT)))
+			| ((R300_TX_MAX_MIP_LEVEL_MASK & ((t->mt->lastLevel - t->mt->firstLevel) << R300_TX_MAX_MIP_LEVEL_SHIFT))));
 
 	t->tile_bits = 0;
 
@@ -248,8 +247,12 @@ static void setup_hardware_state(r300ContextPtr rmesa, radeonTexObj *t)
 	if (rmesa->radeon.radeonScreen->chip_family >= CHIP_FAMILY_RV515) {
 	    if (firstImage->Width > 2048)
 		t->pp_txpitch |= R500_TXWIDTH_BIT11;
+            else
+		t->pp_txpitch &= ~R500_TXWIDTH_BIT11;
 	    if (firstImage->Height > 2048)
 		t->pp_txpitch |= R500_TXHEIGHT_BIT11;
+            else
+		t->pp_txpitch &= ~R500_TXHEIGHT_BIT11;
 	}
 }
 
@@ -445,9 +448,6 @@ void r300SetTexBuffer2(__DRIcontext *pDRICtx, GLint target, GLint glx_texture_fo
 	_mesa_init_teximage_fields(radeon->glCtx, target, texImage,
 				   rb->base.Width, rb->base.Height, 1, 0, rb->cpp);
 	texImage->RowStride = rb->pitch / rb->cpp;
-	texImage->TexFormat = radeonChooseTextureFormat(radeon->glCtx,
-							internalFormat,
-							type, format, 0);
 	rImage->bo = rb->bo;
 	radeon_bo_ref(rImage->bo);
 	t->bo = rb->bo;
@@ -479,16 +479,20 @@ void r300SetTexBuffer2(__DRIcontext *pDRICtx, GLint target, GLint glx_texture_fo
 		break;
 	}
 	pitch_val--;
-	t->pp_txsize = ((rb->base.Width - 1) << R300_TX_WIDTHMASK_SHIFT) |
-              ((rb->base.Height - 1) << R300_TX_HEIGHTMASK_SHIFT);
+	t->pp_txsize = (((R300_TX_WIDTHMASK_MASK & ((rb->base.Width - 1) << R300_TX_WIDTHMASK_SHIFT)))
+			| ((R300_TX_HEIGHTMASK_MASK & ((rb->base.Height - 1) << R300_TX_HEIGHTMASK_SHIFT))));
 	t->pp_txsize |= R300_TX_SIZE_TXPITCH_EN;
 	t->pp_txpitch |= pitch_val;
 
 	if (rmesa->radeon.radeonScreen->chip_family >= CHIP_FAMILY_RV515) {
 	    if (rb->base.Width > 2048)
 		t->pp_txpitch |= R500_TXWIDTH_BIT11;
+            else
+		t->pp_txpitch &= ~R500_TXWIDTH_BIT11;
 	    if (rb->base.Height > 2048)
 		t->pp_txpitch |= R500_TXHEIGHT_BIT11;
+            else
+		t->pp_txpitch &= ~R500_TXHEIGHT_BIT11;
 	}
 	t->validated = GL_TRUE;
 	_mesa_unlock_texture(radeon->glCtx, texObj);

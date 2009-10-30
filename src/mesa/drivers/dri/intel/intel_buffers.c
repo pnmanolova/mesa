@@ -192,7 +192,7 @@ intel_draw_buffer(GLcontext * ctx, struct gl_framebuffer *fb)
    }
    else {
       /* Get the intel_renderbuffer for the single colorbuffer we're drawing
-       * into, and set up cliprects if it's .
+       * into, and set up cliprects if it's a DRI1 window front buffer.
        */
       if (fb->Name == 0) {
 	 intel->constant_cliprect = intel->driScreen->dri2.enabled;
@@ -209,7 +209,7 @@ intel_draw_buffer(GLcontext * ctx, struct gl_framebuffer *fb)
 	    if (!intel->constant_cliprect && intel->front_cliprects)
 	       intel_batchbuffer_flush(intel->batch);
 	    intel->front_cliprects = GL_FALSE;
-	    colorRegions[0]= intel_get_rb_region(fb, BUFFER_BACK_LEFT);
+	    colorRegions[0] = intel_get_rb_region(fb, BUFFER_BACK_LEFT);
 	 }
       }
       else {
@@ -257,7 +257,7 @@ intel_draw_buffer(GLcontext * ctx, struct gl_framebuffer *fb)
    if (fb->_StencilBuffer && fb->_StencilBuffer->Wrapped) {
       irbStencil = intel_renderbuffer(fb->_StencilBuffer->Wrapped);
       if (irbStencil && irbStencil->region) {
-         ASSERT(irbStencil->Base._ActualFormat == GL_DEPTH24_STENCIL8_EXT);
+         ASSERT(irbStencil->Base.Format == MESA_FORMAT_S8_Z24);
          FALLBACK(intel, INTEL_FALLBACK_STENCIL_BUFFER, GL_FALSE);
       }
       else {

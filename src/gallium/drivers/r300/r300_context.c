@@ -20,74 +20,25 @@
  * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
  * USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#include "draw/draw_context.h"
+
+#include "pipe/p_inlines.h"
+
+#include "tgsi/tgsi_scan.h"
+
+#include "util/u_hash_table.h"
+#include "util/u_memory.h"
+#include "util/u_simple_list.h"
+
+#include "r300_clear.h"
 #include "r300_context.h"
-
 #include "r300_flush.h"
+#include "r300_query.h"
+#include "r300_render.h"
+#include "r300_screen.h"
+#include "r300_state_derived.h"
 #include "r300_state_invariant.h"
-
-static boolean r300_draw_range_elements(struct pipe_context* pipe,
-                                        struct pipe_buffer* indexBuffer,
-                                        unsigned indexSize,
-                                        unsigned minIndex,
-                                        unsigned maxIndex,
-                                        unsigned mode,
-                                        unsigned start,
-                                        unsigned count)
-{
-    struct r300_context* r300 = r300_context(pipe);
-    int i;
-
-    for (i = 0; i < r300->vertex_buffer_count; i++) {
-        void* buf = pipe_buffer_map(pipe->screen,
-                                    r300->vertex_buffers[i].buffer,
-                                    PIPE_BUFFER_USAGE_CPU_READ);
-        draw_set_mapped_vertex_buffer(r300->draw, i, buf);
-    }
-
-    if (indexBuffer) {
-        void* indices = pipe_buffer_map(pipe->screen, indexBuffer,
-                                        PIPE_BUFFER_USAGE_CPU_READ);
-        draw_set_mapped_element_buffer_range(r300->draw, indexSize,
-                                             minIndex, maxIndex, indices);
-    } else {
-        draw_set_mapped_element_buffer(r300->draw, 0, NULL);
-    }
-
-    draw_set_mapped_constant_buffer(r300->draw, PIPE_SHADER_VERTEX,
-            r300->shader_constants[PIPE_SHADER_VERTEX].constants,
-            r300->shader_constants[PIPE_SHADER_VERTEX].count *
-                (sizeof(float) * 4));
-
-    draw_arrays(r300->draw, mode, start, count);
-
-    for (i = 0; i < r300->vertex_buffer_count; i++) {
-        pipe_buffer_unmap(pipe->screen, r300->vertex_buffers[i].buffer);
-        draw_set_mapped_vertex_buffer(r300->draw, i, NULL);
-    }
-
-    if (indexBuffer) {
-        pipe_buffer_unmap(pipe->screen, indexBuffer);
-        draw_set_mapped_element_buffer_range(r300->draw, 0, start,
-                                             start + count - 1, NULL);
-    }
-
-    return TRUE;
-}
-
-static boolean r300_draw_elements(struct pipe_context* pipe,
-                                  struct pipe_buffer* indexBuffer,
-                                  unsigned indexSize, unsigned mode,
-                                  unsigned start, unsigned count)
-{
-    return r300_draw_range_elements(pipe, indexBuffer, indexSize, 0, ~0,
-                                    mode, start, count);
-}
-
-static boolean r300_draw_arrays(struct pipe_context* pipe, unsigned mode,
-                                unsigned start, unsigned count)
-{
-    return r300_draw_elements(pipe, NULL, 0, mode, start, count);
-}
+#include "r300_winsys.h"
 
 static enum pipe_error r300_clear_hash_table(void* key, void* value,
                                              void* data)
@@ -125,26 +76,23 @@ static void r300_destroy_context(struct pipe_context* context)
 }
 
 static unsigned int
-r300_is_texture_referenced( struct pipe_context *pipe,
-			    struct pipe_texture *texture,
-			    unsigned face, unsigned level)
+r300_is_texture_referenced(struct pipe_context *pipe,
+                           struct pipe_texture *texture,
+                           unsigned face, unsigned level)
 {
-   /**
-    * FIXME: Optimize.
-    */
+    struct pipe_buffer* buf;
 
-   return PIPE_REFERENCED_FOR_READ | PIPE_REFERENCED_FOR_WRITE;
+    r300_get_texture_buffer(texture, &buf, NULL);
+
+    return pipe->is_buffer_referenced(pipe, buf);
 }
 
 static unsigned int
-r300_is_buffer_referenced( struct pipe_context *pipe,
-			   struct pipe_buffer *buf)
+r300_is_buffer_referenced(struct pipe_context *pipe,
+                          struct pipe_buffer *buf)
 {
-   /**
-    * FIXME: Optimize.
-    */
-
-   return PIPE_REFERENCED_FOR_READ | PIPE_REFERENCED_FOR_WRITE;
+    /* XXX */
+    return PIPE_REFERENCED_FOR_READ | PIPE_REFERENCED_FOR_WRITE;
 }
 
 static void r300_flush_cb(void *data)
@@ -175,7 +123,7 @@ struct pipe_context* r300_create_context(struct pipe_screen* screen,
 
     r300->context.draw_arrays = r300_draw_arrays;
     r300->context.draw_elements = r300_draw_elements;
-    r300->context.draw_range_elements = r300_draw_range_elements;
+    r300->context.draw_range_elements = r300_swtcl_draw_range_elements;
 
     r300->context.is_texture_referenced = r300_is_texture_referenced;
     r300->context.is_buffer_referenced = r300_is_buffer_referenced;
@@ -206,7 +154,7 @@ struct pipe_context* r300_create_context(struct pipe_screen* screen,
 
     r300_init_query_functions(r300);
 
-    r300_init_surface_functions(r300);
+    /* r300_init_surface_functions(r300); */
 
     r300_init_state_functions(r300);
 

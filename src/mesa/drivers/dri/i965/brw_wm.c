@@ -29,7 +29,6 @@
   *   Keith Whitwell <keith@tungstengraphics.com>
   */
              
-#include "main/texformat.h"
 #include "brw_context.h"
 #include "brw_util.h"
 #include "brw_wm.h"
@@ -288,7 +287,7 @@ static void brw_wm_populate_key( struct brw_context *brw,
          const struct gl_texture_image *img = t->Image[0][t->BaseLevel];
 	 if (img->InternalFormat == GL_YCBCR_MESA) {
 	    key->yuvtex_mask |= 1 << i;
-	    if (img->TexFormat->MesaFormat == MESA_FORMAT_YCBCR)
+	    if (img->TexFormat == MESA_FORMAT_YCBCR)
 		key->yuvtex_swap_mask |= 1 << i;
 	 }
 
@@ -309,6 +308,9 @@ static void brw_wm_populate_key( struct brw_context *brw,
     * from the incoming screen origin relative position we get as part of our
     * payload.
     *
+    * This is only needed for the WM_WPOSXY opcode when the fragment program
+    * uses the gl_FragCoord input.
+    *
     * We could avoid recompiling by including this as a constant referenced by
     * our program, but if we were to do that it would also be nice to handle
     * getting that constant updated at batchbuffer submit time (when we
@@ -317,14 +319,18 @@ static void brw_wm_populate_key( struct brw_context *brw,
     * just avoid using this as key data if the program doesn't use
     * fragment.position.
     *
-    * This pretty much becomes moot with DRI2 and redirected buffers anyway,
-    * as our origins will always be zero then.
+    * For DRI2 the origin_x/y will always be (0,0) but we still need the
+    * drawable height in order to invert the Y axis.
     */
-   if (brw->intel.driDrawable != NULL) {
-      key->origin_x = brw->intel.driDrawable->x;
-      key->origin_y = brw->intel.driDrawable->y;
-      key->drawable_height = brw->intel.driDrawable->h;
+   if (fp->program.Base.InputsRead & FRAG_BIT_WPOS) {
+      if (brw->intel.driDrawable != NULL) {
+         key->origin_x = brw->intel.driDrawable->x;
+         key->origin_y = brw->intel.driDrawable->y;
+         key->drawable_height = brw->intel.driDrawable->h;
+      }
    }
+
+   key->nr_color_regions = brw->state.nr_color_regions;
 
    /* CACHE_NEW_VS_PROG */
    key->vp_outputs_written = brw->vs.prog_data->outputs_written & DO_SETUP_BITS;

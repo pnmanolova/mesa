@@ -477,8 +477,8 @@ test_one(unsigned verbose,
    char *error = NULL;
    blend_test_ptr_t blend_test_ptr;
    boolean success;
-   const unsigned n = 32;
-   int64_t cycles[n];
+   const unsigned n = LP_TEST_NUM_SAMPLES;
+   int64_t cycles[LP_TEST_NUM_SAMPLES];
    double cycles_avg = 0.0;
    unsigned i, j;
 
@@ -530,11 +530,11 @@ test_one(unsigned verbose,
    success = TRUE;
    for(i = 0; i < n && success; ++i) {
       if(mode == AoS) {
-         uint8_t src[LP_MAX_VECTOR_LENGTH*LP_MAX_TYPE_WIDTH/8];
-         uint8_t dst[LP_MAX_VECTOR_LENGTH*LP_MAX_TYPE_WIDTH/8];
-         uint8_t con[LP_MAX_VECTOR_LENGTH*LP_MAX_TYPE_WIDTH/8];
-         uint8_t res[LP_MAX_VECTOR_LENGTH*LP_MAX_TYPE_WIDTH/8];
-         uint8_t ref[LP_MAX_VECTOR_LENGTH*LP_MAX_TYPE_WIDTH/8];
+         uint8_t src[LP_NATIVE_VECTOR_WIDTH/8];
+         uint8_t dst[LP_NATIVE_VECTOR_WIDTH/8];
+         uint8_t con[LP_NATIVE_VECTOR_WIDTH/8];
+         uint8_t res[LP_NATIVE_VECTOR_WIDTH/8];
+         uint8_t ref[LP_NATIVE_VECTOR_WIDTH/8];
          int64_t start_counter = 0;
          int64_t end_counter = 0;
 
@@ -595,11 +595,11 @@ test_one(unsigned verbose,
 
       if(mode == SoA) {
          const unsigned stride = type.length*type.width/8;
-         uint8_t src[4*LP_MAX_VECTOR_LENGTH*LP_MAX_TYPE_WIDTH/8];
-         uint8_t dst[4*LP_MAX_VECTOR_LENGTH*LP_MAX_TYPE_WIDTH/8];
-         uint8_t con[4*LP_MAX_VECTOR_LENGTH*LP_MAX_TYPE_WIDTH/8];
-         uint8_t res[4*LP_MAX_VECTOR_LENGTH*LP_MAX_TYPE_WIDTH/8];
-         uint8_t ref[4*LP_MAX_VECTOR_LENGTH*LP_MAX_TYPE_WIDTH/8];
+         uint8_t src[4*LP_NATIVE_VECTOR_WIDTH/8];
+         uint8_t dst[4*LP_NATIVE_VECTOR_WIDTH/8];
+         uint8_t con[4*LP_NATIVE_VECTOR_WIDTH/8];
+         uint8_t res[4*LP_NATIVE_VECTOR_WIDTH/8];
+         uint8_t ref[4*LP_NATIVE_VECTOR_WIDTH/8];
          int64_t start_counter = 0;
          int64_t end_counter = 0;
          boolean mismatch;

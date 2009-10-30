@@ -268,10 +268,7 @@ union tgsi_immediate_data
 #define TGSI_OPCODE_BGNSUB              100
 #define TGSI_OPCODE_ENDLOOP             101
 #define TGSI_OPCODE_ENDSUB              102
-#define TGSI_OPCODE_NOISE1              103
-#define TGSI_OPCODE_NOISE2              104
-#define TGSI_OPCODE_NOISE3              105
-#define TGSI_OPCODE_NOISE4              106
+                                /* gap */
 #define TGSI_OPCODE_NOP                 107
                                 /* gap */
 #define TGSI_OPCODE_NRM4                112
@@ -280,7 +277,7 @@ union tgsi_immediate_data
 #define TGSI_OPCODE_BREAKC              115
 #define TGSI_OPCODE_KIL                 116  /* conditional kill */
 #define TGSI_OPCODE_END                 117  /* aka HALT */
-#define TGSI_OPCODE_SWZ                 118
+                                /* gap */
 #define TGSI_OPCODE_LAST                119
 
 #define TGSI_SAT_NONE            0  /* do not saturate */
@@ -480,7 +477,6 @@ struct tgsi_src_register
  * Then, if tgsi_src_register::Dimension is TRUE, tgsi_dimension follows.
  */
 
-#define TGSI_SRC_REGISTER_EXT_TYPE_SWZ      0
 #define TGSI_SRC_REGISTER_EXT_TYPE_MOD      1
 
 struct tgsi_src_register_ext
@@ -491,9 +487,6 @@ struct tgsi_src_register_ext
 };
 
 /**
- * If tgsi_src_register_ext::Type is TGSI_SRC_REGISTER_EXT_TYPE_SWZ,
- * it should be cast to tgsi_src_register_ext_swz.
- * 
  * If tgsi_src_register_ext::Type is TGSI_SRC_REGISTER_EXT_TYPE_MOD,
  * it should be cast to tgsi_src_register_ext_mod.
  * 
@@ -501,39 +494,6 @@ struct tgsi_src_register_ext
  * follows.
  */
 
-#define TGSI_EXTSWIZZLE_X       TGSI_SWIZZLE_X
-#define TGSI_EXTSWIZZLE_Y       TGSI_SWIZZLE_Y
-#define TGSI_EXTSWIZZLE_Z       TGSI_SWIZZLE_Z
-#define TGSI_EXTSWIZZLE_W       TGSI_SWIZZLE_W
-#define TGSI_EXTSWIZZLE_ZERO    4
-#define TGSI_EXTSWIZZLE_ONE     5
-
-/**
- * ExtSwizzleX, ExtSwizzleY, ExtSwizzleZ and ExtSwizzleW swizzle the source
- * register in an extended manner.
- *
- * NegateX, NegateY, NegateZ and NegateW negate individual components of the
- * source register.
- *
- * NOTE: To simplify matter, if this token is present, the corresponding Swizzle
- *       and Negate fields in tgsi_src_register should be set to X,Y,Z,W
- *       and FALSE, respectively.
- */
-
-struct tgsi_src_register_ext_swz
-{
-   unsigned Type         : 4;    /* TGSI_SRC_REGISTER_EXT_TYPE_SWZ */
-   unsigned ExtSwizzleX  : 4;    /* TGSI_EXTSWIZZLE_ */
-   unsigned ExtSwizzleY  : 4;    /* TGSI_EXTSWIZZLE_ */
-   unsigned ExtSwizzleZ  : 4;    /* TGSI_EXTSWIZZLE_ */
-   unsigned ExtSwizzleW  : 4;    /* TGSI_EXTSWIZZLE_ */
-   unsigned NegateX      : 1;    /* BOOL */
-   unsigned NegateY      : 1;    /* BOOL */
-   unsigned NegateZ      : 1;    /* BOOL */
-   unsigned NegateW      : 1;    /* BOOL */
-   unsigned Padding      : 7;
-   unsigned Extended     : 1;    /* BOOL */
-};
 
 /**
  * Extra src register modifiers

@@ -9,69 +9,47 @@
 
 #include "pipe/p_inlines.h"
 
+/*XXX also in Xrender.h but the including it here breaks compilition */
+#define XFixedToDouble(f)    (((double) (f)) / 65536.)
+
 struct xorg_composite_blend {
-   int op:8;
+   int op : 8;
 
-   unsigned rgb_src_factor:5;    /**< PIPE_BLENDFACTOR_x */
-   unsigned alpha_src_factor:5;  /**< PIPE_BLENDFACTOR_x */
+   unsigned alpha_dst : 4;
+   unsigned alpha_src : 4;
 
-   unsigned rgb_dst_factor:5;    /**< PIPE_BLENDFACTOR_x */
-   unsigned alpha_dst_factor:5;  /**< PIPE_BLENDFACTOR_x */
+   unsigned rgb_src : 8;    /**< PIPE_BLENDFACTOR_x */
+   unsigned rgb_dst : 8;    /**< PIPE_BLENDFACTOR_x */
 };
 
 #define BLEND_OP_OVER 3
 static const struct xorg_composite_blend xorg_blends[] = {
    { PictOpClear,
-     PIPE_BLENDFACTOR_ZERO, PIPE_BLENDFACTOR_ZERO,
-     PIPE_BLENDFACTOR_ZERO, PIPE_BLENDFACTOR_ZERO },
-
+     0, 0, PIPE_BLENDFACTOR_ZERO, PIPE_BLENDFACTOR_ZERO},
    { PictOpSrc,
-     PIPE_BLENDFACTOR_ONE, PIPE_BLENDFACTOR_ONE,
-     PIPE_BLENDFACTOR_ZERO, PIPE_BLENDFACTOR_ZERO },
-
+     0, 0, PIPE_BLENDFACTOR_ONE, PIPE_BLENDFACTOR_ZERO},
    { PictOpDst,
-     PIPE_BLENDFACTOR_ZERO, PIPE_BLENDFACTOR_ZERO,
-     PIPE_BLENDFACTOR_ONE, PIPE_BLENDFACTOR_ONE },
-
+     0, 0, PIPE_BLENDFACTOR_ZERO, PIPE_BLENDFACTOR_ONE},
    { PictOpOver,
-     PIPE_BLENDFACTOR_SRC_ALPHA, PIPE_BLENDFACTOR_ONE,
-     PIPE_BLENDFACTOR_INV_SRC_ALPHA, PIPE_BLENDFACTOR_INV_SRC_ALPHA },
-
+     0, 1, PIPE_BLENDFACTOR_ONE, PIPE_BLENDFACTOR_INV_SRC_ALPHA},
    { PictOpOverReverse,
-     PIPE_BLENDFACTOR_INV_DST_ALPHA, PIPE_BLENDFACTOR_ONE,
-     PIPE_BLENDFACTOR_ONE, PIPE_BLENDFACTOR_INV_SRC_ALPHA },
-
+     1, 0, PIPE_BLENDFACTOR_INV_DST_ALPHA, PIPE_BLENDFACTOR_ONE},
    { PictOpIn,
-     PIPE_BLENDFACTOR_DST_ALPHA, PIPE_BLENDFACTOR_ONE,
-     PIPE_BLENDFACTOR_ZERO, PIPE_BLENDFACTOR_INV_SRC_ALPHA },
-
+     1, 0, PIPE_BLENDFACTOR_DST_ALPHA, PIPE_BLENDFACTOR_ZERO},
    { PictOpInReverse,
-     PIPE_BLENDFACTOR_ZERO, PIPE_BLENDFACTOR_ONE,
-     PIPE_BLENDFACTOR_SRC_ALPHA, PIPE_BLENDFACTOR_ONE },
-
+     0, 1, PIPE_BLENDFACTOR_ZERO, PIPE_BLENDFACTOR_SRC_ALPHA},
    { PictOpOut,
-     PIPE_BLENDFACTOR_INV_DST_ALPHA, PIPE_BLENDFACTOR_ONE,
-     PIPE_BLENDFACTOR_ZERO, PIPE_BLENDFACTOR_INV_SRC_ALPHA },
-
+     1, 0, PIPE_BLENDFACTOR_INV_DST_ALPHA, PIPE_BLENDFACTOR_ZERO},
    { PictOpOutReverse,
-     PIPE_BLENDFACTOR_ZERO, PIPE_BLENDFACTOR_ONE,
-     PIPE_BLENDFACTOR_INV_SRC_ALPHA, PIPE_BLENDFACTOR_INV_SRC_ALPHA },
-
+     0, 1, PIPE_BLENDFACTOR_ZERO, PIPE_BLENDFACTOR_INV_SRC_ALPHA},
    { PictOpAtop,
-     PIPE_BLENDFACTOR_DST_ALPHA, PIPE_BLENDFACTOR_ONE,
-     PIPE_BLENDFACTOR_INV_SRC_ALPHA, PIPE_BLENDFACTOR_INV_SRC_ALPHA },
-
+     1, 1, PIPE_BLENDFACTOR_DST_ALPHA, PIPE_BLENDFACTOR_INV_SRC_ALPHA},
    { PictOpAtopReverse,
-     PIPE_BLENDFACTOR_INV_DST_ALPHA, PIPE_BLENDFACTOR_ONE,
-     PIPE_BLENDFACTOR_SRC_ALPHA, PIPE_BLENDFACTOR_INV_SRC_ALPHA },
-
+     1, 1, PIPE_BLENDFACTOR_INV_DST_ALPHA, PIPE_BLENDFACTOR_SRC_ALPHA},
    { PictOpXor,
-     PIPE_BLENDFACTOR_INV_DST_ALPHA, PIPE_BLENDFACTOR_ONE,
-     PIPE_BLENDFACTOR_INV_SRC_ALPHA, PIPE_BLENDFACTOR_ONE },
-
+     1, 1, PIPE_BLENDFACTOR_INV_DST_ALPHA, PIPE_BLENDFACTOR_INV_SRC_ALPHA},
    { PictOpAdd,
-     PIPE_BLENDFACTOR_ONE, PIPE_BLENDFACTOR_ONE,
-     PIPE_BLENDFACTOR_ONE, PIPE_BLENDFACTOR_ONE },
+     0, 0, PIPE_BLENDFACTOR_ONE, PIPE_BLENDFACTOR_ONE},
 };
 
 
@@ -90,40 +68,49 @@ pixel_to_float4(Pixel pixel, float *color)
    color[3] = ((float)a) / 255.;
 }
 
-struct acceleration_info {
-   int op : 16;
-   int with_mask : 1;
-   int component_alpha : 1;
-};
-static const struct acceleration_info accelerated_ops[] = {
-   {PictOpClear,       1, 0},
-   {PictOpSrc,         1, 0},
-   {PictOpDst,         1, 0},
-   {PictOpOver,        1, 0},
-   {PictOpOverReverse, 1, 0},
-   {PictOpIn,          1, 0},
-   {PictOpInReverse,   1, 0},
-   {PictOpOut,         1, 0},
-   {PictOpOutReverse,  1, 0},
-   {PictOpAtop,        1, 0},
-   {PictOpAtopReverse, 1, 0},
-   {PictOpXor,         1, 0},
-   {PictOpAdd,         1, 0},
-   {PictOpSaturate,    1, 0},
-};
-
-static struct xorg_composite_blend
-blend_for_op(int op)
+static boolean
+blend_for_op(struct xorg_composite_blend *blend,
+             int op, PicturePtr pSrcPicture, PicturePtr pMaskPicture,
+             PicturePtr pDstPicture)
 {
    const int num_blends =
       sizeof(xorg_blends)/sizeof(struct xorg_composite_blend);
    int i;
+   boolean supported = FALSE;
+
+   /* our default in case something goes wrong */
+   *blend = xorg_blends[BLEND_OP_OVER];
 
    for (i = 0; i < num_blends; ++i) {
-      if (xorg_blends[i].op == op)
-         return xorg_blends[i];
+      if (xorg_blends[i].op == op) {
+         *blend = xorg_blends[i];
+         supported = TRUE;
+      }
    }
-   return xorg_blends[BLEND_OP_OVER];
+
+   /* If there's no dst alpha channel, adjust the blend op so that we'll treat
+    * it as always 1. */
+   if (pDstPicture &&
+       PICT_FORMAT_A(pDstPicture->format) == 0 && blend->alpha_dst) {
+      if (blend->rgb_src == PIPE_BLENDFACTOR_DST_ALPHA)
+         blend->rgb_src = PIPE_BLENDFACTOR_ONE;
+      else if (blend->rgb_src == PIPE_BLENDFACTOR_INV_DST_ALPHA)
+         blend->rgb_src = PIPE_BLENDFACTOR_ZERO;
+   }
+
+   /* If the source alpha is being used, then we should only be in a case where
+    * the source blend factor is 0, and the source blend value is the mask
+    * channels multiplied by the source picture's alpha. */
+   if (pMaskPicture && pMaskPicture->componentAlpha &&
+       PICT_FORMAT_RGB(pMaskPicture->format) && blend->alpha_src) {
+      if (blend->rgb_dst == PIPE_BLENDFACTOR_SRC_ALPHA) {
+         blend->rgb_dst = PIPE_BLENDFACTOR_SRC_COLOR;
+      } else if (blend->rgb_dst == PIPE_BLENDFACTOR_INV_SRC_ALPHA) {
+         blend->rgb_dst = PIPE_BLENDFACTOR_INV_SRC_COLOR;
+      }
+   }
+
+   return supported;
 }
 
 static INLINE int
@@ -144,6 +131,43 @@ render_repeat_to_gallium(int mode)
    return PIPE_TEX_WRAP_REPEAT;
 }
 
+static INLINE boolean
+render_filter_to_gallium(int xrender_filter, int *out_filter)
+{
+
+   switch (xrender_filter) {
+   case PictFilterNearest:
+      *out_filter = PIPE_TEX_FILTER_NEAREST;
+      break;
+   case PictFilterBilinear:
+      *out_filter = PIPE_TEX_FILTER_LINEAR;
+      break;
+   case PictFilterFast:
+      *out_filter = PIPE_TEX_FILTER_NEAREST;
+      break;
+   case PictFilterGood:
+      *out_filter = PIPE_TEX_FILTER_LINEAR;
+      break;
+   case PictFilterBest:
+      *out_filter = PIPE_TEX_FILTER_LINEAR;
+      break;
+   default:
+      debug_printf("Unkown xrender filter");
+      *out_filter = PIPE_TEX_FILTER_NEAREST;
+      return FALSE;
+   }
+
+   return TRUE;
+}
+
+static boolean is_filter_accelerated(PicturePtr pic)
+{
+   int filter;
+   if (pic && !render_filter_to_gallium(pic->filter, &filter))
+       return FALSE;
+   return TRUE;
+}
+
 boolean xorg_composite_accelerated(int op,
                                    PicturePtr pSrcPicture,
                                    PicturePtr pMaskPicture,
@@ -152,50 +176,53 @@ boolean xorg_composite_accelerated(int op,
    ScreenPtr pScreen = pDstPicture->pDrawable->pScreen;
    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
    modesettingPtr ms = modesettingPTR(pScrn);
-   unsigned i;
-   unsigned accel_ops_count =
-      sizeof(accelerated_ops)/sizeof(struct acceleration_info);
+   struct xorg_composite_blend blend;
+
+   if (!is_filter_accelerated(pSrcPicture) ||
+       !is_filter_accelerated(pMaskPicture)) {
+      XORG_FALLBACK("Unsupported Xrender filter");
+   }
 
    if (pSrcPicture->pSourcePict) {
       if (pSrcPicture->pSourcePict->type != SourcePictTypeSolidFill)
-         XORG_FALLBACK("gradients not enabled (haven't been well tested)");
+         XORG_FALLBACK("Gradients not enabled (haven't been well tested)");
    }
 
-   for (i = 0; i < accel_ops_count; ++i) {
-      if (op == accelerated_ops[i].op) {
-         /* Check for unsupported component alpha */
-         if ((pSrcPicture->componentAlpha &&
-              !accelerated_ops[i].component_alpha) ||
-             (pMaskPicture &&
-              (!accelerated_ops[i].with_mask ||
-               (pMaskPicture->componentAlpha &&
-                !accelerated_ops[i].component_alpha))))
-            XORG_FALLBACK("component alpha unsupported (PictOpOver=%s(%d)",
-                          (accelerated_ops[i].op == PictOpOver) ? "yes" : "no",
-                          accelerated_ops[i].op);
-         return TRUE;
+   if (blend_for_op(&blend, op,
+                    pSrcPicture, pMaskPicture, pDstPicture)) {
+      /* Check for component alpha */
+      if (pMaskPicture && pMaskPicture->componentAlpha &&
+          PICT_FORMAT_RGB(pMaskPicture->format)) {
+         if (blend.alpha_src && blend.rgb_src != PIPE_BLENDFACTOR_ZERO) {
+            XORG_FALLBACK("Component alpha not supported with source "
+                          "alpha and source value blending. (op=%d)",
+                          op);
+         }
       }
+      return TRUE;
    }
-   XORG_FALLBACK("unsupported operation");
+   XORG_FALLBACK("Unsupported composition operation = %d", op);
 }
 
 static void
 bind_blend_state(struct exa_context *exa, int op,
-                 PicturePtr pSrcPicture, PicturePtr pMaskPicture)
+                 PicturePtr pSrcPicture,
+                 PicturePtr pMaskPicture,
+                 PicturePtr pDstPicture)
 {
    struct xorg_composite_blend blend_opt;
    struct pipe_blend_state blend;
 
-   blend_opt = blend_for_op(op);
+   blend_for_op(&blend_opt, op, pSrcPicture, pMaskPicture, pDstPicture);
 
-   memset(&blend, 0, sizeof(struct pipe_blend_state)); 
+   memset(&blend, 0, sizeof(struct pipe_blend_state));
    blend.blend_enable = 1;
    blend.colormask |= PIPE_MASK_RGBA;
 
-   blend.rgb_src_factor   = blend_opt.rgb_src_factor;
-   blend.alpha_src_factor = blend_opt.alpha_src_factor;
-   blend.rgb_dst_factor   = blend_opt.rgb_dst_factor;
-   blend.alpha_dst_factor = blend_opt.alpha_dst_factor;
+   blend.rgb_src_factor   = blend_opt.rgb_src;
+   blend.alpha_src_factor = blend_opt.rgb_src;
+   blend.rgb_dst_factor   = blend_opt.rgb_dst;
+   blend.alpha_dst_factor = blend_opt.rgb_dst;
 
    cso_set_blend(exa->renderer->cso, &blend);
 }
@@ -231,13 +258,21 @@ bind_shaders(struct exa_context *exa, int op,
    if (pMaskPicture) {
       vs_traits |= VS_MASK;
       fs_traits |= FS_MASK;
+      if (pMaskPicture->componentAlpha) {
+         struct xorg_composite_blend blend;
+         blend_for_op(&blend, op,
+                      pSrcPicture, pMaskPicture, NULL);
+         if (blend.alpha_src) {
+            fs_traits |= FS_CA_SRCALPHA;
+         } else
+            fs_traits |= FS_CA_FULL;
+      }
    }
 
    shader = xorg_shaders_get(exa->renderer->shaders, vs_traits, fs_traits);
    cso_set_vertex_shader_handle(exa->renderer->cso, shader.vs);
    cso_set_fragment_shader_handle(exa->renderer->cso, shader.fs);
 }
-
 
 static void
 bind_samplers(struct exa_context *exa, int op,
@@ -262,29 +297,45 @@ bind_samplers(struct exa_context *exa, int op,
       exa->pipe->flush(exa->pipe, PIPE_FLUSH_RENDER_CACHE, NULL);
 
    if (pSrcPicture && pSrc) {
-      unsigned src_wrap = render_repeat_to_gallium(
-         pSrcPicture->repeatType);
-      src_sampler.wrap_s = src_wrap;
-      src_sampler.wrap_t = src_wrap;
-      src_sampler.min_img_filter = PIPE_TEX_MIPFILTER_NEAREST;
-      src_sampler.mag_img_filter = PIPE_TEX_MIPFILTER_NEAREST;
-      src_sampler.normalized_coords = 1;
-      samplers[0] = &src_sampler;
-      exa->bound_textures[0] = pSrc->tex;
-      ++exa->num_bound_samplers;
+      if (exa->has_solid_color) {
+         debug_assert(!"solid color with textures");
+         samplers[0] = NULL;
+         exa->bound_textures[0] = NULL;
+      } else {
+         unsigned src_wrap = render_repeat_to_gallium(
+            pSrcPicture->repeatType);
+         int filter;
+
+         render_filter_to_gallium(pSrcPicture->filter, &filter);
+
+         src_sampler.wrap_s = src_wrap;
+         src_sampler.wrap_t = src_wrap;
+         src_sampler.min_img_filter = filter;
+         src_sampler.mag_img_filter = filter;
+         src_sampler.min_mip_filter = PIPE_TEX_MIPFILTER_NEAREST;
+         src_sampler.normalized_coords = 1;
+         samplers[0] = &src_sampler;
+         exa->bound_textures[0] = pSrc->tex;
+         exa->num_bound_samplers = 1;
+      }
    }
 
    if (pMaskPicture && pMask) {
       unsigned mask_wrap = render_repeat_to_gallium(
          pMaskPicture->repeatType);
+      int filter;
+
+      render_filter_to_gallium(pMaskPicture->filter, &filter);
+
       mask_sampler.wrap_s = mask_wrap;
       mask_sampler.wrap_t = mask_wrap;
-      mask_sampler.min_img_filter = PIPE_TEX_MIPFILTER_NEAREST;
-      mask_sampler.mag_img_filter = PIPE_TEX_MIPFILTER_NEAREST;
+      mask_sampler.min_img_filter = filter;
+      mask_sampler.mag_img_filter = filter;
+      src_sampler.min_mip_filter = PIPE_TEX_MIPFILTER_NEAREST;
       mask_sampler.normalized_coords = 1;
       samplers[1] = &mask_sampler;
       exa->bound_textures[1] = pMask->tex;
-      ++exa->num_bound_samplers;
+      exa->num_bound_samplers = 2;
    }
 
    cso_set_samplers(exa->renderer->cso, exa->num_bound_samplers,
@@ -328,6 +379,44 @@ setup_constant_buffers(struct exa_context *exa, struct exa_pixmap_priv *pDst)
    setup_fs_constant_buffer(exa);
 }
 
+static INLINE boolean matrix_from_pict_transform(PictTransform *trans, float *matrix)
+{
+   if (!trans)
+      return FALSE;
+
+   matrix[0] = XFixedToDouble(trans->matrix[0][0]);
+   matrix[3] = XFixedToDouble(trans->matrix[0][1]);
+   matrix[6] = XFixedToDouble(trans->matrix[0][2]);
+
+   matrix[1] = XFixedToDouble(trans->matrix[1][0]);
+   matrix[4] = XFixedToDouble(trans->matrix[1][1]);
+   matrix[7] = XFixedToDouble(trans->matrix[1][2]);
+
+   matrix[2] = XFixedToDouble(trans->matrix[2][0]);
+   matrix[5] = XFixedToDouble(trans->matrix[2][1]);
+   matrix[8] = XFixedToDouble(trans->matrix[2][2]);
+
+   return TRUE;
+}
+
+static void
+setup_transforms(struct  exa_context *exa,
+                 PicturePtr pSrcPicture, PicturePtr pMaskPicture)
+{
+   PictTransform *src_t = NULL;
+   PictTransform *mask_t = NULL;
+
+   if (pSrcPicture)
+      src_t = pSrcPicture->transform;
+   if (pMaskPicture)
+      mask_t = pMaskPicture->transform;
+
+   exa->transform.has_src  =
+      matrix_from_pict_transform(src_t, exa->transform.src);
+   exa->transform.has_mask =
+      matrix_from_pict_transform(mask_t, exa->transform.mask);
+}
+
 boolean xorg_composite_bind_state(struct exa_context *exa,
                                   int op,
                                   PicturePtr pSrcPicture,
@@ -339,12 +428,14 @@ boolean xorg_composite_bind_state(struct exa_context *exa,
 {
    renderer_bind_framebuffer(exa->renderer, pDst);
    renderer_bind_viewport(exa->renderer, pDst);
-   bind_blend_state(exa, op, pSrcPicture, pMaskPicture);
+   bind_blend_state(exa, op, pSrcPicture, pMaskPicture, pDstPicture);
    renderer_bind_rasterizer(exa->renderer);
    bind_shaders(exa, op, pSrcPicture, pMaskPicture);
    bind_samplers(exa, op, pSrcPicture, pMaskPicture,
                  pDstPicture, pSrc, pMask, pDst);
    setup_constant_buffers(exa, pDst);
+
+   setup_transforms(exa, pSrcPicture, pMaskPicture);
 
    return TRUE;
 }
@@ -360,10 +451,19 @@ void xorg_composite(struct exa_context *exa,
                                exa->solid_color);
    } else {
       int pos[6] = {srcX, srcY, maskX, maskY, dstX, dstY};
+      float *src_matrix = NULL;
+      float *mask_matrix = NULL;
+
+      if (exa->transform.has_src)
+         src_matrix = exa->transform.src;
+      if (exa->transform.has_mask)
+         mask_matrix = exa->transform.mask;
+
       renderer_draw_textures(exa->renderer,
                              pos, width, height,
                              exa->bound_textures,
-                             exa->num_bound_samplers);
+                             exa->num_bound_samplers,
+                             src_matrix, mask_matrix);
    }
 }
 
@@ -391,7 +491,7 @@ boolean xorg_solid_bind_state(struct exa_context *exa,
    renderer_bind_framebuffer(exa->renderer, pixmap);
    renderer_bind_viewport(exa->renderer, pixmap);
    renderer_bind_rasterizer(exa->renderer);
-   bind_blend_state(exa, PictOpSrc, NULL, NULL);
+   bind_blend_state(exa, PictOpSrc, NULL, NULL, NULL);
    setup_constant_buffers(exa, pixmap);
 
    shader = xorg_shaders_get(exa->renderer->shaders, vs_traits, fs_traits);

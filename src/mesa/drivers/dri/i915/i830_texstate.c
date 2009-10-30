@@ -27,7 +27,6 @@
 
 #include "main/mtypes.h"
 #include "main/enums.h"
-#include "main/texformat.h"
 
 #include "intel_mipmap_tree.h"
 #include "intel_tex.h"
@@ -60,6 +59,8 @@ translate_texture_format(GLuint mesa_format, GLuint internal_format)
 	 return MAPSURF_32BIT | MT_32BIT_XRGB8888;
       else
 	 return MAPSURF_32BIT | MT_32BIT_ARGB8888;
+   case MESA_FORMAT_XRGB8888:
+      return MAPSURF_32BIT | MT_32BIT_XRGB8888;
    case MESA_FORMAT_YCBCR_REV:
       return (MAPSURF_422 | MT_422_YCRCB_NORMAL);
    case MESA_FORMAT_YCBCR:
@@ -160,12 +161,20 @@ i830_update_tex_unit(struct intel_context *intel, GLuint unit, GLuint ss3)
 
       pitch = intelObj->pitchOverride;
    } else {
+      GLuint dst_x, dst_y;
+
+      intel_miptree_get_image_offset(intelObj->mt, intelObj->firstLevel, 0, 0,
+				     &dst_x, &dst_y);
+
       dri_bo_reference(intelObj->mt->region->buffer);
       i830->state.tex_buffer[unit] = intelObj->mt->region->buffer;
-      i830->state.tex_offset[unit] =
-         intel_miptree_image_offset(intelObj->mt, 0, intelObj->firstLevel, 0);
+      /* XXX: This calculation is probably broken for tiled images with
+       * a non-page-aligned offset.
+       */
+      i830->state.tex_offset[unit] = (dst_x + dst_y * intelObj->mt->pitch) *
+	 intelObj->mt->cpp;
 
-      format = translate_texture_format(firstImage->TexFormat->MesaFormat,
+      format = translate_texture_format(firstImage->TexFormat,
 					firstImage->InternalFormat);
       pitch = intelObj->mt->pitch * intelObj->mt->cpp;
    }

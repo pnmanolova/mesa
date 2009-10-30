@@ -22,6 +22,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 #include "main/glheader.h"
+#include "main/imports.h"
 #include "prog_instruction.h"
 #include "prog_statevars.h"
 
@@ -45,7 +46,8 @@
       if (condition) {					\
 	 return token;					\
       } else {						\
-	 return handle_ident(yyextra, yytext, yylval);	\
+	 yylval->string = return_string(yyextra, yytext);	\
+	 return IDENTIFIER;				\
       }							\
    } while (0)
 
@@ -69,12 +71,52 @@
 	 yylval->temp_inst.Opcode = OPCODE_ ## opcode;	\
 	 return token;					\
       } else {						\
-	 return handle_ident(yyextra, yytext, yylval);	\
+	 yylval->string = return_string(yyextra, yytext);		\
+	 return IDENTIFIER;				\
       }							\
    } while (0)
 
 #define SWIZZLE_INVAL  MAKE_SWIZZLE4(SWIZZLE_NIL, SWIZZLE_NIL, \
 				     SWIZZLE_NIL, SWIZZLE_NIL)
+
+/**
+ * Send a string to the parser using asm_parser_state::string_dumpster
+ *
+ * Sends a string to the parser using asm_parser_state::string_dumpster as a
+ * temporary storage buffer.  Data previously stored in
+ * asm_parser_state::string_dumpster will be lost.  If
+ * asm_parser_state::string_dumpster is not large enough to hold the new
+ * string, the buffer size will be increased.  The buffer size is \b never
+ * decreased.
+ *
+ * \param state   Assembler parser state tracking
+ * \param str     String to be passed to the parser
+ *
+ * \return
+ * A pointer to asm_parser_state::string_dumpster on success or \c NULL on
+ * failure.  Currently the only failure case is \c ENOMEM.
+ */
+static char *
+return_string(struct asm_parser_state *state, const char *str)
+{
+   const size_t len = strlen(str);
+
+   if (len >= state->dumpster_size) {
+      char *const dumpster = _mesa_realloc(state->string_dumpster,
+					   state->dumpster_size,
+					   len + 1);
+      if (dumpster == NULL) {
+	 return NULL;
+      }
+
+      state->string_dumpster = dumpster;
+      state->dumpster_size = len + 1;
+   }
+
+   memcpy(state->string_dumpster, str, len + 1);
+   return state->string_dumpster;
+}
+
 
 static unsigned
 mask_from_char(char c)
@@ -323,19 +365,19 @@ ARRAYSHADOW2D             { return_token_or_IDENTIFIER(require_ARB_fp && require
    return INTEGER;
 }
 {num}?{frac}{exp}?        {
-   yylval->real = strtod(yytext, NULL);
+   yylval->real = _mesa_strtod(yytext, NULL);
    return REAL;
 }
 {num}"."/[^.]             {
-   yylval->real = strtod(yytext, NULL);
+   yylval->real = _mesa_strtod(yytext, NULL);
    return REAL;
 }
 {num}{exp}                {
-   yylval->real = strtod(yytext, NULL);
+   yylval->real = _mesa_strtod(yytext, NULL);
    return REAL;
 }
 {num}"."{exp}             {
-   yylval->real = strtod(yytext, NULL);
+   yylval->real = _mesa_strtod(yytext, NULL);
    return REAL;
 }
 

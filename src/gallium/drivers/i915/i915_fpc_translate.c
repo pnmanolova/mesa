@@ -214,37 +214,19 @@ src_vector(struct i915_fp_compile *p,
       return 0;
    }
 
-   if (source->SrcRegister.Extended) {
-      src = swizzle(src,
-                    source->SrcRegisterExtSwz.ExtSwizzleX,
-                    source->SrcRegisterExtSwz.ExtSwizzleY,
-                    source->SrcRegisterExtSwz.ExtSwizzleZ,
-                    source->SrcRegisterExtSwz.ExtSwizzleW);
-   }
-   else {
-      src = swizzle(src,
-                    source->SrcRegister.SwizzleX,
-                    source->SrcRegister.SwizzleY,
-                    source->SrcRegister.SwizzleZ,
-                    source->SrcRegister.SwizzleW);
-   }
+   src = swizzle(src,
+		 source->SrcRegister.SwizzleX,
+		 source->SrcRegister.SwizzleY,
+		 source->SrcRegister.SwizzleZ,
+		 source->SrcRegister.SwizzleW);
 
 
    /* There's both negate-all-components and per-component negation.
     * Try to handle both here.
     */
    {
-      int nx = source->SrcRegisterExtSwz.NegateX;
-      int ny = source->SrcRegisterExtSwz.NegateY;
-      int nz = source->SrcRegisterExtSwz.NegateZ;
-      int nw = source->SrcRegisterExtSwz.NegateW;
-      if (source->SrcRegister.Negate) {
-         nx = !nx;
-         ny = !ny;
-         nz = !nz;
-         nw = !nw;
-      }
-      src = negate(src, nx, ny, nz, nw);
+      int n = source->SrcRegister.Negate;
+      src = negate(src, n, n, n, n);
    }
 
    /* no abs() or post-abs negation */
@@ -681,7 +663,6 @@ i915_translate_instruction(struct i915_fp_compile *p,
       break;
 
    case TGSI_OPCODE_MOV:
-   case TGSI_OPCODE_SWZ:
       emit_simple_arith(p, inst, A0_MOV, 1);
       break;
 

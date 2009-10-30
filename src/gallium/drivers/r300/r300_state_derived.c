@@ -20,9 +20,15 @@
  * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
  * USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#include "r300_state_derived.h"
+#include "draw/draw_context.h"
 
+#include "util/u_math.h"
+#include "util/u_memory.h"
+
+#include "r300_context.h"
 #include "r300_fs.h"
+#include "r300_screen.h"
+#include "r300_state_derived.h"
 #include "r300_state_inlines.h"
 #include "r300_vs.h"
 
@@ -218,7 +224,8 @@ static void r300_vertex_psc(struct r300_context* r300,
     struct r300_screen* r300screen = r300_screen(r300->context.screen);
     struct vertex_info* vinfo = &vformat->vinfo;
     int* tab = vformat->vs_tab;
-    uint32_t temp;
+    uint16_t type, swizzle;
+    enum pipe_format format;
     unsigned i, attrib_count;
 
     /* Vertex shaders have no semantics on their inputs,
@@ -240,32 +247,35 @@ static void r300_vertex_psc(struct r300_context* r300,
     }
 
     for (i = 0; i < attrib_count; i++) {
-        /* Make sure we have a proper destination for our attribute */
+        /* Make sure we have a proper destination for our attribute. */
         assert(tab[i] != -1);
 
+        format = draw_translate_vinfo_format(vinfo->attrib[i].emit);
+
+        /* Obtain the type of data in this attribute. */
+        type = r300_translate_vertex_data_type(format) |
+            tab[i] << R300_DST_VEC_LOC_SHIFT;
+
+        /* Obtain the swizzle for this attribute. Note that the default
+         * swizzle in the hardware is not XYZW! */
+        swizzle = r300_translate_vertex_data_swizzle(format);
+
         /* Add the attribute to the PSC table. */
-        temp = r300screen->caps->has_tcl ?
-            R300_DATA_TYPE_FLOAT_4 :
-            translate_vertex_data_type(vinfo->attrib[i].emit);
-        temp |= tab[i] << R300_DST_VEC_LOC_SHIFT;
-
         if (i & 1) {
-            vformat->vap_prog_stream_cntl[i >> 1] &= 0x0000ffff;
-            vformat->vap_prog_stream_cntl[i >> 1] |= temp << 16;
+            vformat->vap_prog_stream_cntl[i >> 1] |= type << 16;
 
-            vformat->vap_prog_stream_cntl_ext[i >> 1] |=
-                (R300_VAP_SWIZZLE_XYZW << 16);
+            vformat->vap_prog_stream_cntl_ext[i >> 1] |= swizzle << 16;
         } else {
-            vformat->vap_prog_stream_cntl[i >> 1] &= 0xffff0000;
-            vformat->vap_prog_stream_cntl[i >> 1] |= temp <<  0;
+            vformat->vap_prog_stream_cntl[i >> 1] |= type <<  0;
 
-            vformat->vap_prog_stream_cntl_ext[i >> 1] |=
-                (R300_VAP_SWIZZLE_XYZW <<  0);
+            vformat->vap_prog_stream_cntl_ext[i >> 1] |= swizzle << 0;
         }
     }
 
     /* Set the last vector in the PSC. */
-    i--;
+    if (i) {
+        i -= 1;
+    }
     vformat->vap_prog_stream_cntl[i >> 1] |=
         (R300_LAST_VEC << (i & 1 ? 16 : 0));
 }
@@ -336,17 +346,14 @@ static void r300_update_fs_tab(struct r300_context* r300,
  * the rasterization of vertices into fragments. This is also the part of the
  * chipset that locks up if any part of it is even slightly wrong. */
 static void r300_update_rs_block(struct r300_context* r300,
-                                 struct r300_vertex_format* vformat,
                                  struct r300_rs_block* rs)
 {
     struct tgsi_shader_info* info = &r300->fs->info;
-    int* tab = vformat->fs_tab;
     int col_count = 0, fp_offset = 0, i, tex_count = 0;
     int rs_tex_comp = 0;
 
     if (r300_screen(r300->context.screen)->caps->is_r500) {
         for (i = 0; i < info->num_inputs; i++) {
-            assert(tab[i] != -1);
             switch (info->input_semantic_name[i]) {
                 case TGSI_SEMANTIC_COLOR:
                     rs->ip[col_count] |=
@@ -387,7 +394,6 @@ static void r300_update_rs_block(struct r300_context* r300,
         }
     } else {
         for (i = 0; i < info->num_inputs; i++) {
-            assert(tab[i] != -1);
             switch (info->input_semantic_name[i]) {
                 case TGSI_SEMANTIC_COLOR:
                     rs->ip[col_count] |=
@@ -447,7 +453,7 @@ static void r300_update_rs_block(struct r300_context* r300,
 }
 
 /* Update the vertex format. */
-static void r300_update_vertex_format(struct r300_context* r300)
+static void r300_update_derived_shader_state(struct r300_context* r300)
 {
     struct r300_shader_key* key;
     struct r300_vertex_format* vformat;
@@ -455,6 +461,7 @@ static void r300_update_vertex_format(struct r300_context* r300)
     struct r300_shader_derived_value* value;
     int i;
 
+    /*
     key = CALLOC_STRUCT(r300_shader_key);
     key->vs = r300->vs;
     key->fs = r300->fs;
@@ -462,31 +469,39 @@ static void r300_update_vertex_format(struct r300_context* r300)
     value = (struct r300_shader_derived_value*)
         util_hash_table_get(r300->shader_hash_table, (void*)key);
     if (value) {
-        vformat = value->vformat;
+        //vformat = value->vformat;
         rs_block = value->rs_block;
 
         FREE(key);
     } else {
-        vformat = CALLOC_STRUCT(r300_vertex_format);
         rs_block = CALLOC_STRUCT(r300_rs_block);
         value = CALLOC_STRUCT(r300_shader_derived_value);
 
-        for (i = 0; i < 16; i++) {
-            vformat->vs_tab[i] = -1;
-            vformat->fs_tab[i] = -1;
-        }
+        r300_update_rs_block(r300, rs_block);
 
-        r300_vs_tab_routes(r300, vformat);
-        r300_vertex_psc(r300, vformat);
-        r300_update_fs_tab(r300, vformat);
-
-        r300_update_rs_block(r300, vformat, rs_block);
-
-        value->vformat = vformat;
+        //value->vformat = vformat;
         value->rs_block = rs_block;
         util_hash_table_set(r300->shader_hash_table,
             (void*)key, (void*)value);
+    } */
+
+    /* XXX This will be refactored ASAP. */
+    vformat = CALLOC_STRUCT(r300_vertex_format);
+    rs_block = CALLOC_STRUCT(r300_rs_block);
+
+    for (i = 0; i < 16; i++) {
+        vformat->vs_tab[i] = -1;
+        vformat->fs_tab[i] = -1;
     }
+
+    r300_vs_tab_routes(r300, vformat);
+    r300_vertex_psc(r300, vformat);
+    r300_update_fs_tab(r300, vformat);
+
+    r300_update_rs_block(r300, rs_block);
+
+    FREE(r300->vertex_info);
+    FREE(r300->rs_block);
 
     r300->vertex_info = vformat;
     r300->rs_block = rs_block;
@@ -517,6 +532,8 @@ static void r300_update_ztop(struct r300_context* r300)
      */
     if (r300->dsa_state->alpha_function) {
         r300->ztop_state.z_buffer_top = R300_ZTOP_DISABLE;
+    } else if (r300->fs->info.uses_kill) {
+        r300->ztop_state.z_buffer_top = R300_ZTOP_DISABLE;
     } else if (r300_fragment_shader_writes_depth(r300->fs)) {
         r300->ztop_state.z_buffer_top = R300_ZTOP_DISABLE;
     } else if (r300->query_current) {
@@ -526,7 +543,10 @@ static void r300_update_ztop(struct r300_context* r300)
 
 void r300_update_derived_state(struct r300_context* r300)
 {
-    r300_update_vertex_format(r300);
+    if (r300->dirty_state &
+        (R300_NEW_FRAGMENT_SHADER | R300_NEW_VERTEX_SHADER)) {
+        r300_update_derived_shader_state(r300);
+    }
 
     if (r300->dirty_state &
             (R300_NEW_DSA | R300_NEW_FRAGMENT_SHADER | R300_NEW_QUERY)) {

@@ -46,7 +46,6 @@
 #include "shader/prog_parameter.h"
 #include "shader/prog_statevars.h"
 #include "vbo/vbo.h"
-#include "main/texformat.h"
 
 #include "r600_context.h"
 
@@ -61,43 +60,7 @@ static void r700UpdatePolygonMode(GLcontext * ctx);
 static void r700SetPolygonOffsetState(GLcontext * ctx, GLboolean state);
 static void r700SetStencilState(GLcontext * ctx, GLboolean state);
 
-void r700UpdateShaders (GLcontext * ctx)  //----------------------------------
-{
-    context_t *context = R700_CONTEXT(ctx);
-    GLvector4f dummy_attrib[_TNL_ATTRIB_MAX];
-    GLvector4f *temp_attrib[_TNL_ATTRIB_MAX];
-    int i;
-
-    /* should only happenen once, just after context is created */
-    /* TODO: shouldn't we fallback to sw here? */
-    if (!ctx->FragmentProgram._Current) {
-	    _mesa_fprintf(stderr, "No ctx->FragmentProgram._Current!!\n");
-	    return;
-    }
-
-    r700SelectFragmentShader(ctx);
-
-    if (context->radeon.NewGLState) {
-	    for (i = _TNL_FIRST_MAT; i <= _TNL_LAST_MAT; i++) {
-		    /* mat states from state var not array for sw */
-		    dummy_attrib[i].stride = 0;
-	            temp_attrib[i] = TNL_CONTEXT(ctx)->vb.AttribPtr[i];
-		    TNL_CONTEXT(ctx)->vb.AttribPtr[i] = &(dummy_attrib[i]);
-	    }
-
-	    _tnl_UpdateFixedFunctionProgram(ctx);
-
-	    for (i = _TNL_FIRST_MAT; i <= _TNL_LAST_MAT; i++) {
-		    TNL_CONTEXT(ctx)->vb.AttribPtr[i] = temp_attrib[i];
-	    }
-    }
-
-    r700SelectVertexShader(ctx, 1);
-    r700UpdateStateParameters(ctx, _NEW_PROGRAM | _NEW_PROGRAM_CONSTANTS);
-    context->radeon.NewGLState = 0;
-}
-
-void r700UpdateShaders2(GLcontext * ctx)  
+void r700UpdateShaders(GLcontext * ctx)
 {
     context_t *context = R700_CONTEXT(ctx);
 
@@ -110,7 +73,7 @@ void r700UpdateShaders2(GLcontext * ctx)
 
     r700SelectFragmentShader(ctx);
 
-    r700SelectVertexShader(ctx, 2);
+    r700SelectVertexShader(ctx);
     r700UpdateStateParameters(ctx, _NEW_PROGRAM | _NEW_PROGRAM_CONSTANTS);
     context->radeon.NewGLState = 0;
 }
@@ -1067,6 +1030,7 @@ static void r700UpdateWindow(GLcontext * ctx, int id) //--------------------
 	GLfloat tz = v[MAT_TZ] * depthScale;
 
 	R600_STATECHANGE(context, vpt);
+	R600_STATECHANGE(context, cl);
 
 	r700->viewport[id].PA_CL_VPORT_XSCALE.f32All  = sx;
 	r700->viewport[id].PA_CL_VPORT_XOFFSET.f32All = tx;
@@ -1076,6 +1040,18 @@ static void r700UpdateWindow(GLcontext * ctx, int id) //--------------------
 
 	r700->viewport[id].PA_CL_VPORT_ZSCALE.f32All  = sz;
 	r700->viewport[id].PA_CL_VPORT_ZOFFSET.f32All = tz;
+
+	if (ctx->Transform.DepthClamp) {
+		r700->viewport[id].PA_SC_VPORT_ZMIN_0.f32All = MIN2(ctx->Viewport.Near, ctx->Viewport.Far);
+		r700->viewport[id].PA_SC_VPORT_ZMAX_0.f32All = MAX2(ctx->Viewport.Near, ctx->Viewport.Far);
+		SETbit(r700->PA_CL_CLIP_CNTL.u32All, ZCLIP_NEAR_DISABLE_bit);
+		SETbit(r700->PA_CL_CLIP_CNTL.u32All, ZCLIP_FAR_DISABLE_bit);
+	} else {
+		r700->viewport[id].PA_SC_VPORT_ZMIN_0.f32All = 0.0;
+		r700->viewport[id].PA_SC_VPORT_ZMAX_0.f32All = 1.0;
+		CLEARbit(r700->PA_CL_CLIP_CNTL.u32All, ZCLIP_NEAR_DISABLE_bit);
+		CLEARbit(r700->PA_CL_CLIP_CNTL.u32All, ZCLIP_FAR_DISABLE_bit);
+	}
 
 	r700->viewport[id].enabled = GL_TRUE;
 
@@ -1382,8 +1358,6 @@ void r700SetScissor(context_t *context) //---------------
 	SETfield(r700->viewport[id].PA_SC_VPORT_SCISSOR_0_BR.u32All, y2,
 		 PA_SC_VPORT_SCISSOR_0_BR__BR_Y_shift, PA_SC_VPORT_SCISSOR_0_BR__BR_Y_mask);
 
-	r700->viewport[id].PA_SC_VPORT_ZMIN_0.u32All = 0;
-	r700->viewport[id].PA_SC_VPORT_ZMAX_0.u32All = 0x3F800000;
 	r700->viewport[id].enabled = GL_TRUE;
 }
 
@@ -1711,6 +1685,7 @@ void r700InitState(GLcontext * ctx) //-------------------
     SETfield(r700->DB_RENDER_OVERRIDE.u32All, FORCE_DISABLE, FORCE_HIZ_ENABLE_shift, FORCE_HIZ_ENABLE_mask);
     SETfield(r700->DB_RENDER_OVERRIDE.u32All, FORCE_DISABLE, FORCE_HIS_ENABLE0_shift, FORCE_HIS_ENABLE0_mask);
     SETfield(r700->DB_RENDER_OVERRIDE.u32All, FORCE_DISABLE, FORCE_HIS_ENABLE1_shift, FORCE_HIS_ENABLE1_mask);
+    SETbit(r700->DB_RENDER_OVERRIDE.u32All, NOOP_CULL_DISABLE_bit);
 
     r700->DB_ALPHA_TO_MASK.u32All = 0;
     SETfield(r700->DB_ALPHA_TO_MASK.u32All, 2, ALPHA_TO_MASK_OFFSET0_shift, ALPHA_TO_MASK_OFFSET0_mask);

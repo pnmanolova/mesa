@@ -43,6 +43,7 @@
 #include "main/depth.h"
 #include "main/enable.h"
 #include "main/fbobject.h"
+#include "main/formats.h"
 #include "main/image.h"
 #include "main/macros.h"
 #include "main/matrix.h"
@@ -1025,7 +1026,7 @@ init_blit_depth_pixels(GLcontext *ctx)
 
 
 /**
- * Try to do a glBiltFramebuffer using no-copy texturing.
+ * Try to do a glBlitFramebuffer using no-copy texturing.
  * We can do this when the src renderbuffer is actually a texture.
  * But if the src buffer == dst buffer we cannot do this.
  *
@@ -1346,8 +1347,6 @@ _mesa_meta_Clear(GLcontext *ctx, GLbitfield buffers)
       /* create vertex array buffer */
       _mesa_GenBuffersARB(1, &clear->VBO);
       _mesa_BindBufferARB(GL_ARRAY_BUFFER_ARB, clear->VBO);
-      _mesa_BufferDataARB(GL_ARRAY_BUFFER_ARB, sizeof(verts),
-                          NULL, GL_DYNAMIC_DRAW_ARB);
 
       /* setup vertex arrays */
       _mesa_VertexPointer(3, GL_FLOAT, sizeof(struct vertex), OFFSET(x));
@@ -1423,7 +1422,8 @@ _mesa_meta_Clear(GLcontext *ctx, GLbitfield buffers)
       }
 
       /* upload new vertex data */
-      _mesa_BufferSubDataARB(GL_ARRAY_BUFFER_ARB, 0, sizeof(verts), verts);
+      _mesa_BufferDataARB(GL_ARRAY_BUFFER_ARB, sizeof(verts), verts,
+			  GL_DYNAMIC_DRAW_ARB);
    }
 
    /* draw quad */
@@ -2084,7 +2084,7 @@ _mesa_meta_check_generate_mipmap_fallback(GLcontext *ctx, GLenum target,
 
    srcLevel = texObj->BaseLevel;
    baseImage = _mesa_select_tex_image(ctx, texObj, target, srcLevel);
-   if (!baseImage || baseImage->IsCompressed) {
+   if (!baseImage || _mesa_is_format_compressed(baseImage->TexFormat)) {
       return GL_TRUE;
    }
 
@@ -2493,11 +2493,11 @@ copy_tex_image(GLcontext *ctx, GLuint dims, GLenum target, GLint level,
       return;
    }
 
-   if (texImage->TexFormat == &_mesa_null_texformat)
-	texImage->TexFormat = ctx->Driver.ChooseTextureFormat(ctx,
-							      internalFormat,
-							      format,
-							      type);
+   if (texImage->TexFormat == MESA_FORMAT_NONE)
+      texImage->TexFormat = ctx->Driver.ChooseTextureFormat(ctx,
+                                                            internalFormat,
+                                                            format,
+                                                            type);
 
    _mesa_unlock_texture(ctx, texObj); /* need to unlock first */
 
@@ -2594,7 +2594,7 @@ copy_tex_sub_image(GLcontext *ctx, GLuint dims, GLenum target, GLint level,
    texObj = _mesa_select_tex_object(ctx, texUnit, target);
    texImage = _mesa_select_tex_image(ctx, texObj, target, level);
 
-   format = texImage->TexFormat->BaseFormat;
+   format = _mesa_get_format_base_format(texImage->TexFormat);
    type = get_temp_image_type(ctx, format);
    bpp = _mesa_bytes_per_pixel(format, type);
    if (bpp <= 0) {

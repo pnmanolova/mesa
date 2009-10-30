@@ -687,40 +687,6 @@ tgsi_build_full_instruction(
          header );
       prev_token = (struct tgsi_token  *) src_register;
 
-      if( tgsi_compare_src_register_ext_swz(
-            reg->SrcRegisterExtSwz,
-            tgsi_default_src_register_ext_swz() ) ) {
-         struct tgsi_src_register_ext_swz *src_register_ext_swz;
-
-         /* Use of the extended swizzle requires the simple swizzle to be identity.
-          */
-         assert( reg->SrcRegister.SwizzleX == TGSI_SWIZZLE_X );
-         assert( reg->SrcRegister.SwizzleY == TGSI_SWIZZLE_Y );
-         assert( reg->SrcRegister.SwizzleZ == TGSI_SWIZZLE_Z );
-         assert( reg->SrcRegister.SwizzleW == TGSI_SWIZZLE_W );
-         assert( reg->SrcRegister.Negate == FALSE );
-
-         if( maxsize <= size )
-            return 0;
-         src_register_ext_swz =
-            (struct  tgsi_src_register_ext_swz *) &tokens[size];
-         size++;
-
-         *src_register_ext_swz = tgsi_build_src_register_ext_swz(
-            reg->SrcRegisterExtSwz.ExtSwizzleX,
-            reg->SrcRegisterExtSwz.ExtSwizzleY,
-            reg->SrcRegisterExtSwz.ExtSwizzleZ,
-            reg->SrcRegisterExtSwz.ExtSwizzleW,
-            reg->SrcRegisterExtSwz.NegateX,
-            reg->SrcRegisterExtSwz.NegateY,
-            reg->SrcRegisterExtSwz.NegateZ,
-            reg->SrcRegisterExtSwz.NegateW,
-            prev_token,
-            instruction,
-            header );
-         prev_token = (struct tgsi_token  *) src_register_ext_swz;
-      }
-
       if( tgsi_compare_src_register_ext_mod(
             reg->SrcRegisterExtMod,
             tgsi_default_src_register_ext_mod() ) ) {
@@ -1033,7 +999,6 @@ tgsi_default_full_src_register( void )
    struct tgsi_full_src_register full_src_register;
 
    full_src_register.SrcRegister = tgsi_default_src_register();
-   full_src_register.SrcRegisterExtSwz = tgsi_default_src_register_ext_swz();
    full_src_register.SrcRegisterExtMod = tgsi_default_src_register_ext_mod();
    full_src_register.SrcRegisterInd = tgsi_default_src_register();
    full_src_register.SrcRegisterDim = tgsi_default_dimension();
@@ -1042,76 +1007,6 @@ tgsi_default_full_src_register( void )
    return full_src_register;
 }
 
-struct tgsi_src_register_ext_swz
-tgsi_default_src_register_ext_swz( void )
-{
-   struct tgsi_src_register_ext_swz src_register_ext_swz;
-
-   src_register_ext_swz.Type = TGSI_SRC_REGISTER_EXT_TYPE_SWZ;
-   src_register_ext_swz.ExtSwizzleX = TGSI_EXTSWIZZLE_X;
-   src_register_ext_swz.ExtSwizzleY = TGSI_EXTSWIZZLE_Y;
-   src_register_ext_swz.ExtSwizzleZ = TGSI_EXTSWIZZLE_Z;
-   src_register_ext_swz.ExtSwizzleW = TGSI_EXTSWIZZLE_W;
-   src_register_ext_swz.NegateX = 0;
-   src_register_ext_swz.NegateY = 0;
-   src_register_ext_swz.NegateZ = 0;
-   src_register_ext_swz.NegateW = 0;
-   src_register_ext_swz.Padding = 0;
-   src_register_ext_swz.Extended = 0;
-
-   return src_register_ext_swz;
-}
-
-unsigned
-tgsi_compare_src_register_ext_swz(
-   struct tgsi_src_register_ext_swz a,
-   struct tgsi_src_register_ext_swz b )
-{
-   a.Padding = b.Padding = 0;
-   a.Extended = b.Extended = 0;
-   return compare32(&a, &b);
-}
-
-struct tgsi_src_register_ext_swz
-tgsi_build_src_register_ext_swz(
-   unsigned ext_swizzle_x,
-   unsigned ext_swizzle_y,
-   unsigned ext_swizzle_z,
-   unsigned ext_swizzle_w,
-   unsigned negate_x,
-   unsigned negate_y,
-   unsigned negate_z,
-   unsigned negate_w,
-   struct tgsi_token *prev_token,
-   struct tgsi_instruction *instruction,
-   struct tgsi_header *header )
-{
-   struct tgsi_src_register_ext_swz src_register_ext_swz;
-
-   assert( ext_swizzle_x <= TGSI_EXTSWIZZLE_ONE );
-   assert( ext_swizzle_y <= TGSI_EXTSWIZZLE_ONE );
-   assert( ext_swizzle_z <= TGSI_EXTSWIZZLE_ONE );
-   assert( ext_swizzle_w <= TGSI_EXTSWIZZLE_ONE );
-   assert( negate_x <= 1 );
-   assert( negate_y <= 1 );
-   assert( negate_z <= 1 );
-   assert( negate_w <= 1 );
-
-   src_register_ext_swz = tgsi_default_src_register_ext_swz();
-   src_register_ext_swz.ExtSwizzleX = ext_swizzle_x;
-   src_register_ext_swz.ExtSwizzleY = ext_swizzle_y;
-   src_register_ext_swz.ExtSwizzleZ = ext_swizzle_z;
-   src_register_ext_swz.ExtSwizzleW = ext_swizzle_w;
-   src_register_ext_swz.NegateX = negate_x;
-   src_register_ext_swz.NegateY = negate_y;
-   src_register_ext_swz.NegateZ = negate_z;
-   src_register_ext_swz.NegateW = negate_w;
-
-   prev_token->Extended = 1;
-   instruction_grow( instruction, header );
-
-   return src_register_ext_swz;
-}
 
 struct tgsi_src_register_ext_mod
 tgsi_default_src_register_ext_mod( void )

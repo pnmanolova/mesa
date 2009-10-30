@@ -20,9 +20,15 @@
  * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
  * USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#include "r300_query.h"
+#include "util/u_memory.h"
+#include "util/u_simple_list.h"
 
+#include "r300_context.h"
+#include "r300_screen.h"
+#include "r300_cs.h"
 #include "r300_emit.h"
+#include "r300_query.h"
+#include "r300_reg.h"
 
 static struct pipe_query *r300_create_query(struct pipe_context *pipe,
                                             unsigned query_type)
@@ -107,7 +113,7 @@ static boolean r300_get_query_result(struct pipe_context* pipe,
     unsigned flags = PIPE_BUFFER_USAGE_CPU_READ;
     uint32_t* map;
     uint32_t temp = 0;
-    unsigned i;
+    unsigned i, num_results;
 
     if (q->flushed == FALSE)
         pipe->flush(pipe, 0, NULL);
@@ -119,7 +125,13 @@ static boolean r300_get_query_result(struct pipe_context* pipe,
     if (!map)
         return FALSE;
     map += q->offset / 4;
-    for (i = 0; i < r300screen->caps->num_frag_pipes; i++) {
+
+    if (r300screen->caps->family == CHIP_FAMILY_RV530)
+        num_results = r300screen->caps->num_z_pipes;
+    else
+        num_results = r300screen->caps->num_frag_pipes;
+
+    for (i = 0; i < num_results; i++) {
         if (*map == ~0U) {
             /* Looks like our results aren't ready yet. */
             if (wait) {
