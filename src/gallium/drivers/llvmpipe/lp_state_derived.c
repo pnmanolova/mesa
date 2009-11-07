@@ -74,7 +74,7 @@ llvmpipe_get_vertex_info(struct llvmpipe_context *llvmpipe)
           * simply emit the whole post-xform vertex as-is:
           */
          struct vertex_info *vinfo_vbuf = &llvmpipe->vertex_info_vbuf;
-         const uint num = draw_num_vs_outputs(llvmpipe->draw);
+         const uint num = draw_current_shader_outputs(llvmpipe->draw);
          uint i;
 
          /* No longer any need to try and emit draw vertex_header info.

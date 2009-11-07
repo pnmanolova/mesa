@@ -599,7 +599,7 @@ st_translate_geometry_program(struct st_context *st,
          } else
             ++gs_builtin_inputs;
 
-#if 0
+#if 1
          debug_printf("input map at %d = %d\n",
                       slot + gs_array_offset, stgp->input_map[slot + gs_array_offset]);
 #endif

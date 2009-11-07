@@ -91,7 +91,12 @@ struct ureg_program
    unsigned nr_fs_inputs;
 
    unsigned vs_inputs[UREG_MAX_INPUT/32];
-   unsigned gs_inputs[UREG_MAX_INPUT/32];
+
+   struct {
+      unsigned semantic_name;
+      unsigned semantic_index;
+   } gs_input[UREG_MAX_INPUT];
+   unsigned nr_gs_inputs;
 
    struct {
       unsigned semantic_name;
@@ -281,12 +286,28 @@ ureg_DECL_vs_input( struct ureg_program *ureg,
 
 struct ureg_src
 ureg_DECL_gs_input( struct ureg_program *ureg,
+                    unsigned name,
                     unsigned index )
 {
-   assert(ureg->processor == TGSI_PROCESSOR_GEOMETRY);
+   unsigned i;
 
-   ureg->gs_inputs[index/32] |= 1 << (index % 32);
-   return ureg_src_register( TGSI_FILE_INPUT, index );
+   for (i = 0; i < ureg->nr_gs_inputs; i++) {
+      if (ureg->gs_input[i].semantic_name == name &&
+          ureg->gs_input[i].semantic_index == index)
+         goto out;
+   }
+
+   if (ureg->nr_gs_inputs < UREG_MAX_INPUT) {
+      ureg->gs_input[i].semantic_name = name;
+      ureg->gs_input[i].semantic_index = index;
+      ureg->nr_gs_inputs++;
+   }
+   else {
+      set_bad( ureg );
+   }
+
+out:
+   return ureg_src_register( TGSI_FILE_INPUT, i );
 }
 
 
@@ -894,10 +915,13 @@ static void emit_decls( struct ureg_program *ureg )
          }
       }
    } else if (ureg->processor == TGSI_PROCESSOR_GEOMETRY) {
-      for (i = 0; i < UREG_MAX_INPUT; i++) {
-         if (ureg->gs_inputs[i/32] & (1 << (i%32))) {
-            emit_decl_range( ureg, TGSI_FILE_INPUT, i, 1 );
-         }
+      for (i = 0; i < ureg->nr_gs_inputs; i++) {
+         emit_decl( ureg,
+                    TGSI_FILE_INPUT,
+                    i,
+                    ureg->gs_input[i].semantic_name,
+                    ureg->gs_input[i].semantic_index,
+                    TGSI_INTERPOLATE_CONSTANT );
       }
    }
    else {
@@ -1043,10 +1067,10 @@ void *ureg_create_shader( struct ureg_program *ureg,
 
    if (ureg->processor == TGSI_PROCESSOR_VERTEX)
       return pipe->create_vs_state( pipe, &state );
-   else if (ureg->processor == TGSI_PROCESSOR_GEOMETRY)
-      return pipe->create_gs_state( pipe, &state );
-   else
+   else if (ureg->processor == TGSI_PROCESSOR_FRAGMENT)
       return pipe->create_fs_state( pipe, &state );
+
+   debug_assert(!"Wrong shader type");
 }
 
 

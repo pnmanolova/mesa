@@ -69,7 +69,7 @@ softpipe_get_vertex_info(struct softpipe_context *softpipe)
       const enum interp_mode colorInterp
          = softpipe->rasterizer->flatshade ? INTERP_CONSTANT : INTERP_LINEAR;
       struct vertex_info *vinfo_vbuf = &softpipe->vertex_info_vbuf;
-      const uint num = draw_num_vs_outputs(softpipe->draw);
+      const uint num = draw_current_shader_outputs(softpipe->draw);
       uint i;
 
       /* Tell draw_vbuf to simply emit the whole post-xform vertex

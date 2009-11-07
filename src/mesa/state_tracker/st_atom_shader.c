@@ -312,7 +312,7 @@ find_translated_vp(struct st_context *st,
                   numIn += num_vertices_for_prim(stgp->Base.InputType);
                   break;
                }
-#if 0
+#if 1
                debug_printf("%d attr = slot %d\n",
                             inAttr, stgp->input_to_slot[inAttr]);
 #endif
