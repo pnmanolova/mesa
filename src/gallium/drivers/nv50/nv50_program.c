@@ -88,11 +88,15 @@ struct nv50_reg {
 	int index;
 
 	int hw;
-	int neg;
+	int mod;
 
 	int rhw; /* result hw for FP outputs, or interpolant index */
 	int acc; /* instruction where this reg is last read (first insn == 1) */
 };
+
+#define NV50_MOD_NEG 1
+#define NV50_MOD_ABS 2
+#define NV50_MOD_SAT 4
 
 /* arbitrary limits */
 #define MAX_IF_DEPTH 4
@@ -152,7 +156,7 @@ ctor_reg(struct nv50_reg *reg, unsigned type, int index, int hw)
 	reg->type = type;
 	reg->index = index;
 	reg->hw = hw;
-	reg->neg = 0;
+	reg->mod = 0;
 	reg->rhw = -1;
 	reg->acc = 0;
 }
@@ -460,8 +464,12 @@ set_dst(struct nv50_pc *pc, struct nv50_reg *dst, struct nv50_program_exec *e)
 static INLINE void
 set_immd(struct nv50_pc *pc, struct nv50_reg *imm, struct nv50_program_exec *e)
 {
+	unsigned val;
 	float f = pc->immd_buf[imm->hw];
-	unsigned val = fui(imm->neg ? -f : f);
+
+	if (imm->mod & NV50_MOD_ABS)
+		f = fabsf(f);
+	val = fui((imm->mod & NV50_MOD_NEG) ? -f : f);
 
 	set_long(pc, e);
 	/*XXX: can't be predicated - bits overlap.. catch cases where both
@@ -801,12 +809,12 @@ emit_mul(struct nv50_pc *pc, struct nv50_reg *dst, struct nv50_reg *src0,
 	set_dst(pc, dst, e);
 	set_src_0(pc, src0, e);
 	if (src1->type == P_IMMD && !is_long(e)) {
-		if (src0->neg)
+		if (src0->mod & NV50_MOD_NEG)
 			e->inst[0] |= 0x00008000;
 		set_immd(pc, src1, e);
 	} else {
 		set_src_1(pc, src1, e);
-		if (src0->neg ^ src1->neg) {
+		if ((src0->mod ^ src1->mod) & NV50_MOD_NEG) {
 			if (is_long(e))
 				e->inst[1] |= 0x08000000;
 			else
@@ -828,9 +836,10 @@ emit_add(struct nv50_pc *pc, struct nv50_reg *dst,
 	alloc_reg(pc, src1);
 	check_swap_src_0_1(pc, &src0, &src1);
 
-	if (!pc->allow32 || (src0->neg | src1->neg) || src1->hw > 63) {
+	if (!pc->allow32 || (src0->mod | src1->mod) || src1->hw > 63) {
 		set_long(pc, e);
-		e->inst[1] |= (src0->neg << 26) | (src1->neg << 27);
+		e->inst[1] |= ((src0->mod & NV50_MOD_NEG) << 26) |
+			      ((src1->mod & NV50_MOD_NEG) << 27);
 	}
 
 	set_dst(pc, dst, e);
@@ -877,6 +886,11 @@ emit_minmax(struct nv50_pc *pc, unsigned sub, struct nv50_reg *dst,
 	set_src_0(pc, src0, e);
 	set_src_1(pc, src1, e);
 
+	if (src0->mod & NV50_MOD_ABS)
+		e->inst[1] |= 0x00100000;
+	if (src1->mod & NV50_MOD_ABS)
+		e->inst[1] |= 0x00080000;
+
 	emit(pc, e);
 }
 
@@ -885,9 +899,46 @@ emit_sub(struct nv50_pc *pc, struct nv50_reg *dst, struct nv50_reg *src0,
 	 struct nv50_reg *src1)
 {
 	assert(src0 != src1);
-	src1->neg ^= 1;
+	src1->mod ^= NV50_MOD_NEG;
 	emit_add(pc, dst, src0, src1);
-	src1->neg ^= 1;
+	src1->mod ^= NV50_MOD_NEG;
+}
+
+static void
+emit_bitop2(struct nv50_pc *pc, struct nv50_reg *dst, struct nv50_reg *src0,
+	    struct nv50_reg *src1, unsigned op)
+{
+	struct nv50_program_exec *e = exec(pc);
+
+	e->inst[0] = 0xd0000000;
+	set_long(pc, e);
+
+	check_swap_src_0_1(pc, &src0, &src1);
+	set_dst(pc, dst, e);
+	set_src_0(pc, src0, e);
+
+	if (op != TGSI_OPCODE_AND && op != TGSI_OPCODE_OR &&
+	    op != TGSI_OPCODE_XOR)
+		assert(!"invalid bit op");
+
+	if (src1->type == P_IMMD && src0->type == P_TEMP && pc->allow32) {
+		set_immd(pc, src1, e);
+		if (op == TGSI_OPCODE_OR)
+			e->inst[0] |= 0x0100;
+		else
+		if (op == TGSI_OPCODE_XOR)
+			e->inst[0] |= 0x8000;
+	} else {
+		set_src_1(pc, src1, e);
+		e->inst[1] |= 0x04000000; /* 32 bit */
+		if (op == TGSI_OPCODE_OR)
+			e->inst[1] |= 0x4000;
+		else
+		if (op == TGSI_OPCODE_XOR)
+			e->inst[1] |= 0x8000;
+	}
+
+	emit(pc, e);
 }
 
 static void
@@ -904,9 +955,9 @@ emit_mad(struct nv50_pc *pc, struct nv50_reg *dst, struct nv50_reg *src0,
 	set_src_1(pc, src1, e);
 	set_src_2(pc, src2, e);
 
-	if (src0->neg ^ src1->neg)
+	if ((src0->mod ^ src1->mod) & NV50_MOD_NEG)
 		e->inst[1] |= 0x04000000;
-	if (src2->neg)
+	if (src2->mod & NV50_MOD_NEG)
 		e->inst[1] |= 0x08000000;
 
 	emit(pc, e);
@@ -917,9 +968,9 @@ emit_msb(struct nv50_pc *pc, struct nv50_reg *dst, struct nv50_reg *src0,
 	 struct nv50_reg *src1, struct nv50_reg *src2)
 {
 	assert(src2 != src0 && src2 != src1);
-	src2->neg ^= 1;
+	src2->mod ^= NV50_MOD_NEG;
 	emit_mad(pc, dst, src0, src1, src2);
-	src2->neg ^= 1;
+	src2->mod ^= NV50_MOD_NEG;
 }
 
 static void
@@ -1193,7 +1244,7 @@ emit_kil(struct nv50_pc *pc, struct nv50_reg *src)
 	const int r_pred = 1;
 	unsigned cvn = CVT_F32_F32;
 
-	if (src->neg)
+	if (src->mod & NV50_MOD_NEG)
 		cvn |= CVT_NEG;
 	/* write predicate reg */
 	emit_cvt(pc, NULL, src, r_pred, CVTOP_RN, cvn);
@@ -1207,10 +1258,36 @@ emit_kil(struct nv50_pc *pc, struct nv50_reg *src)
 }
 
 static void
+load_cube_tex_coords(struct nv50_pc *pc, struct nv50_reg *t[4],
+		     struct nv50_reg **src, boolean proj)
+{
+	int mod[3] = { src[0]->mod, src[1]->mod, src[2]->mod };
+
+	src[0]->mod |= NV50_MOD_ABS;
+	src[1]->mod |= NV50_MOD_ABS;
+	src[2]->mod |= NV50_MOD_ABS;
+
+	emit_minmax(pc, 4, t[2], src[0], src[1]);
+	emit_minmax(pc, 4, t[2], src[2], t[2]);
+
+	src[0]->mod = mod[0];
+	src[1]->mod = mod[1];
+	src[2]->mod = mod[2];
+
+	if (proj && 0 /* looks more correct without this */)
+		emit_mul(pc, t[2], t[2], src[3]);
+	emit_flop(pc, 0, t[2], t[2]);
+
+	emit_mul(pc, t[0], src[0], t[2]);
+	emit_mul(pc, t[1], src[1], t[2]);
+	emit_mul(pc, t[2], src[2], t[2]);
+}
+
+static void
 emit_tex(struct nv50_pc *pc, struct nv50_reg **dst, unsigned mask,
 	 struct nv50_reg **src, unsigned unit, unsigned type, boolean proj)
 {
-	struct nv50_reg *temp, *t[4];
+	struct nv50_reg *t[4];
 	struct nv50_program_exec *e;
 
 	unsigned c, mode, dim;
@@ -1239,6 +1316,9 @@ emit_tex(struct nv50_pc *pc, struct nv50_reg **dst, unsigned mask,
 	/* some cards need t[0]'s hw index to be a multiple of 4 */
 	alloc_temp4(pc, t, 0);
 
+	if (type == TGSI_TEXTURE_CUBE) {
+		load_cube_tex_coords(pc, t, src, proj);
+	} else
 	if (proj) {
 		if (src[0]->type == P_TEMP && src[0]->rhw != -1) {
 			mode = pc->interp_mode[src[0]->index];
@@ -1263,17 +1343,8 @@ emit_tex(struct nv50_pc *pc, struct nv50_reg **dst, unsigned mask,
 			 */
 		}
 	} else {
-		if (type == TGSI_TEXTURE_CUBE) {
-			temp = temp_temp(pc);
-			emit_minmax(pc, 4, temp, src[0], src[1]);
-			emit_minmax(pc, 4, temp, temp, src[2]);
-			emit_flop(pc, 0, temp, temp);
-			for (c = 0; c < 3; c++)
-				emit_mul(pc, t[c], src[c], temp);
-		} else {
-			for (c = 0; c < dim; c++)
-				emit_mov(pc, t[c], src[c]);
-		}
+		for (c = 0; c < dim; c++)
+			emit_mov(pc, t[c], src[c]);
 	}
 
 	e = exec(pc);
@@ -1286,14 +1357,16 @@ emit_tex(struct nv50_pc *pc, struct nv50_reg **dst, unsigned mask,
 	if (dim == 2)
 		e->inst[0] |= 0x00400000;
 	else
-	if (dim == 3)
+	if (dim == 3) {
 		e->inst[0] |= 0x00800000;
+		if (type == TGSI_TEXTURE_CUBE)
+			e->inst[0] |= 0x08000000;
+	}
 
 	e->inst[0] |= (mask & 0x3) << 25;
 	e->inst[1] |= (mask & 0xc) << 12;
 
 	emit(pc, e);
-
 #if 1
 	c = 0;
 	if (mask & 1) emit_mov(pc, dst[0], t[c++]);
@@ -1371,7 +1444,7 @@ emit_ddy(struct nv50_pc *pc, struct nv50_reg *dst, struct nv50_reg *src)
 
 	assert(src->type == P_TEMP);
 
-	if (!src->neg) /* ! double negation */
+	if (!(src->mod & NV50_MOD_NEG)) /* ! double negation */
 		emit_neg(pc, src, src);
 
 	e->inst[0] = 0xc0150000;
@@ -1634,7 +1707,7 @@ tgsi_src(struct nv50_pc *pc, int chan, const struct tgsi_full_src_register *src,
 		break;
 	case TGSI_UTIL_SIGN_TOGGLE:
 		if (neg)
-			r->neg = 1;
+			r->mod = NV50_MOD_NEG;
 		else {
 			temp = temp_temp(pc);
 			emit_neg(pc, temp, r);
@@ -1838,6 +1911,16 @@ nv50_program_tx_insn(struct nv50_pc *pc,
 			emit_add(pc, dst[c], src[0][c], src[1][c]);
 		}
 		break;
+	case TGSI_OPCODE_AND:
+	case TGSI_OPCODE_XOR:
+	case TGSI_OPCODE_OR:
+		for (c = 0; c < 4; c++) {
+			if (!(mask & (1 << c)))
+				continue;
+			emit_bitop2(pc, dst[c], src[0][c], src[1][c],
+				    inst->Instruction.Opcode);
+		}
+		break;
 	case TGSI_OPCODE_ARL:
 		assert(src[0][0]);
 		temp = temp_temp(pc);
@@ -1979,7 +2062,9 @@ nv50_program_tx_insn(struct nv50_pc *pc,
 	case TGSI_OPCODE_IF:
 		/* emitting a join_at may not be necessary */
 		assert(pc->if_lvl < MAX_IF_DEPTH);
-		set_pred_wr(pc, 1, 0, pc->if_cond);
+		/* set_pred_wr(pc, 1, 0, pc->if_cond); */
+		emit_cvt(pc, NULL, src[0][0], 0, CVTOP_ABS | CVTOP_RN,
+			 CVT_F32_F32);
 		emit_branch(pc, 0, 2, &pc->br_join[pc->if_lvl]);
 		pc->if_insn[pc->if_lvl++] = pc->p->exec_tail;
 		terminate_mbb(pc);
@@ -2158,7 +2243,7 @@ nv50_program_tx_insn(struct nv50_pc *pc,
 		for (c = 0; c < 4; c++) {
 			if (!src[i][c])
 				continue;
-			src[i][c]->neg = 0;
+			src[i][c]->mod = 0;
 			if (src[i][c]->index == -1 && src[i][c]->type == P_IMMD)
 				FREE(src[i][c]);
 			else
@@ -2414,6 +2499,23 @@ load_interpolant(struct nv50_pc *pc, struct nv50_reg *reg)
 	emit_interp(pc, reg, iv, mode);
 }
 
+/* The face input is always at v[255] (varying space), with a
+ * value of 0 for back-facing, and 0xffffffff for front-facing.
+ */
+static void
+load_frontfacing(struct nv50_pc *pc, struct nv50_reg *a)
+{
+	struct nv50_reg *one = alloc_immd(pc, 1.0f);
+
+	assert(a->rhw == -1);
+	alloc_reg(pc, a); /* do this before rhw is set */
+	a->rhw = 255;
+	load_interpolant(pc, a);
+	emit_bitop2(pc, a, a, one, TGSI_OPCODE_AND);
+
+	FREE(one);
+}
+
 static boolean
 nv50_program_tx_prep(struct nv50_pc *pc)
 {
@@ -2558,6 +2660,8 @@ nv50_program_tx_prep(struct nv50_pc *pc)
 		int rid, aid;
 		unsigned n = 0, m = pc->attr_nr - flat_nr;
 
+		pc->allow32 = TRUE;
+
 		int base = (TGSI_SEMANTIC_POSITION ==
 			    p->info.input_semantic_name[0]) ? 0 : 1;
 
@@ -2585,6 +2689,12 @@ nv50_program_tx_prep(struct nv50_pc *pc)
 		for (n = 0; n < pc->attr_nr; ++n) {
 			p->cfg.io[n].hw = rid = aid;
 			i = p->cfg.io[n].id_fp;
+
+			if (p->info.input_semantic_name[n] ==
+			    TGSI_SEMANTIC_FACE) {
+				load_frontfacing(pc, &pc->attr[i * 4]);
+				continue;
+			}
 
 			for (c = 0; c < 4; ++c) {
 				if (!pc->attr[i * 4 + c].acc)
@@ -2644,6 +2754,10 @@ nv50_program_tx_prep(struct nv50_pc *pc)
 			pc->result[2].rhw = rid;
 
 		p->cfg.high_result = rid;
+
+		/* separate/different colour results for MRTs ? */
+		if (pc->result_nr - (p->info.writes_z ? 1 : 0) > 1)
+			p->cfg.regs[2] |= 1;
 	}
 
 	if (pc->immd_nr) {
@@ -2976,11 +3090,8 @@ static void
 nv50_program_validate_code(struct nv50_context *nv50, struct nv50_program *p)
 {
 	struct nouveau_channel *chan = nv50->screen->base.channel;
-	struct nouveau_grobj *tesla = nv50->screen->tesla;
 	struct nv50_program_exec *e;
-	struct nouveau_stateobj *so;
-	const unsigned flags = NOUVEAU_BO_VRAM | NOUVEAU_BO_WR;
-	unsigned start, count, *up, *ptr;
+	uint32_t *up, i;
 	boolean upload = FALSE;
 
 	if (!p->bo) {
@@ -2995,32 +3106,37 @@ nv50_program_validate_code(struct nv50_context *nv50, struct nv50_program *p)
 	if (!upload)
 		return;
 
-	for (e = p->exec_head; e; e = e->next) {
+	up = MALLOC(p->exec_size * 4);
+
+	for (i = 0, e = p->exec_head; e; e = e->next) {
 		unsigned ei, ci, bs;
 
-		if (e->param.index < 0)
-			continue;
+		if (e->param.index >= 0 && e->param.mask) {
+			bs = (e->inst[1] >> 22) & 0x07;
+			assert(bs < 2);
+			ei = e->param.shift >> 5;
+			ci = e->param.index;
+			if (bs == 0)
+				ci += p->data[bs]->start;
 
-		if (e->param.mask == 0) {
+			e->inst[ei] &= ~e->param.mask;
+			e->inst[ei] |= (ci << e->param.shift);
+		} else
+		if (e->param.index >= 0) {
+			/* zero mask means param is a jump/branch offset */
 			assert(!(e->param.index & 1));
 			/* seem to be 8 byte steps */
 			ei = (e->param.index >> 1) + 0 /* START_ID */;
 
 			e->inst[0] &= 0xf0000fff;
 			e->inst[0] |= ei << 12;
-			continue;
 		}
 
-		bs = (e->inst[1] >> 22) & 0x07;
-		assert(bs < 2);
-		ei = e->param.shift >> 5;
-		ci = e->param.index;
-		if (bs == 0)
-			ci += p->data[bs]->start;
-
-		e->inst[ei] &= ~e->param.mask;
-		e->inst[ei] |= (ci << e->param.shift);
+		up[i++] = e->inst[0];
+		if (is_long(e))
+			up[i++] = e->inst[1];
 	}
+	assert(i == p->exec_size);
 
 	if (p->data[0])
 		p->data_start[0] = p->data[0]->start;
@@ -3033,45 +3149,12 @@ nv50_program_validate_code(struct nv50_context *nv50, struct nv50_program *p)
 			NOUVEAU_ERR("0x%08x\n", e->inst[1]);
 	}
 #endif
-
-	up = ptr = MALLOC(p->exec_size * 4);
-	for (e = p->exec_head; e; e = e->next) {
-		*(ptr++) = e->inst[0];
-		if (is_long(e))
-			*(ptr++) = e->inst[1];
-	}
-
-	so = so_new(4,2);
-	so_method(so, nv50->screen->tesla, NV50TCL_CB_DEF_ADDRESS_HIGH, 3);
-	so_reloc (so, p->bo, 0, flags | NOUVEAU_BO_HIGH, 0, 0);
-	so_reloc (so, p->bo, 0, flags | NOUVEAU_BO_LOW, 0, 0);
-	so_data  (so, (NV50_CB_PUPLOAD << 16) | 0x0800); //(p->exec_size * 4));
-
-	start = 0; count = p->exec_size;
-	while (count) {
-		struct nouveau_channel *chan = nv50->screen->base.channel;
-		unsigned nr;
-
-		so_emit(chan, so);
-
-		nr = MIN2(count, 2047);
-		nr = MIN2(chan->pushbuf->remaining, nr);
-		if (chan->pushbuf->remaining < (nr + 3)) {
-			FIRE_RING(chan);
-			continue;
-		}
-
-		BEGIN_RING(chan, tesla, NV50TCL_CB_ADDR, 1);
-		OUT_RING  (chan, (start << 8) | NV50_CB_PUPLOAD);
-		BEGIN_RING(chan, tesla, NV50TCL_CB_DATA(0) | 0x40000000, nr);
-		OUT_RINGp (chan, up + start, nr);
-
-		start += nr;
-		count -= nr;
-	}
+	nv50_upload_sifc(nv50, p->bo, 0, NOUVEAU_BO_VRAM,
+			 NV50_2D_DST_FORMAT_R8_UNORM, 65536, 1, 262144,
+			 up, NV50_2D_SIFC_FORMAT_R8_UNORM, 0,
+			 0, 0, p->exec_size * 4, 1, 1);
 
 	FREE(up);
-	so_ref(NULL, &so);
 }
 
 void

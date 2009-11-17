@@ -46,35 +46,98 @@
 #include "util/u_rect.h"
 
 #define DEBUG_PRINT 0
-#define DEBUG_SOLID 0
 #define ACCEL_ENABLED TRUE
 
 /*
  * Helper functions
  */
+struct render_format_str {
+   int format;
+   const char *name;
+};
+static const struct render_format_str formats_info[] =
+{
+   {PICT_a8r8g8b8, "PICT_a8r8g8b8"},
+   {PICT_x8r8g8b8, "PICT_x8r8g8b8"},
+   {PICT_a8b8g8r8, "PICT_a8b8g8r8"},
+   {PICT_x8b8g8r8, "PICT_x8b8g8r8"},
+#ifdef PICT_TYPE_BGRA
+   {PICT_b8g8r8a8, "PICT_b8g8r8a8"},
+   {PICT_b8g8r8x8, "PICT_b8g8r8x8"},
+   {PICT_a2r10g10b10, "PICT_a2r10g10b10"},
+   {PICT_x2r10g10b10, "PICT_x2r10g10b10"},
+   {PICT_a2b10g10r10, "PICT_a2b10g10r10"},
+   {PICT_x2b10g10r10, "PICT_x2b10g10r10"},
+#endif
+   {PICT_r8g8b8, "PICT_r8g8b8"},
+   {PICT_b8g8r8, "PICT_b8g8r8"},
+   {PICT_r5g6b5, "PICT_r5g6b5"},
+   {PICT_b5g6r5, "PICT_b5g6r5"},
+   {PICT_a1r5g5b5, "PICT_a1r5g5b5"},
+   {PICT_x1r5g5b5, "PICT_x1r5g5b5"},
+   {PICT_a1b5g5r5, "PICT_a1b5g5r5"},
+   {PICT_x1b5g5r5, "PICT_x1b5g5r5"},
+   {PICT_a4r4g4b4, "PICT_a4r4g4b4"},
+   {PICT_x4r4g4b4, "PICT_x4r4g4b4"},
+   {PICT_a4b4g4r4, "PICT_a4b4g4r4"},
+   {PICT_x4b4g4r4, "PICT_x4b4g4r4"},
+   {PICT_a8, "PICT_a8"},
+   {PICT_r3g3b2, "PICT_r3g3b2"},
+   {PICT_b2g3r3, "PICT_b2g3r3"},
+   {PICT_a2r2g2b2, "PICT_a2r2g2b2"},
+   {PICT_a2b2g2r2, "PICT_a2b2g2r2"},
+   {PICT_c8, "PICT_c8"},
+   {PICT_g8, "PICT_g8"},
+   {PICT_x4a4, "PICT_x4a4"},
+   {PICT_x4c4, "PICT_x4c4"},
+   {PICT_x4g4, "PICT_x4g4"},
+   {PICT_a4, "PICT_a4"},
+   {PICT_r1g2b1, "PICT_r1g2b1"},
+   {PICT_b1g2r1, "PICT_b1g2r1"},
+   {PICT_a1r1g1b1, "PICT_a1r1g1b1"},
+   {PICT_a1b1g1r1, "PICT_a1b1g1r1"},
+   {PICT_c4, "PICT_c4"},
+   {PICT_g4, "PICT_g4"},
+   {PICT_a1, "PICT_a1"},
+   {PICT_g1, "PICT_g1"}
+};
+static const char *render_format_name(int format)
+{
+   int i = 0;
+   for (i = 0; i < sizeof(formats_info)/sizeof(formats_info[0]); ++i) {
+      if (formats_info[i].format == format)
+         return formats_info[i].name;
+   }
+   return NULL;
+}
 
 static void
-exa_get_pipe_format(int depth, enum pipe_format *format, int *bbp)
+exa_get_pipe_format(int depth, enum pipe_format *format, int *bbp, int *picture_format)
 {
     switch (depth) {
     case 32:
 	*format = PIPE_FORMAT_A8R8G8B8_UNORM;
+	*picture_format = PICT_a8r8g8b8;
 	assert(*bbp == 32);
 	break;
     case 24:
 	*format = PIPE_FORMAT_X8R8G8B8_UNORM;
+	*picture_format = PICT_x8r8g8b8;
 	assert(*bbp == 32);
 	break;
     case 16:
 	*format = PIPE_FORMAT_R5G6B5_UNORM;
+	*picture_format = PICT_r5g6b5;
 	assert(*bbp == 16);
 	break;
     case 15:
 	*format = PIPE_FORMAT_A1R5G5B5_UNORM;
+	*picture_format = PICT_x1r5g5b5;
 	assert(*bbp == 16);
 	break;
     case 8:
 	*format = PIPE_FORMAT_L8_UNORM;
+	*picture_format = PICT_a8;
 	assert(*bbp == 8);
 	break;
     case 4:
@@ -90,6 +153,8 @@ exa_get_pipe_format(int depth, enum pipe_format *format, int *bbp)
 static void
 xorg_exa_common_done(struct exa_context *exa)
 {
+   renderer_draw_flush(exa->renderer);
+
    exa->copy.src = NULL;
    exa->copy.dst = NULL;
    exa->transform.has_src = FALSE;
@@ -319,10 +384,6 @@ ExaPrepareSolid(PixmapPtr pPixmap, int alu, Pixel planeMask, Pixel fg)
 	XORG_FALLBACK("format %s", pf_name(priv->tex->format));
     }
 
-#if DEBUG_SOLID
-    fg = 0xffff0000;
-#endif
-
     return ACCEL_ENABLED && xorg_solid_bind_state(exa, priv, fg);
 }
 
@@ -338,46 +399,7 @@ ExaSolid(PixmapPtr pPixmap, int x0, int y0, int x1, int y1)
     debug_printf("\tExaSolid(%d, %d, %d, %d)\n", x0, y0, x1, y1);
 #endif
 
-#if 0
-    if (x0 == 0 && y0 == 0 &&
-        x1 == priv->tex->width[0] &&
-        y1 == priv->tex->height[0]) {
-       exa->ctx->clear(exa->pipe, PIPE_CLEAR_COLOR,
-                       exa->solid_color, 1., 0);
-    } else
-#endif
-
-#if DEBUG_SOLID
-       exa->solid_color[0] = 0.f;
-       exa->solid_color[1] = 1.f;
-       exa->solid_color[2] = 0.f;
-       exa->solid_color[3] = 1.f;
-    xorg_solid(exa, priv, 0, 0, 1024, 768);
-       exa->solid_color[0] = 1.f;
-       exa->solid_color[1] = 0.f;
-       exa->solid_color[2] = 0.f;
-       exa->solid_color[3] = 1.f;
-       xorg_solid(exa, priv, 0, 0, 300, 300);
-       xorg_solid(exa, priv, 300, 300, 350, 350);
-       xorg_solid(exa, priv, 350, 350, 500, 500);
-
-       xorg_solid(exa, priv,
-               priv->tex->width[0] - 10,
-               priv->tex->height[0] - 10,
-               priv->tex->width[0],
-               priv->tex->height[0]);
-
-    exa->solid_color[0] = 0.f;
-    exa->solid_color[1] = 0.f;
-    exa->solid_color[2] = 1.f;
-    exa->solid_color[3] = 1.f;
-
-    exa->has_solid_color = FALSE;
-    ExaPrepareCopy(pPixmap, pPixmap, 0, 0, GXcopy, 0xffffffff);
-    ExaCopy(pPixmap, 0, 0, 50, 50, 500, 500);
-#else
     xorg_solid(exa, priv, x0, y0, x1, y1) ;
-#endif
 }
 
 static Bool
@@ -446,6 +468,41 @@ ExaCopy(PixmapPtr pDstPixmap, int srcX, int srcY, int dstX, int dstY,
 }
 
 static Bool
+picture_check_formats(struct exa_pixmap_priv *pSrc, PicturePtr pSrcPicture)
+{
+   if (pSrc->picture_format == pSrcPicture->format)
+      return TRUE;
+
+   if (pSrc->picture_format != PICT_a8r8g8b8)
+      return FALSE;
+
+   /* pSrc->picture_format == PICT_a8r8g8b8 */
+   switch (pSrcPicture->format) {
+   case PICT_a8r8g8b8:
+   case PICT_x8r8g8b8:
+   case PICT_a8b8g8r8:
+   case PICT_x8b8g8r8:
+   /* just treat these two as x8... */
+   case PICT_r8g8b8:
+   case PICT_b8g8r8:
+      return TRUE;
+#ifdef PICT_TYPE_BGRA
+   case PICT_b8g8r8a8:
+   case PICT_b8g8r8x8:
+      return FALSE; /* does not support swizzleing the alpha channel yet */
+   case PICT_a2r10g10b10:
+   case PICT_x2r10g10b10:
+   case PICT_a2b10g10r10:
+   case PICT_x2b10g10r10:
+      return FALSE;
+#endif
+   default:
+      return FALSE;
+   }
+   return FALSE;
+}
+
+static Bool
 ExaPrepareComposite(int op, PicturePtr pSrcPicture,
 		    PicturePtr pMaskPicture, PicturePtr pDstPicture,
 		    PixmapPtr pSrc, PixmapPtr pMask, PixmapPtr pDst)
@@ -458,6 +515,10 @@ ExaPrepareComposite(int op, PicturePtr pSrcPicture,
 #if DEBUG_PRINT
    debug_printf("ExaPrepareComposite(%d, src=0x%p, mask=0x%p, dst=0x%p)\n",
                 op, pSrcPicture, pMaskPicture, pDstPicture);
+   debug_printf("\tFormats: src(%s), mask(%s), dst(%s)\n",
+                pSrcPicture ? render_format_name(pSrcPicture->format) : "none",
+                pMaskPicture ? render_format_name(pMaskPicture->format) : "none",
+                pDstPicture ? render_format_name(pDstPicture->format) : "none");
 #endif
    if (!exa->pipe)
       XORG_FALLBACK("accle not enabled");
@@ -471,6 +532,11 @@ ExaPrepareComposite(int op, PicturePtr pSrcPicture,
                                        PIPE_TEXTURE_USAGE_RENDER_TARGET, 0))
       XORG_FALLBACK("pDst format: %s", pf_name(priv->tex->format));
 
+   if (priv->picture_format != pDstPicture->format)
+      XORG_FALLBACK("pDst pic_format: %s != %s",
+                    render_format_name(priv->picture_format),
+                    render_format_name(pDstPicture->format));
+
    if (pSrc) {
       priv = exaGetPixmapDriverPrivate(pSrc);
       if (!priv || !priv->tex)
@@ -480,6 +546,14 @@ ExaPrepareComposite(int op, PicturePtr pSrcPicture,
                                           priv->tex->target,
                                           PIPE_TEXTURE_USAGE_SAMPLER, 0))
          XORG_FALLBACK("pSrc format: %s", pf_name(priv->tex->format));
+
+      if (!picture_check_formats(priv, pSrcPicture))
+         XORG_FALLBACK("pSrc pic_format: %s != %s",
+                       render_format_name(priv->picture_format),
+                       render_format_name(pSrcPicture->format));
+
+      if (priv->picture_format == PICT_a8)
+         XORG_FALLBACK("pSrc pic_format == PICT_a8");
    }
 
    if (pMask) {
@@ -491,6 +565,11 @@ ExaPrepareComposite(int op, PicturePtr pSrcPicture,
                                           priv->tex->target,
                                           PIPE_TEXTURE_USAGE_SAMPLER, 0))
          XORG_FALLBACK("pMask format: %s", pf_name(priv->tex->format));
+
+      if (!picture_check_formats(priv, pMaskPicture))
+         XORG_FALLBACK("pMask pic_format: %s != %s",
+                       render_format_name(priv->picture_format),
+                       render_format_name(pMaskPicture->format));
    }
 
    return ACCEL_ENABLED &&
@@ -681,7 +760,7 @@ ExaModifyPixmapHeader(PixmapPtr pPixmap, int width, int height,
 
 	memset(&template, 0, sizeof(template));
 	template.target = PIPE_TEXTURE_2D;
-	exa_get_pipe_format(depth, &template.format, &bitsPerPixel);
+	exa_get_pipe_format(depth, &template.format, &bitsPerPixel, &priv->picture_format);
 	pf_get_block(template.format, &template.block);
 	template.width[0] = width;
 	template.height[0] = height;
@@ -756,10 +835,11 @@ xorg_exa_create_root_texture(ScrnInfoPtr pScrn,
     modesettingPtr ms = modesettingPTR(pScrn);
     struct exa_context *exa = ms->exa;
     struct pipe_texture template;
+    int dummy;
 
     memset(&template, 0, sizeof(template));
     template.target = PIPE_TEXTURE_2D;
-    exa_get_pipe_format(depth, &template.format, &bitsPerPixel);
+    exa_get_pipe_format(depth, &template.format, &bitsPerPixel, &dummy);
     pf_get_block(template.format, &template.block);
     template.width[0] = width;
     template.height[0] = height;

@@ -266,8 +266,11 @@ static uint32_t y_tile_swizzle(struct intel_renderbuffer *irb,
    unsigned int num_cliprects;						\
    struct drm_clip_rect *cliprects;					\
    int x_off, y_off;							\
+   int pitch = irb->region->pitch * irb->region->cpp;			\
+   void *buf = irb->region->buffer->virtual;				\
    GLuint p;								\
    (void) p;								\
+   (void)buf; (void)pitch; /* unused for non-gttmap. */			\
    intel_get_cliprects(intel, &cliprects, &num_cliprects, &x_off, &y_off);
 
 /* XXX FBO: this is identical to the macro in spantmp2.h except we get
@@ -289,7 +292,6 @@ static uint32_t y_tile_swizzle(struct intel_renderbuffer *irb,
 
 #define Y_FLIP(_y) ((_y) * yScale + yBias)
 
-/* XXX with GEM, these need to tell the kernel */
 #define HW_LOCK()
 
 #define HW_UNLOCK()
@@ -347,6 +349,9 @@ static uint32_t y_tile_swizzle(struct intel_renderbuffer *irb,
    unsigned int num_cliprects;						\
    struct drm_clip_rect *cliprects;					\
    int x_off, y_off;							\
+   int pitch = irb->region->pitch * irb->region->cpp;			\
+   void *buf = irb->region->buffer->virtual;				\
+   (void)buf; (void)pitch; /* unused for non-gttmap. */			\
    intel_get_cliprects(intel, &cliprects, &num_cliprects, &x_off, &y_off);
 
 
@@ -359,20 +364,22 @@ static uint32_t y_tile_swizzle(struct intel_renderbuffer *irb,
 #define INTEL_TAG(name) name##_z16
 #include "intel_depthtmp.h"
 
-/* z24 depthbuffer functions. */
+/* z24x8 depthbuffer functions. */
 #define INTEL_VALUE_TYPE GLuint
 #define INTEL_WRITE_DEPTH(offset, d) pwrite_32(irb, offset, d)
 #define INTEL_READ_DEPTH(offset) pread_32(irb, offset)
-#define INTEL_TAG(name) name##_z24
+#define INTEL_TAG(name) name##_z24_x8
 #include "intel_depthtmp.h"
 
-/* z24s8 depthbuffer functions. */
-#define INTEL_VALUE_TYPE GLuint
-#define INTEL_WRITE_DEPTH(offset, d) pwrite_32(irb, offset, d)
-#define INTEL_READ_DEPTH(offset) pread_32(irb, offset)
-#define INTEL_TAG(name) name##_z24_s8
-#include "intel_depthtmp.h"
 
+/**
+ ** 8-bit stencil function (XXX FBO: This is obsolete)
+ **/
+/* XXX */
+#define WRITE_STENCIL(_x, _y, d) pwrite_8(irb, NO_TILE(_x, _y) + 3, d)
+#define READ_STENCIL(d, _x, _y) d = pread_8(irb, NO_TILE(_x, _y) + 3);
+#define TAG(x) intel_gttmap_##x##_z24_s8
+#include "stenciltmp.h"
 
 /**
  ** 8-bit stencil function (XXX FBO: This is obsolete)
@@ -406,6 +413,9 @@ intel_renderbuffer_map(struct intel_context *intel, struct gl_renderbuffer *rb)
    if (irb == NULL || irb->region == NULL)
       return;
 
+   if (intel->intelScreen->kernel_exec_fencing)
+      drm_intel_gem_bo_map_gtt(irb->region->buffer);
+
    intel_set_span_functions(intel, rb);
 }
 
@@ -418,7 +428,10 @@ intel_renderbuffer_unmap(struct intel_context *intel,
    if (irb == NULL || irb->region == NULL)
       return;
 
-   clear_span_cache(irb);
+   if (intel->intelScreen->kernel_exec_fencing)
+      drm_intel_gem_bo_unmap_gtt(irb->region->buffer);
+   else
+      clear_span_cache(irb);
 
    rb->GetRow = NULL;
    rb->PutRow = NULL;
@@ -487,6 +500,8 @@ intel_map_unmap_framebuffer(struct intel_context *intel,
       else
          intel_renderbuffer_unmap(intel, fb->_StencilBuffer->Wrapped);
    }
+
+   intel_check_front_buffer_rendering(intel);
 }
 
 /**
@@ -608,6 +623,56 @@ intel_set_span_functions(struct intel_context *intel,
    else
       tiling = I915_TILING_NONE;
 
+   if (intel->intelScreen->kernel_exec_fencing) {
+      switch (irb->texformat) {
+      case MESA_FORMAT_RGB565:
+	 intel_gttmap_InitPointers_RGB565(rb);
+	 break;
+      case MESA_FORMAT_ARGB4444:
+	 intel_gttmap_InitPointers_ARGB4444(rb);
+	 break;
+      case MESA_FORMAT_ARGB1555:
+	 intel_gttmap_InitPointers_ARGB1555(rb);
+	 break;
+      case MESA_FORMAT_XRGB8888:
+         intel_gttmap_InitPointers_xRGB8888(rb);
+	 break;
+      case MESA_FORMAT_ARGB8888:
+	 if (rb->_BaseFormat == GL_RGB) {
+	    /* XXX remove this code someday when we enable XRGB surfaces */
+	    /* 8888 RGBx */
+	    intel_gttmap_InitPointers_xRGB8888(rb);
+	 } else {
+	    intel_gttmap_InitPointers_ARGB8888(rb);
+	 }
+	 break;
+      case MESA_FORMAT_Z16:
+	 intel_gttmap_InitDepthPointers_z16(rb);
+	 break;
+      case MESA_FORMAT_X8_Z24:
+	 intel_gttmap_InitDepthPointers_z24_x8(rb);
+	 break;
+      case MESA_FORMAT_S8_Z24:
+	 /* There are a few different ways SW asks us to access the S8Z24 data:
+	  * Z24 depth-only depth reads
+	  * S8Z24 depth reads
+	  * S8Z24 stencil reads.
+	  */
+	 if (rb->Format == MESA_FORMAT_S8_Z24) {
+	    intel_gttmap_InitDepthPointers_z24_x8(rb);
+	 } else if (rb->Format == MESA_FORMAT_S8) {
+	    intel_gttmap_InitStencilPointers_z24_s8(rb);
+	 }
+	 break;
+      default:
+	 _mesa_problem(NULL,
+		       "Unexpected MesaFormat %d in intelSetSpanFunctions",
+		       irb->texformat);
+	 break;
+      }
+      return;
+   }
+
    switch (irb->texformat) {
    case MESA_FORMAT_RGB565:
       switch (tiling) {
@@ -666,7 +731,7 @@ intel_set_span_functions(struct intel_context *intel,
       }
       break;
    case MESA_FORMAT_ARGB8888:
-      if (0 /*rb->AlphaBits == 0*/) { /* XXX: Need xRGB8888 Mesa format */
+      if (rb->_BaseFormat == GL_RGB) {
          /* XXX remove this code someday when we enable XRGB surfaces */
 	 /* 8888 RGBx */
 	 switch (tiling) {
@@ -711,6 +776,7 @@ intel_set_span_functions(struct intel_context *intel,
 	 break;
       }
       break;
+   case MESA_FORMAT_X8_Z24:
    case MESA_FORMAT_S8_Z24:
       /* There are a few different ways SW asks us to access the S8Z24 data:
        * Z24 depth-only depth reads
@@ -721,13 +787,13 @@ intel_set_span_functions(struct intel_context *intel,
 	 switch (tiling) {
 	 case I915_TILING_NONE:
 	 default:
-	    intelInitDepthPointers_z24_s8(rb);
+	    intelInitDepthPointers_z24_x8(rb);
 	    break;
 	 case I915_TILING_X:
-	    intel_XTile_InitDepthPointers_z24_s8(rb);
+	    intel_XTile_InitDepthPointers_z24_x8(rb);
 	    break;
 	 case I915_TILING_Y:
-	    intel_YTile_InitDepthPointers_z24_s8(rb);
+	    intel_YTile_InitDepthPointers_z24_x8(rb);
 	    break;
 	 }
       } else if (rb->Format == MESA_FORMAT_S8) {

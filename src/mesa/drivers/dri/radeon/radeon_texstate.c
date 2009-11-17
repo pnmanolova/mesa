@@ -39,6 +39,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "main/context.h"
 #include "main/macros.h"
 #include "main/teximage.h"
+#include "main/texstate.h"
 #include "main/texobj.h"
 #include "main/enums.h"
 
@@ -661,7 +662,7 @@ void radeonSetTexBuffer2(__DRIcontext *pDRICtx, GLint target, GLint glx_texture_
 	rmesa = pDRICtx->driverPrivate;
 
 	rfb = dPriv->driverPrivate;
-        texUnit = &radeon->glCtx->Texture.Unit[radeon->glCtx->Texture.CurrentUnit];
+        texUnit = _mesa_get_current_tex_unit(radeon->glCtx);
 	texObj = _mesa_select_tex_object(radeon->glCtx, texUnit, target);
         texImage = _mesa_get_tex_image(radeon->glCtx, texObj, target, 0);
 

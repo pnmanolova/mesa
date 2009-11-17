@@ -320,7 +320,6 @@ struct brw_cache_item {
    GLuint nr_reloc_bufs;
 
    dri_bo *bo;
-   GLuint data_size;
 
    struct brw_cache_item *next;
 };   
@@ -333,7 +332,6 @@ struct brw_cache {
    struct brw_cache_item **items;
    GLuint size, n_items;
 
-   GLuint key_size[BRW_MAX_CACHE];		/* for fixed-size keys */
    GLuint aux_size[BRW_MAX_CACHE];
    char *name[BRW_MAX_CACHE];
 
@@ -411,23 +409,6 @@ struct brw_vertex_element {
 
 struct brw_vertex_info {
    GLuint sizes[ATTRIB_BIT_DWORDS * 2]; /* sizes:2[VERT_ATTRIB_MAX] */
-};
-
-
-
-
-/* Cache for TNL programs.
- */
-struct brw_tnl_cache_item {
-   GLuint hash;
-   void *key;
-   void *data;
-   struct brw_tnl_cache_item *next;
-};
-
-struct brw_tnl_cache {
-   struct brw_tnl_cache_item **items;
-   GLuint size, n_items;
 };
 
 struct brw_query_object {

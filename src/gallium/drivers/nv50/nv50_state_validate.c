@@ -37,6 +37,15 @@ nv50_state_validate_fb(struct nv50_context *nv50)
 	struct pipe_framebuffer_state *fb = &nv50->framebuffer;
 	unsigned i, w, h, gw = 0;
 
+	/* Set nr of active RTs and select RT for each colour output.
+	 * FP result 0 always goes to RT[0], bits 4 - 6 are ignored.
+	 * Ambiguous assignment results in no rendering (no DATA_ERROR).
+	 */
+	so_method(so, tesla, 0x121c, 1);
+	so_data  (so, fb->nr_cbufs |
+		  (0 <<  4) | (1 <<  7) | (2 << 10) | (3 << 13) |
+		  (4 << 16) | (5 << 19) | (6 << 22) | (7 << 25));
+
 	for (i = 0; i < fb->nr_cbufs; i++) {
 		struct pipe_texture *pt = fb->cbufs[i]->texture;
 		struct nouveau_bo *bo = nv50_miptree(pt)->base.bo;
@@ -121,6 +130,9 @@ nv50_state_validate_fb(struct nv50_context *nv50)
 		so_data  (so, fb->zsbuf->width);
 		so_data  (so, fb->zsbuf->height);
 		so_data  (so, 0x00010001);
+	} else {
+		so_method(so, tesla, 0x1538, 1);
+		so_data  (so, 0);
 	}
 
 	so_method(so, tesla, NV50TCL_VIEWPORT_HORIZ, 2);

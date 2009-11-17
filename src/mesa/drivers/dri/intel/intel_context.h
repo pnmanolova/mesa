@@ -117,8 +117,6 @@ struct intel_context
                                struct intel_region * depth_region,
 			       GLuint num_regions);
 
-      GLuint (*flush_cmd) (void);
-
       void (*reduced_primitive_state) (struct intel_context * intel,
                                        GLenum rprim);
 
@@ -176,12 +174,16 @@ struct intel_context
 
    struct dri_metaops meta;
 
-   GLint refcount;
    GLbitfield Fallback;  /**< mask of INTEL_FALLBACK_x bits */
    GLuint NewGLState;
 
    dri_bufmgr *bufmgr;
    unsigned int maxBatchSize;
+
+   /**
+    * Generation number of the hardware: 2 is 8xx, 3 is 9xx pre-965, 4 is 965.
+    */
+   int gen;
 
    struct intel_region *front_region;
    struct intel_region *back_region;
@@ -196,7 +198,6 @@ struct intel_context
    struct intel_batchbuffer *batch;
    drm_intel_bo *first_post_swapbuffers_batch;
    GLboolean no_batch_wrap;
-   unsigned batch_id;
 
    struct
    {
@@ -585,6 +586,27 @@ static INLINE GLboolean
 is_power_of_two(uint32_t value)
 {
    return (value & (value - 1)) == 0;
+}
+
+static inline void
+intel_bo_map_gtt_preferred(struct intel_context *intel,
+			   drm_intel_bo *bo,
+			   GLboolean write)
+{
+   if (intel->intelScreen->kernel_exec_fencing)
+      drm_intel_gem_bo_map_gtt(bo);
+   else
+      drm_intel_bo_map(bo, write);
+}
+
+static inline void
+intel_bo_unmap_gtt_preferred(struct intel_context *intel,
+			     drm_intel_bo *bo)
+{
+   if (intel->intelScreen->kernel_exec_fencing)
+      drm_intel_gem_bo_unmap_gtt(bo);
+   else
+      drm_intel_bo_unmap(bo);
 }
 
 #endif

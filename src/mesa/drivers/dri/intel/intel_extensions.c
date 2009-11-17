@@ -194,31 +194,28 @@ static const struct dri_extension fragment_shader_extensions[] = {
  * extensions for a context.
  */
 void
-intelInitExtensions(GLcontext *ctx, GLboolean enable_imaging)
+intelInitExtensions(GLcontext *ctx)
 {
-   struct intel_context *intel = ctx?intel_context(ctx):NULL;
+   struct intel_context *intel = intel_context(ctx);
 
    /* Disable imaging extension until convolution is working in teximage paths.
     */
-   enable_imaging = GL_FALSE;
+   driInitExtensions(ctx, card_extensions, GL_FALSE);
 
-   driInitExtensions(ctx, card_extensions, enable_imaging);
-
-   if (intel == NULL || intel->ttm)
+   if (intel->ttm)
       driInitExtensions(ctx, ttm_extensions, GL_FALSE);
 
-   if (intel == NULL || IS_965(intel->intelScreen->deviceID))
+   if (IS_965(intel->intelScreen->deviceID))
       driInitExtensions(ctx, brw_extensions, GL_FALSE);
 
-   if (intel == NULL || IS_915(intel->intelScreen->deviceID)
+   if (IS_915(intel->intelScreen->deviceID)
        || IS_945(intel->intelScreen->deviceID)) {
       driInitExtensions(ctx, i915_extensions, GL_FALSE);
 
-      if (intel == NULL || driQueryOptionb(&intel->optionCache, "fragment_shader"))
+      if (driQueryOptionb(&intel->optionCache, "fragment_shader"))
 	 driInitExtensions(ctx, fragment_shader_extensions, GL_FALSE);
 
-      if (intel == NULL || driQueryOptionb(&intel->optionCache,
-					   "stub_occlusion_query"))
+      if (driQueryOptionb(&intel->optionCache, "stub_occlusion_query"))
 	 driInitExtensions(ctx, arb_oq_extensions, GL_FALSE);
    }
 }
