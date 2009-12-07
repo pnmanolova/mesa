@@ -1293,7 +1293,7 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 #        define R500_RS_INST_TEX_ID(x)                  ((x) << 0)
 #define R500_RS_INST_TEX_CN_WRITE			(1 << 4)
 #define R500_RS_INST_TEX_ADDR_SHIFT			5
-#        define R500_RS_INST_TEX_ADDR(x)                ((x) << 0)
+#        define R500_RS_INST_TEX_ADDR(x)                ((x) << 5)
 #define R500_RS_INST_COL_ID_SHIFT			12
 #        define R500_RS_INST_COL_ID(x)                  ((x) << 12)
 #define R500_RS_INST_COL_CN_NO_WRITE			(0 << 16)
@@ -1463,6 +1463,8 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 #	define R300_TX_MIN_FILTER_MIP_NEAREST    (1 << 13)
 #	define R300_TX_MIN_FILTER_MIP_LINEAR     (2 << 13)
 #	define R300_TX_MIN_FILTER_MIP_MASK       (3 << 13)
+#       define R300_TX_MAX_MIP_LEVEL_SHIFT       17
+#       define R300_TX_MAX_MIP_LEVEL_MASK        (0xf << 17)
 #	define R300_TX_MAX_ANISO_1_TO_1          (0 << 21)
 #	define R300_TX_MAX_ANISO_2_TO_1          (1 << 21)
 #	define R300_TX_MAX_ANISO_4_TO_1          (2 << 21)
@@ -1471,6 +1473,7 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 #	define R300_TX_MAX_ANISO_MASK            (7 << 21)
 #       define R300_TX_WRAP_S(x)                 ((x) << 0)
 #       define R300_TX_WRAP_T(x)                 ((x) << 3)
+#       define R300_TX_MAX_MIP_LEVEL(x)          ((x) << 17)
 
 #define R300_TX_FILTER1_0                      0x4440
 #	define R300_CHROMA_KEY_MODE_DISABLE    0
@@ -1500,8 +1503,6 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 #       define R300_TX_HEIGHTMASK_MASK           (2047 << 11)
 #	define R300_TX_DEPTHMASK_SHIFT           22
 #	define R300_TX_DEPTHMASK_MASK            (0xf << 22)
-#       define R300_TX_MAX_MIP_LEVEL_SHIFT       26
-#       define R300_TX_MAX_MIP_LEVEL_MASK        (0xf << 26)
 #       define R300_TX_SIZE_PROJECTED            (1 << 30)
 #       define R300_TX_PITCH_EN                  (1 << 31)
 #       define R300_TX_WIDTH(x)                  ((x) << 0)

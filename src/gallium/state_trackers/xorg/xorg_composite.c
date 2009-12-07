@@ -151,8 +151,11 @@ render_filter_to_gallium(int xrender_filter, int *out_filter)
    case PictFilterBest:
       *out_filter = PIPE_TEX_FILTER_LINEAR;
       break;
+   case PictFilterConvolution:
+      *out_filter = PIPE_TEX_FILTER_NEAREST;
+      return FALSE;
    default:
-      debug_printf("Unkown xrender filter");
+      debug_printf("Unknown xrender filter\n");
       *out_filter = PIPE_TEX_FILTER_NEAREST;
       return FALSE;
    }
@@ -237,7 +240,7 @@ picture_format_fixups(struct exa_pixmap_priv *pSrc, PicturePtr pSrcPicture, bool
 
    if (pSrc->picture_format == pSrcPicture->format) {
       if (pSrc->picture_format == PICT_a8)
-         return mask ? FS_MASK_LUMINANCE : FS_MASK_LUMINANCE;
+         return mask ? FS_MASK_LUMINANCE : FS_SRC_LUMINANCE;
       return 0;
    }
 
@@ -436,8 +439,8 @@ setup_fs_constant_buffer(struct exa_context *exa)
 static void
 setup_constant_buffers(struct exa_context *exa, struct exa_pixmap_priv *pDst)
 {
-   int width = pDst->tex->width[0];
-   int height = pDst->tex->height[0];
+   int width = pDst->tex->width0;
+   int height = pDst->tex->height0;
 
    setup_vs_constant_buffer(exa, width, height);
    setup_fs_constant_buffer(exa);
@@ -564,6 +567,8 @@ boolean xorg_solid_bind_state(struct exa_context *exa,
    renderer_bind_viewport(exa->renderer, pixmap);
    renderer_bind_rasterizer(exa->renderer);
    bind_blend_state(exa, PictOpSrc, NULL, NULL, NULL);
+   cso_set_samplers(exa->renderer->cso, 0, NULL);
+   cso_set_sampler_textures(exa->renderer->cso, 0, NULL);
    setup_constant_buffers(exa, pixmap);
 
    shader = xorg_shaders_get(exa->renderer->shaders, vs_traits, fs_traits);

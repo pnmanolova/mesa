@@ -47,9 +47,9 @@ union tgsi_any_token {
    struct tgsi_immediate imm;
    union  tgsi_immediate_data imm_data;
    struct tgsi_instruction insn;
+   struct tgsi_instruction_predicate insn_predicate;
    struct tgsi_instruction_ext_label insn_ext_label;
    struct tgsi_instruction_ext_texture insn_ext_texture;
-   struct tgsi_instruction_ext_predicate insn_ext_predicate;
    struct tgsi_src_register src;
    struct tgsi_src_register_ext_mod src_ext_mod;
    struct tgsi_dimension dim;
@@ -72,6 +72,7 @@ struct ureg_tokens {
 #define UREG_MAX_IMMEDIATE 32
 #define UREG_MAX_TEMP 256
 #define UREG_MAX_ADDR 2
+#define UREG_MAX_LOOP 1
 #define UREG_MAX_PRED 1
 
 #define DOMAIN_DECL 0
@@ -123,6 +124,7 @@ struct ureg_program
 
    unsigned nr_addrs;
    unsigned nr_preds;
+   unsigned nr_loops;
    unsigned nr_instructions;
 
    struct ureg_tokens domain[2];
@@ -383,6 +385,7 @@ struct ureg_src ureg_DECL_constant(struct ureg_program *ureg,
       i = ureg->nr_constant_ranges++;
       ureg->constant_range[i].first = index;
       ureg->constant_range[i].last = index;
+      goto out;
    }
 
    /* Collapse all ranges down to one:
@@ -448,6 +451,19 @@ struct ureg_dst ureg_DECL_address( struct ureg_program *ureg )
 
    assert( 0 );
    return ureg_dst_register( TGSI_FILE_ADDRESS, 0 );
+}
+
+/* Allocate a new loop register.
+ */
+struct ureg_dst
+ureg_DECL_loop(struct ureg_program *ureg)
+{
+   if (ureg->nr_loops < UREG_MAX_LOOP) {
+      return ureg_dst_register(TGSI_FILE_LOOP, ureg->nr_loops++);
+   }
+
+   assert(0);
+   return ureg_dst_register(TGSI_FILE_LOOP, 0);
 }
 
 /* Allocate a new predicate register.
@@ -694,35 +710,27 @@ ureg_emit_insn(struct ureg_program *ureg,
    validate( opcode, num_dst, num_src );
    
    out = get_tokens( ureg, DOMAIN_INSN, count );
-   out[0].value = 0;
-   out[0].insn.Type = TGSI_TOKEN_TYPE_INSTRUCTION;
-   out[0].insn.NrTokens = 0;
+   out[0].insn = tgsi_default_instruction();
    out[0].insn.Opcode = opcode;
    out[0].insn.Saturate = saturate;
    out[0].insn.NumDstRegs = num_dst;
    out[0].insn.NumSrcRegs = num_src;
-   out[0].insn.Padding = 0;
 
    result.insn_token = ureg->domain[DOMAIN_INSN].count - count;
+   result.extended_token = result.insn_token;
 
    if (predicate) {
-      out[0].insn.Extended = 1;
-      out[1].insn_ext_predicate = tgsi_default_instruction_ext_predicate();
-      out[1].insn_ext_predicate.Negate = pred_negate;
-      out[1].insn_ext_predicate.SwizzleX = pred_swizzle_x;
-      out[1].insn_ext_predicate.SwizzleY = pred_swizzle_y;
-      out[1].insn_ext_predicate.SwizzleZ = pred_swizzle_z;
-      out[1].insn_ext_predicate.SwizzleW = pred_swizzle_w;
-
-      result.extended_token = result.insn_token + 1;
-   } else {
-      out[0].insn.Extended = 0;
-
-      result.extended_token = result.insn_token;
+      out[0].insn.Predicate = 1;
+      out[1].insn_predicate = tgsi_default_instruction_predicate();
+      out[1].insn_predicate.Negate = pred_negate;
+      out[1].insn_predicate.SwizzleX = pred_swizzle_x;
+      out[1].insn_predicate.SwizzleY = pred_swizzle_y;
+      out[1].insn_predicate.SwizzleZ = pred_swizzle_z;
+      out[1].insn_predicate.SwizzleW = pred_swizzle_w;
    }
 
    ureg->nr_instructions++;
-   
+
    return result;
 }
 
@@ -1063,6 +1071,13 @@ static void emit_decls( struct ureg_program *ureg )
       emit_decl_range( ureg,
                        TGSI_FILE_ADDRESS,
                        0, ureg->nr_addrs );
+   }
+
+   if (ureg->nr_loops) {
+      emit_decl_range(ureg,
+                      TGSI_FILE_LOOP,
+                      0,
+                      ureg->nr_loops);
    }
 
    if (ureg->nr_preds) {

@@ -138,7 +138,6 @@ static struct prog_dst_register dst_reg(GLuint file, GLuint idx)
    reg.CondMask = COND_TR;
    reg.CondSwizzle = 0;
    reg.CondSrc = 0;
-   reg.pad = 0;
    return reg;
 }
 
@@ -986,7 +985,7 @@ static void emit_render_target_writes( struct brw_wm_compile *c )
    }
    else {
       /* if gl_FragData[0] is written, use it, else use gl_FragColor */
-      if (c->fp->program.Base.OutputsWritten & (1 << FRAG_RESULT_DATA0))
+      if (c->fp->program.Base.OutputsWritten & BITFIELD64_BIT(FRAG_RESULT_DATA0))
          outcolor = src_reg(PROGRAM_OUTPUT, FRAG_RESULT_DATA0);
       else 
          outcolor = src_reg(PROGRAM_OUTPUT, FRAG_RESULT_COLOR);

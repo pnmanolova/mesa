@@ -523,6 +523,11 @@ static void*
                                                    state->mag_img_filter,
                                                    state->min_mip_filter);
 
+    /* Unfortunately, r300-r500 don't support floating-point mipmap lods. */
+    /* We must pass these to the emit function to clamp them properly. */
+    sampler->min_lod = MAX2((unsigned)state->min_lod, 0);
+    sampler->max_lod = MAX2((unsigned)ceilf(state->max_lod), 0);
+
     lod_bias = CLAMP((int)(state->lod_bias * 32), -(1 << 9), (1 << 9) - 1);
 
     sampler->filter1 |= lod_bias << R300_LOD_BIAS_SHIFT;
@@ -571,6 +576,7 @@ static void r300_set_sampler_textures(struct pipe_context* pipe,
                                       struct pipe_texture** texture)
 {
     struct r300_context* r300 = r300_context(pipe);
+    boolean is_r500 = r300_screen(r300->context.screen)->caps->is_r500;
     int i;
 
     /* XXX magic num */
@@ -585,6 +591,13 @@ static void r300_set_sampler_textures(struct pipe_context* pipe,
             pipe_texture_reference((struct pipe_texture**)&r300->textures[i],
                 texture[i]);
             r300->dirty_state |= (R300_NEW_TEXTURE << i);
+
+            /* R300-specific - set the texrect factor in a fragment shader */
+            if (!is_r500 && r300->textures[i]->is_npot) {
+                /* XXX It would be nice to re-emit just 1 constant,
+                 * XXX not all of them */
+                r300->dirty_state |= R300_NEW_FRAGMENT_SHADER_CONSTANTS;
+            }
         }
     }
 
@@ -674,6 +687,8 @@ static void r300_set_vertex_buffers(struct pipe_context* pipe,
         draw_flush(r300->draw);
         draw_set_vertex_buffers(r300->draw, count, buffers);
     }
+
+    r300->dirty_state |= R300_NEW_VERTEX_FORMAT;
 }
 
 static void r300_set_vertex_elements(struct pipe_context* pipe,
@@ -706,9 +721,6 @@ static void* r300_create_vs_state(struct pipe_context* pipe,
 
         tgsi_scan_shader(shader->tokens, &vs->info);
 
-        /* Appease Draw. */
-        vs->draw = draw_create_vertex_shader(r300->draw, shader);
-
         return (void*)vs;
     } else {
         return draw_create_vertex_shader(r300->draw, shader);
@@ -718,8 +730,6 @@ static void* r300_create_vs_state(struct pipe_context* pipe,
 static void r300_bind_vs_state(struct pipe_context* pipe, void* shader)
 {
     struct r300_context* r300 = r300_context(pipe);
-
-    draw_flush(r300->draw);
 
     if (r300_screen(pipe->screen)->caps->has_tcl) {
         struct r300_vertex_shader* vs = (struct r300_vertex_shader*)shader;
@@ -731,10 +741,10 @@ static void r300_bind_vs_state(struct pipe_context* pipe, void* shader)
             r300_translate_vertex_shader(r300, vs);
         }
 
-        draw_bind_vertex_shader(r300->draw, vs->draw);
         r300->vs = vs;
         r300->dirty_state |= R300_NEW_VERTEX_SHADER | R300_NEW_VERTEX_SHADER_CONSTANTS;
     } else {
+        draw_flush(r300->draw);
         draw_bind_vertex_shader(r300->draw,
                 (struct draw_vertex_shader*)shader);
     }
@@ -748,7 +758,6 @@ static void r300_delete_vs_state(struct pipe_context* pipe, void* shader)
         struct r300_vertex_shader* vs = (struct r300_vertex_shader*)shader;
 
         rc_constants_destroy(&vs->code.constants);
-        draw_delete_vertex_shader(r300->draw, vs->draw);
         FREE((void*)vs->state.tokens);
         FREE(shader);
     } else {

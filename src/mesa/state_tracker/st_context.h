@@ -129,6 +129,8 @@ struct st_context
    struct st_fragment_program *fp;  /**< Currently bound fragment program */
    struct st_geometry_program *gp;  /**< Currently bound geometry program */
 
+   struct st_vp_varient *vp_varient;
+
    struct gl_texture_object *default_texture;
 
    struct {

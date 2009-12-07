@@ -4011,6 +4011,11 @@ KEYWORD1 void KEYWORD2 NAME(RenderbufferStorageMultisample)(GLenum target, GLsiz
    DISPATCH(RenderbufferStorageMultisample, (target, samples, internalformat, width, height), (F, "glRenderbufferStorageMultisample(0x%x, %d, 0x%x, %d, %d);\n", target, samples, internalformat, width, height));
 }
 
+KEYWORD1 void KEYWORD2 NAME(RenderbufferStorageMultisampleEXT)(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height)
+{
+   DISPATCH(RenderbufferStorageMultisample, (target, samples, internalformat, width, height), (F, "glRenderbufferStorageMultisampleEXT(0x%x, %d, 0x%x, %d, %d);\n", target, samples, internalformat, width, height));
+}
+
 KEYWORD1 void KEYWORD2 NAME(FramebufferTextureARB)(GLenum target, GLenum attachment, GLuint texture, GLint level)
 {
    DISPATCH(FramebufferTextureARB, (target, attachment, texture, level), (F, "glFramebufferTextureARB(0x%x, 0x%x, %d, %d);\n", target, attachment, texture, level));
@@ -6855,6 +6860,7 @@ static _glapi_proc UNUSED_TABLE_NAME[] = {
    TABLE_ENTRY(GetAttribLocation),
    TABLE_ENTRY(DrawBuffers),
    TABLE_ENTRY(DrawBuffersATI),
+   TABLE_ENTRY(RenderbufferStorageMultisampleEXT),
    TABLE_ENTRY(PointParameterf),
    TABLE_ENTRY(PointParameterfARB),
    TABLE_ENTRY(PointParameterfv),

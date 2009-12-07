@@ -225,6 +225,7 @@ struct tgsi_exec_machine
    struct tgsi_exec_vector       Outputs[TGSI_MAX_TOTAL_VERTICES];
 
    struct tgsi_exec_vector       *Addrs;
+   struct tgsi_exec_vector       *Predicates;
 
    struct tgsi_sampler           **Samplers;
 
@@ -241,6 +242,7 @@ struct tgsi_exec_machine
    /* FRAGMENT processor only. */
    const struct tgsi_interp_coef *InterpCoefs;
    struct tgsi_exec_vector       QuadPos;
+   float                         Face;    /**< +1 if front facing, -1 if back facing */
 
    /* Conditional execution masks */
    uint CondMask;  /**< For IF/ELSE/ENDIF */
@@ -261,7 +263,7 @@ struct tgsi_exec_machine
    uint LoopLabelStack[TGSI_EXEC_MAX_LOOP_NESTING];
    int LoopLabelStackTop;
 
-   /** Loop counter stack (x = count, y = current, z = step) */
+   /** Loop counter stack (x = index, y = counter, z = step) */
    struct tgsi_exec_vector LoopCounterStack[TGSI_EXEC_MAX_LOOP_NESTING];
    int LoopCounterStackTop;
    

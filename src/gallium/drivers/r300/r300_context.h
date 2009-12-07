@@ -92,6 +92,10 @@ struct r300_sampler_state {
     uint32_t filter0;      /* R300_TX_FILTER0: 0x4400 */
     uint32_t filter1;      /* R300_TX_FILTER1: 0x4440 */
     uint32_t border_color; /* R300_TX_BORDER_COLOR: 0x45c0 */
+
+    /* Min/max LOD must be clamped to [0, last_level], thus
+     * it's dependent on a currently bound texture */
+    unsigned min_lod, max_lod;
 };
 
 struct r300_scissor_state {
@@ -219,11 +223,6 @@ struct r300_texture {
 struct r300_vertex_info {
     /* Parent class */
     struct vertex_info vinfo;
-    /* Map of vertex attributes into PVS memory for HW TCL,
-     * or GA memory for SW TCL. */
-    int vs_tab[16];
-    /* Map of rasterizer attributes from GB through RS to US. */
-    int fs_tab[16];
 
     /* R300_VAP_PROG_STREAK_CNTL_[0-7] */
     uint32_t vap_prog_stream_cntl[8];

@@ -86,6 +86,31 @@
 
 
 /**
+ * \name 64-bit extension of GLbitfield.
+ */
+/*@{*/
+typedef GLuint64 GLbitfield64;
+
+#define BITFIELD64_ONE         1ULL
+#define BITFIELD64_ALLONES     ~0ULL
+
+/** Set a single bit */
+#define BITFIELD64_BIT(b)      (BITFIELD64_ONE << (b))
+
+/** Set a mask of the least significant \c b bits */
+#define BITFIELD64_MASK(b)     (((b) >= 64) ? BITFIELD64_ALLONES : \
+				(BITFIELD64_BIT(b) - 1))
+
+/**
+ * Set all bits from l (low bit) to h (high bit), inclusive.
+ *
+ * \note \C BITFIELD_64_RANGE(0, 63) return 64 set bits.
+ */
+#define BITFIELD64_RANGE(l, h) (BITFIELD64_MASK((h) + 1) & ~BITFIELD64_MASK(l))
+/*@}*/
+
+
+/**
  * \name Some forward type declarations
  */
 /*@{*/
@@ -1751,7 +1776,7 @@ struct gl_program
    struct prog_instruction *Instructions;
 
    GLbitfield InputsRead;     /**< Bitmask of which input regs are read */
-   GLbitfield OutputsWritten; /**< Bitmask of which output regs are written to */
+   GLbitfield64 OutputsWritten; /**< Bitmask of which output regs are written */
    GLbitfield InputFlags[MAX_PROGRAM_INPUTS];   /**< PROG_PARAM_BIT_x flags */
    GLbitfield OutputFlags[MAX_PROGRAM_OUTPUTS]; /**< PROG_PARAM_BIT_x flags */
    GLbitfield TexturesUsed[MAX_TEXTURE_UNITS];  /**< TEXTURE_x_BIT bitmask */
@@ -2540,9 +2565,10 @@ struct gl_extensions
    GLboolean EXT_copy_texture;
    GLboolean EXT_depth_bounds_test;
    GLboolean EXT_draw_range_elements;
-   GLboolean EXT_framebuffer_object;
    GLboolean EXT_fog_coord;
    GLboolean EXT_framebuffer_blit;
+   GLboolean EXT_framebuffer_multisample;
+   GLboolean EXT_framebuffer_object;
    GLboolean EXT_gpu_program_parameters;
    GLboolean EXT_histogram;
    GLboolean EXT_multi_draw_arrays;

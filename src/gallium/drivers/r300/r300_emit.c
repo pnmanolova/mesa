@@ -129,7 +129,9 @@ static const float * get_shader_constant(
     struct rc_constant * constant,
     struct r300_constant_buffer * externals)
 {
-    static const float zero[4] = { 0.0, 0.0, 0.0, 0.0 };
+    static float vec[4] = { 0.0, 0.0, 0.0, 1.0 };
+    struct pipe_texture *tex;
+
     switch(constant->Type) {
         case RC_CONSTANT_EXTERNAL:
             return externals->constants[constant->u.External];
@@ -137,11 +139,31 @@ static const float * get_shader_constant(
         case RC_CONSTANT_IMMEDIATE:
             return constant->u.Immediate;
 
+        case RC_CONSTANT_STATE:
+            switch (constant->u.State[0]) {
+                /* Factor for converting rectangle coords to
+                 * normalized coords. Should only show up on non-r500. */
+                case RC_STATE_R300_TEXRECT_FACTOR:
+                    tex = &r300->textures[constant->u.State[1]]->tex;
+                    vec[0] = 1.0 / tex->width0;
+                    vec[1] = 1.0 / tex->height0;
+                    break;
+
+                default:
+                    debug_printf("r300: Implementation error: "
+                        "Unknown RC_CONSTANT type %d\n", constant->u.State[0]);
+            }
+            break;
+
         default:
-            debug_printf("r300: Implementation error: Unhandled constant type %i\n",
-                constant->Type);
-            return zero;
+            debug_printf("r300: Implementation error: "
+                "Unhandled constant type %d\n", constant->Type);
     }
+
+    /* This should either be (0, 0, 0, 1), which should be a relatively safe
+     * RGBA or STRQ value, or it could be one of the RC_CONSTANT_STATE
+     * state factors. */
+    return vec;
 }
 
 /* Convert a normal single-precision float into the 7.16 format
@@ -561,6 +583,8 @@ void r300_emit_texture(struct r300_context* r300,
                        unsigned offset)
 {
     uint32_t filter0 = sampler->filter0;
+    uint32_t format0 = tex->state.format0;
+    unsigned min_level, max_level;
     CS_LOCALS(r300);
 
     /* to emulate 1D textures through 2D ones correctly */
@@ -569,13 +593,20 @@ void r300_emit_texture(struct r300_context* r300,
         filter0 |= R300_TX_WRAP_T(R300_TX_CLAMP_TO_EDGE);
     }
 
+    /* determine min/max levels */
+    /* the MAX_MIP level is the largest (finest) one */
+    max_level = MIN2(sampler->max_lod, tex->tex.last_level);
+    min_level = MIN2(sampler->min_lod, max_level);
+    format0 |= R300_TX_NUM_LEVELS(max_level);
+    filter0 |= R300_TX_MAX_MIP_LEVEL(min_level);
+
     BEGIN_CS(16);
     OUT_CS_REG(R300_TX_FILTER0_0 + (offset * 4), filter0 |
         (offset << 28));
     OUT_CS_REG(R300_TX_FILTER1_0 + (offset * 4), sampler->filter1);
     OUT_CS_REG(R300_TX_BORDER_COLOR_0 + (offset * 4), sampler->border_color);
 
-    OUT_CS_REG(R300_TX_FORMAT0_0 + (offset * 4), tex->state.format0);
+    OUT_CS_REG(R300_TX_FORMAT0_0 + (offset * 4), format0);
     OUT_CS_REG(R300_TX_FORMAT1_0 + (offset * 4), tex->state.format1);
     OUT_CS_REG(R300_TX_FORMAT2_0 + (offset * 4), tex->state.format2);
     OUT_CS_REG_SEQ(R300_TX_OFFSET_0 + (offset * 4), 1);
@@ -690,12 +721,22 @@ void r300_emit_vertex_format_state(struct r300_context* r300)
     END_CS;
 }
 
+
 void r300_emit_vertex_program_code(struct r300_context* r300,
                                    struct r300_vertex_program_code* code)
 {
     int i;
     struct r300_screen* r300screen = r300_screen(r300->context.screen);
     unsigned instruction_count = code->length / 4;
+
+    int vtx_mem_size = r300screen->caps->is_r500 ? 128 : 72;
+    int input_count = MAX2(util_bitcount(code->InputsRead), 1);
+    int output_count = MAX2(util_bitcount(code->OutputsWritten), 1);
+    int temp_count = MAX2(code->num_temporaries, 1);
+    int pvs_num_slots = MIN3(vtx_mem_size / input_count,
+                             vtx_mem_size / output_count, 10);
+    int pvs_num_controllers = MIN2(vtx_mem_size / temp_count, 6);
+
     CS_LOCALS(r300);
 
     if (!r300screen->caps->has_tcl) {
@@ -708,8 +749,7 @@ void r300_emit_vertex_program_code(struct r300_context* r300,
     /* R300_VAP_PVS_CODE_CNTL_0
      * R300_VAP_PVS_CONST_CNTL
      * R300_VAP_PVS_CODE_CNTL_1
-     * See the r5xx docs for instructions on how to use these.
-     * XXX these could be optimized to select better values... */
+     * See the r5xx docs for instructions on how to use these. */
     OUT_CS_REG_SEQ(R300_VAP_PVS_CODE_CNTL_0, 3);
     OUT_CS(R300_PVS_FIRST_INST(0) |
             R300_PVS_XYZW_VALID_INST(instruction_count - 1) |
@@ -722,10 +762,11 @@ void r300_emit_vertex_program_code(struct r300_context* r300,
     for (i = 0; i < code->length; i++)
         OUT_CS(code->body.d[i]);
 
-    OUT_CS_REG(R300_VAP_CNTL, R300_PVS_NUM_SLOTS(10) |
-            R300_PVS_NUM_CNTLRS(5) |
+    OUT_CS_REG(R300_VAP_CNTL, R300_PVS_NUM_SLOTS(pvs_num_slots) |
+            R300_PVS_NUM_CNTLRS(pvs_num_controllers) |
             R300_PVS_NUM_FPUS(r300screen->caps->num_vert_fpus) |
-            R300_PVS_VF_MAX_VTX_NUM(12));
+            R300_PVS_VF_MAX_VTX_NUM(12) |
+            (r300screen->caps->is_r500 ? R500_TCL_STATE_OPTIMIZATION : 0));
     END_CS;
 }
 
@@ -790,13 +831,22 @@ void r300_emit_viewport_state(struct r300_context* r300,
     END_CS;
 }
 
+void r300_emit_texture_count(struct r300_context* r300)
+{
+    CS_LOCALS(r300);
+
+    BEGIN_CS(2);
+    OUT_CS_REG(R300_TX_ENABLE, (1 << r300->texture_count) - 1);
+    END_CS;
+
+}
+
 void r300_flush_textures(struct r300_context* r300)
 {
     CS_LOCALS(r300);
 
-    BEGIN_CS(4);
+    BEGIN_CS(2);
     OUT_CS_REG(R300_TX_INVALTAGS, 0);
-    OUT_CS_REG(R300_TX_ENABLE, (1 << r300->texture_count) - 1);
     END_CS;
 }
 
@@ -950,6 +1000,8 @@ validate:
     /* Samplers and textures are tracked separately but emitted together. */
     if (r300->dirty_state &
             (R300_ANY_NEW_SAMPLERS | R300_ANY_NEW_TEXTURES)) {
+        r300_emit_texture_count(r300);
+
         for (i = 0; i < MIN2(r300->sampler_count, r300->texture_count); i++) {
   	    if (r300->dirty_state &
 		((R300_NEW_SAMPLER << i) | (R300_NEW_TEXTURE << i))) {
