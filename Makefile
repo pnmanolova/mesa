@@ -5,7 +5,15 @@ TOP = .
 SUBDIRS = src
 
 
+# The git command below generates an empty string when we're not
+# building in a GIT tree (i.e., building from a release tarball).
 default: $(TOP)/configs/current
+	@touch src/mesa/main/git_sha1.h
+	@if which git > /dev/null; then \
+	    git log -n 1 --oneline |\
+		sed 's/^\([^ ]*\) .*/#define MESA_GIT_SHA1 "\1"/' \
+		> src/mesa/main/git_sha1.h; \
+	fi
 	@for dir in $(SUBDIRS) ; do \
 		if [ -d $$dir ] ; then \
 			(cd $$dir && $(MAKE)) || exit 1 ; \
