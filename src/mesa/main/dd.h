@@ -517,6 +517,9 @@ struct dd_function_table {
    /** Called to allocate a new texture image object */
    struct gl_texture_image * (*NewTextureImage)( struct gl_context *ctx );
 
+   /** Called to free a texture image object returned by NewTextureImage() */
+   void (*DeleteTextureImage)(struct gl_context *ctx, struct gl_texture_image *);
+
    /** Called to allocate memory for a single texture image */
    GLboolean (*AllocTextureImageBuffer)(struct gl_context *ctx,
                                         struct gl_texture_image *texImage,
