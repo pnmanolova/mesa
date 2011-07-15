@@ -1412,7 +1412,7 @@ void evergreenSetTexBuffer(__DRIcontext *pDRICtx, GLint target, GLint glx_textur
 	_mesa_init_teximage_fields(radeon->glCtx, target, texImage,
 				   rb->base.Width, rb->base.Height, 1, 0,
 				   rb->cpp, texFormat);
-	texImage->RowStride = rb->pitch / rb->cpp;
+	rImage->RowStride = rb->pitch / rb->cpp;
 
 	pitch_val = (pitch_val + R700_TEXEL_PITCH_ALIGNMENT_MASK)
 		& ~R700_TEXEL_PITCH_ALIGNMENT_MASK;
@@ -1665,7 +1665,9 @@ void evergreenInitTextureFuncs(radeonContextPtr radeon, struct dd_function_table
 	 * since _mesa_init_driver_functions() was already called.
 	 */
 	functions->NewTextureImage = radeonNewTextureImage;
-	functions->FreeTexImageData = radeonFreeTexImageData;
+	functions->DeleteTextureImage = radeonDeleteTextureImage;
+	functions->AllocTextureImageBuffer = radeonAllocTextureImageBuffer;
+	functions->FreeTextureImageBuffer = radeonFreeTextureImageBuffer;
 	functions->MapTexture = radeonMapTexture;
 	functions->UnmapTexture = radeonUnmapTexture;
 
@@ -1676,8 +1678,6 @@ void evergreenInitTextureFuncs(radeonContextPtr radeon, struct dd_function_table
 	functions->TexSubImage1D = radeonTexSubImage1D;
 	functions->TexSubImage2D = radeonTexSubImage2D;
 	functions->TexSubImage3D = radeonTexSubImage3D;
-	functions->GetTexImage = radeonGetTexImage;
-	functions->GetCompressedTexImage = radeonGetCompressedTexImage;
 	functions->NewTextureObject = evergreenNewTextureObject;
 	functions->DeleteTexture = evergreenDeleteTexture;
 	functions->IsTextureResident = driIsTextureResident;

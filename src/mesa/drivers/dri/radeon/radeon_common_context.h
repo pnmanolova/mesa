@@ -7,6 +7,7 @@
 #include "texmem.h"
 #include "tnl/t_context.h"
 #include "main/colormac.h"
+#include "swrast/s_context.h"
 
 #include "radeon_debug.h"
 #include "radeon_screen.h"
@@ -174,8 +175,16 @@ struct radeon_hw_state {
 /* Texture related */
 typedef struct _radeon_texture_image radeon_texture_image;
 
+/**
+ * Subclass of swrast_texture_image because we may rely on swrast fallback
+ * rendering.
+ */
 struct _radeon_texture_image {
-	struct gl_texture_image base;
+	struct swrast_texture_image base;
+
+	GLubyte *Data;
+	GLint RowStride;
+	GLuint *ImageOffsets;
 
 	/**
 	 * If mt != 0, the image is stored in hardware format in the

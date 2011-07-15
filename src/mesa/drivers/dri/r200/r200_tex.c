@@ -512,8 +512,6 @@ void r200InitTextureFuncs( radeonContextPtr radeon, struct dd_function_table *fu
 #else
    functions->TexSubImage3D		= _mesa_store_texsubimage3d;
 #endif
-   functions->GetTexImage               = radeonGetTexImage;
-   functions->GetCompressedTexImage     = radeonGetCompressedTexImage;
    functions->NewTextureObject		= r200NewTextureObject;
    //   functions->BindTexture		= r200BindTexture;
    functions->DeleteTexture		= r200DeleteTexture;

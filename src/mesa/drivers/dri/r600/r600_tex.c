@@ -447,7 +447,12 @@ void r600InitTextureFuncs(radeonContextPtr radeon, struct dd_function_table *fun
 	 * since _mesa_init_driver_functions() was already called.
 	 */
 	functions->NewTextureImage = radeonNewTextureImage;
-	functions->FreeTexImageData = radeonFreeTexImageData;
+	functions->DeleteTextureImage = radeonDeleteTextureImage;
+	functions->AllocTextureImageBuffer = radeonAllocTextureImageBuffer;
+	functions->FreeTextureImageBuffer = radeonFreeTextureImageBuffer;
+        functions->MapTextureImage = radeonMapTextureImage;
+        functions->UnmapTextureImage = radeonUnmapTextureImage;
+
 	functions->MapTexture = radeonMapTexture;
 	functions->UnmapTexture = radeonUnmapTexture;
 
@@ -458,8 +463,6 @@ void r600InitTextureFuncs(radeonContextPtr radeon, struct dd_function_table *fun
 	functions->TexSubImage1D = radeonTexSubImage1D;
 	functions->TexSubImage2D = radeonTexSubImage2D;
 	functions->TexSubImage3D = radeonTexSubImage3D;
-	functions->GetTexImage = radeonGetTexImage;
-	functions->GetCompressedTexImage = radeonGetCompressedTexImage;
 	functions->NewTextureObject = r600NewTextureObject;
 	functions->DeleteTexture = r600DeleteTexture;
 	functions->IsTextureResident = driIsTextureResident;

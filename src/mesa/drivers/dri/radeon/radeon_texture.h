@@ -37,7 +37,33 @@
 void copy_rows(void* dst, GLuint dststride, const void* src, GLuint srcstride,
 	GLuint numrows, GLuint rowsize);
 struct gl_texture_image *radeonNewTextureImage(struct gl_context *ctx);
-void radeonFreeTexImageData(struct gl_context *ctx, struct gl_texture_image *timage);
+
+void
+radeonDeleteTextureImage(struct gl_context *ctx, 
+			 struct gl_texture_image *texImage);
+
+GLboolean
+radeonAllocTextureImageBuffer(struct gl_context *ctx,
+			      struct gl_texture_image *texImage,
+			      gl_format format, GLsizei width,
+			      GLsizei height, GLsizei depth);
+
+void
+radeonFreeTextureImageBuffer(struct gl_context *ctx,
+                             struct gl_texture_image *timage);
+
+void
+radeonMapTextureImage(struct gl_context *ctx,
+		      struct gl_texture_image *texImage,
+		      GLuint slice,
+		      GLuint x, GLuint y, GLuint w, GLuint h,
+		      GLbitfield mode,
+		      GLubyte **mapOut, GLint *rowStrideOut);
+
+void
+radeonUnmapTextureImage(struct gl_context *ctx,
+                        struct gl_texture_image *texImage,
+                        GLuint slice);
 
 void radeon_teximage_map(radeon_texture_image *image, GLboolean write_enable);
 void radeon_teximage_unmap(radeon_texture_image *image);

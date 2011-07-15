@@ -74,36 +74,23 @@ void copy_rows(void* dst, GLuint dststride, const void* src, GLuint srcstride,
 	}
 }
 
-/* textures */
-/**
- * Allocate an empty texture image object.
- */
-struct gl_texture_image *radeonNewTextureImage(struct gl_context *ctx)
+
+static void map_override(struct gl_context *ctx, radeonTexObj *t)
 {
-	return CALLOC(sizeof(radeon_texture_image));
+	radeon_texture_image *img = get_radeon_texture_image(t->base.Image[0][0]);
+
+	radeon_bo_map(t->bo, GL_FALSE);
+
+	img->Data = t->bo->ptr;
 }
 
-/**
- * Free memory associated with this texture image.
- */
-void radeonFreeTexImageData(struct gl_context *ctx, struct gl_texture_image *timage)
+static void unmap_override(struct gl_context *ctx, radeonTexObj *t)
 {
-	radeon_texture_image* image = get_radeon_texture_image(timage);
+	radeon_texture_image *img = get_radeon_texture_image(t->base.Image[0][0]);
 
-	if (image->mt) {
-		radeon_miptree_unreference(&image->mt);
-		assert(!image->base.Data);
-	} else {
-		_mesa_free_texture_image_data(ctx, timage);
-	}
-	if (image->bo) {
-		radeon_bo_unref(image->bo);
-		image->bo = NULL;
-	}
-	if (timage->Data) {
-		_mesa_free_texmemory(timage->Data);
-		timage->Data = NULL;
-	}
+	radeon_bo_unmap(t->bo);
+
+	img->Data = NULL;
 }
 
 /* Set Data pointer and additional data for mapped texture image */
@@ -120,9 +107,133 @@ static void teximage_set_map_data(radeon_texture_image *image)
 
 	lvl = &image->mt->levels[image->mtlevel];
 
-	image->base.Data = image->mt->bo->ptr + lvl->faces[image->mtface].offset;
-	image->base.RowStride = lvl->rowstride / _mesa_get_format_bytes(image->base.TexFormat);
+	image->Data = image->mt->bo->ptr + lvl->faces[image->mtface].offset;
+	image->RowStride = lvl->rowstride / _mesa_get_format_bytes(image->base.Base.TexFormat);
 }
+
+
+/**
+ * Allocate an empty texture image object.
+ */
+struct gl_texture_image *radeonNewTextureImage(struct gl_context *ctx)
+{
+
+	return CALLOC(sizeof(radeon_texture_image));
+}
+
+/**
+ * Allocate an empty texture image object.
+ */
+void
+radeonDeleteTextureImage(struct gl_context *ctx, 
+			 struct gl_texture_image *texImage)
+{
+	FREE(texImage);
+}
+
+GLboolean
+radeonAllocTextureImageBuffer(struct gl_context *ctx,
+			      struct gl_texture_image *texImage,
+			      gl_format format, GLsizei width,
+			      GLsizei height, GLsizei depth)
+{
+	radeon_texture_image *rImage = get_radeon_texture_image(texImage);
+	GLuint bytes = _mesa_format_image_size(format, width, height, depth);
+
+	assert(!rImage->ImageOffsets);
+	rImage->ImageOffsets = (GLuint *) malloc(depth * sizeof(GLuint));
+
+	assert(!rImage->Data);
+	rImage->Data = _mesa_align_malloc(bytes, 512);
+
+	return rImage->Data != NULL;
+}
+
+
+/**
+ * Free memory associated with this texture image.
+ */
+void
+radeonFreeTextureImageBuffer(struct gl_context *ctx,
+			     struct gl_texture_image *timage)
+{
+	radeon_texture_image* image = get_radeon_texture_image(timage);
+
+	if (image->mt) {
+		radeon_miptree_unreference(&image->mt);
+		assert(!image->Data);
+	} else {
+		ctx->Driver.FreeTextureImageBuffer(ctx, timage);
+	}
+	if (image->bo) {
+		radeon_bo_unref(image->bo);
+		image->bo = NULL;
+	}
+	if (image->Data) {
+		_mesa_align_free(image->Data);
+		image->Data = NULL;
+	}
+	if (image->ImageOffsets) {
+		FREE(image->ImageOffsets);
+		image->ImageOffsets = NULL;
+	}
+}
+
+
+void
+radeonMapTextureImage(struct gl_context *ctx,
+		      struct gl_texture_image *texImage,
+		      GLuint slice,
+		      GLuint x, GLuint y, GLuint w, GLuint h,
+		      GLbitfield mode,
+		      GLubyte **mapOut, GLint *rowStrideOut)
+{
+	struct gl_texture_object *texObj = texImage->TexObject;
+	radeonTexObj *t = radeon_tex_obj(texObj);
+	radeon_texture_image *rImage = get_radeon_texture_image(texImage);
+
+	if (!radeon_validate_texture_miptree(ctx, texImage->TexObject)) {
+		radeon_error("Failed to validate miptree in "
+			     "radeonMapTextureImage\n");
+		*mapOut = NULL;
+		return;
+	}
+
+	if (t->image_override && t->bo) {
+		radeon_error("Missing miptree in radeonMapTextureImage\n");
+		map_override(ctx, t);
+	}
+
+	/* for r100 3D sw fallbacks don't have mt */
+	if (!t->mt) {
+		radeon_warning("No miptree in texture in "
+			       "radeonMapTextureImage\n");
+		*mapOut = NULL;
+		return;
+	}
+
+	radeon_bo_map(t->mt->bo, GL_FALSE);
+	teximage_set_map_data(rImage);
+	*mapOut = rImage->Data;
+	*rowStrideOut = rImage->RowStride;
+}
+
+
+void
+radeonUnmapTextureImage(struct gl_context *ctx,
+			struct gl_texture_image *texImage,
+			GLuint slice)
+{
+	radeon_texture_image *rImage = get_radeon_texture_image(texImage);
+
+	if (rImage->mt) {
+		assert(rImage->Data);
+
+		rImage->Data = 0;
+		radeon_bo_unmap(rImage->mt->bo);
+	}
+}
+
 
 
 /**
@@ -135,7 +246,7 @@ void radeon_teximage_map(radeon_texture_image *image, GLboolean write_enable)
 			__func__, image,
 			write_enable ? "true": "false");
 	if (image->mt) {
-		assert(!image->base.Data);
+		assert(!image->Data);
 
 		radeon_bo_map(image->mt->bo, write_enable);
 		teximage_set_map_data(image);
@@ -149,30 +260,13 @@ void radeon_teximage_unmap(radeon_texture_image *image)
 			"%s(img %p)\n",
 			__func__, image);
 	if (image->mt) {
-		assert(image->base.Data);
+		assert(image->Data);
 
-		image->base.Data = 0;
+		image->Data = 0;
 		radeon_bo_unmap(image->mt->bo);
 	}
 }
 
-static void map_override(struct gl_context *ctx, radeonTexObj *t)
-{
-	radeon_texture_image *img = get_radeon_texture_image(t->base.Image[0][0]);
-
-	radeon_bo_map(t->bo, GL_FALSE);
-
-	img->base.Data = t->bo->ptr;
-}
-
-static void unmap_override(struct gl_context *ctx, radeonTexObj *t)
-{
-	radeon_texture_image *img = get_radeon_texture_image(t->base.Image[0][0]);
-
-	radeon_bo_unmap(t->bo);
-
-	img->base.Data = NULL;
-}
 
 /**
  * Map a validated texture for reading during software rendering.
@@ -231,8 +325,12 @@ void radeonUnmapTexture(struct gl_context *ctx, struct gl_texture_object *texObj
 	  return;
 
 	for(face = 0; face < t->mt->faces; ++face) {
-		for(level = t->minLod; level <= t->maxLod; ++level)
-			texObj->Image[face][level]->Data = 0;
+		for(level = t->minLod; level <= t->maxLod; ++level) {
+			radeon_texture_image *rimage =
+				get_radeon_texture_image(texObj->Image[face][level]);
+			rimage->Data = NULL;
+			
+		}
 	}
 	radeon_bo_unmap(t->mt->bo);
 }
@@ -716,7 +814,7 @@ static void radeon_store_teximage(struct gl_context* ctx, int dims,
 			return;
 		}
 	} else {
-		dstImageOffsets = texImage->ImageOffsets;
+		dstImageOffsets = image->ImageOffsets;
 	}
 
 	radeon_teximage_map(image, GL_TRUE);
@@ -731,13 +829,13 @@ static void radeon_store_teximage(struct gl_context* ctx, int dims,
 			dstRowStride = _mesa_format_row_stride(texImage->TexFormat, texImage->Width);
 			img_start = _mesa_compressed_image_address(xoffset, yoffset, 0,
 									texImage->TexFormat,
-									texImage->Width, texImage->Data);
+									texImage->Width, image->Data);
 		}
 		else {
 			uint32_t offset;
 			offset = dstRowStride / _mesa_get_format_bytes(texImage->TexFormat) * yoffset / block_height + xoffset / block_width;
 			offset *= _mesa_get_format_bytes(texImage->TexFormat);
-			img_start = texImage->Data + offset;
+			img_start = image->Data + offset;
 		}
 		srcRowStride = _mesa_format_row_stride(texImage->TexFormat, width);
 		bytesPerRow = srcRowStride;
@@ -747,7 +845,7 @@ static void radeon_store_teximage(struct gl_context* ctx, int dims,
 	}
 	else {
 		if (!_mesa_texstore(ctx, dims, texImage->_BaseFormat,
-					texImage->TexFormat, texImage->Data,
+					texImage->TexFormat, image->Data,
 					xoffset, yoffset, zoffset,
 					dstRowStride,
 					dstImageOffsets,
@@ -803,7 +901,7 @@ static void radeon_teximage(
 	t->validated = GL_FALSE;
 
 	/* Mesa core only clears texImage->Data but not image->mt */
-	radeonFreeTexImageData(ctx, texImage);
+	radeonFreeTextureImageBuffer(ctx, texImage);
 
 	if (!t->bo) {
 		teximage_assign_miptree(rmesa, texObj, texImage, face, level);
@@ -812,11 +910,11 @@ static void radeon_teximage(
 								texImage->Width,
 								texImage->Height,
 								texImage->Depth);
-			texImage->Data = _mesa_alloc_texmemory(size);
+			image->Data = _mesa_align_malloc(size, 512);
 			radeon_print(RADEON_TEXTURE, RADEON_VERBOSE,
 					"%s %dd: texObj %p, texImage %p, "
 					" no miptree assigned, using local memory %p\n",
-					__func__, dims, texObj, texImage, texImage->Data);
+					__func__, dims, texObj, texImage, image->Data);
 		}
 	}
 
@@ -1036,14 +1134,14 @@ void radeon_image_target_texture_2d(struct gl_context *ctx, GLenum target,
 	if (image == NULL)
 		return;
 
-	radeonFreeTexImageData(ctx, texImage);
+	radeonFreeTextureImageBuffer(ctx, texImage);
 
 	texImage->Width = image->width;
 	texImage->Height = image->height;
 	texImage->Depth = 1;
 	texImage->_BaseFormat = GL_RGBA;
 	texImage->TexFormat = image->format;
-	texImage->RowStride = image->pitch;
+	radeonImage->RowStride = image->pitch;
 	texImage->InternalFormat = image->internal_format;
 
 	if(t->mt)
@@ -1076,7 +1174,7 @@ void radeon_image_target_texture_2d(struct gl_context *ctx, GLenum target,
 	radeon_bo_ref(image->bo);
 	t->mt->bo = image->bo;
 
-	if (!radeon_miptree_matches_image(t->mt, &radeonImage->base,
+	if (!radeon_miptree_matches_image(t->mt, &radeonImage->base.Base,
 					  radeonImage->mtface, 0))
 		fprintf(stderr, "miptree doesn't match image\n");
 }
