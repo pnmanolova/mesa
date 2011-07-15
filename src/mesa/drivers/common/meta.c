@@ -2825,8 +2825,8 @@ copy_tex_image(struct gl_context *ctx, GLuint dims, GLenum target, GLint level,
 			  format, type, &ctx->Pack, buf);
    _mesa_meta_end(ctx);
 
-   if (ctx->Driver.FreeTexImageData) {
-      ctx->Driver.FreeTexImageData(ctx, texImage);
+   if (ctx->Driver.FreeTextureImageBuffer) {
+      ctx->Driver.FreeTextureImageBuffer(ctx, texImage);
    }
 
    /* The texture's format was already chosen in _mesa_CopyTexImage() */

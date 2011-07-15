@@ -514,15 +514,18 @@ struct dd_function_table {
     */
    void (*DeleteTexture)( struct gl_context *ctx, struct gl_texture_object *tObj );
 
-   /**
-    * Called to allocate a new texture image object.
-    */
+   /** Called to allocate a new texture image object */
    struct gl_texture_image * (*NewTextureImage)( struct gl_context *ctx );
 
-   /** 
-    * Called to free tImage->Data.
-    */
-   void (*FreeTexImageData)( struct gl_context *ctx, struct gl_texture_image *tImage );
+   /** Called to allocate memory for a single texture image */
+   GLboolean (*AllocTextureImageBuffer)(struct gl_context *ctx,
+                                        struct gl_texture_image *texImage,
+                                        gl_format format, GLsizei width,
+                                        GLsizei height, GLsizei depth);
+
+   /** Called to free memory allocated by AllocTexImageBuffer() */
+   void (*FreeTextureImageBuffer)(struct gl_context *ctx,
+                                  struct gl_texture_image *texImage);
 
    /** Map texture image data into user space */
    void (*MapTexture)( struct gl_context *ctx, struct gl_texture_object *tObj );

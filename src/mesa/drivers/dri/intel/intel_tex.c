@@ -45,7 +45,7 @@ intelDeleteTextureObject(struct gl_context *ctx,
 
 
 static void
-intelFreeTextureImageData(struct gl_context * ctx, struct gl_texture_image *texImage)
+intelFreeTextureImageBuffer(struct gl_context *ctx, struct gl_texture_image *texImage)
 {
    struct intel_context *intel = intel_context(ctx);
    struct intel_texture_image *intelImage = intel_texture_image(texImage);
@@ -126,5 +126,5 @@ intelInitTextureFuncs(struct dd_function_table *functions)
    functions->NewTextureObject = intelNewTextureObject;
    functions->NewTextureImage = intelNewTextureImage;
    functions->DeleteTexture = intelDeleteTextureObject;
-   functions->FreeTexImageData = intelFreeTextureImageData;
+   functions->FreeTextureImageBuffer = intelFreeTextureImageBuffer;
 }
