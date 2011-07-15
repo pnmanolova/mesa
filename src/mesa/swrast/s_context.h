@@ -109,6 +109,60 @@ typedef void (*validate_texture_image_func)(struct gl_context *ctx,
 			        _NEW_DEPTH)
 
 
+struct swrast_texture_image;
+
+typedef void (*SwrastFetchTexelFunc)(const struct swrast_texture_image *texImg,
+                                     GLint col, GLint row, GLint img,
+                                     GLfloat *texelOut);
+
+typedef void (*SwrastStoreTexelFunc)(struct swrast_texture_image *texImg,
+                                     GLint col, GLint row, GLint img,
+                                     const void *texel);
+
+extern SwrastFetchTexelFunc
+_swrast_get_texel_fetch_func(gl_format format);
+
+extern SwrastStoreTexelFunc
+_swrast_get_texel_store_func(gl_format format);
+
+
+
+/**
+ * Subclass of gl_texture_image.
+ * We need extra fields/info to keep tracking of mapped texture buffers,
+ * strides and Fetch/Store functions.
+ */
+struct swrast_texture_image
+{
+   struct gl_texture_image Base;
+
+   GLubyte *Data;    /**< The actual texture data in malloc'd memory */
+
+   GLint TexelSize;  /**< bytes per texel block */
+   SwrastFetchTexelFunc Fetch;
+   SwrastStoreTexelFunc Store;
+
+   /** These fields only valid when texture memory is mapped */
+   GLubyte **SliceMaps;  /**< points to OneMap or a malloc'd array */
+   GLint RowStride;  /**< bytes per row of blocks */
+};
+
+
+/** cast wrapper */
+static INLINE struct swrast_texture_image *
+swrast_texture_image(struct gl_texture_image *img)
+{
+   return (struct swrast_texture_image *) img;
+}
+
+/** cast wrapper */
+static INLINE const struct swrast_texture_image *
+swrast_texture_image_const(const struct gl_texture_image *img)
+{
+   return (const struct swrast_texture_image *) img;
+}
+
+
 /**
  * \struct SWcontext
  * \brief  Per-context state that's private to the software rasterizer module.
@@ -252,6 +306,14 @@ CONST_SWRAST_CONTEXT(const struct gl_context *ctx)
 {
    return (const SWcontext *) ctx->swrast_context;
 }
+
+
+
+extern void
+_swrast_map_textures( struct gl_context *ctx );
+
+extern void
+_swrast_unmap_textures( struct gl_context *ctx );
 
 
 /**

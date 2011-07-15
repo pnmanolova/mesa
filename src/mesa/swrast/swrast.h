@@ -216,6 +216,47 @@ _swrast_finish_render_texture(struct gl_context *ctx,
                               struct gl_renderbuffer_attachment *att);
 
 
+extern void
+_swrast_map_teximage(struct gl_context *ctx,
+                     struct gl_texture_image *texImage,
+                     GLuint slice,
+                     GLuint x, GLuint y, GLuint w, GLuint h,
+                     GLbitfield mode,
+                     GLubyte **mapOut,
+                     GLint *rowStrideOut);
+
+extern void
+_swrast_unmap_teximage(struct gl_context *ctx,
+                       struct gl_texture_image *texImage,
+                       GLuint slice);
+
+
+extern struct gl_texture_image *
+_swrast_new_texture_image( struct gl_context *ctx );
+
+extern void
+_swrast_delete_texture_image(struct gl_context *ctx,
+                             struct gl_texture_image *texImage);
+
+extern GLboolean
+_swrast_alloc_texture_image_buffer(struct gl_context *ctx,
+                                   struct gl_texture_image *texImage,
+                                   gl_format format,
+                                   GLsizei width, GLsizei height, GLsizei depth);
+
+extern void
+_swrast_free_texture_image_buffer(struct gl_context *ctx,
+                                  struct gl_texture_image *texImage);
+
+
+extern void
+_swrast_map_texture(struct gl_context *ctx,
+                    struct gl_texture_object *texObj);
+
+extern void
+_swrast_unmap_texture(struct gl_context *ctx,
+                      struct gl_texture_object *texObj);
+
 
 /**
  * The driver interface for the software rasterizer.
