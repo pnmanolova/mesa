@@ -1279,6 +1279,8 @@ struct gl_texture_image
    GLboolean _IsPowerOfTwo;	/**< Are all dimensions powers of two? */
 
    struct gl_texture_object *TexObject;  /**< Pointer back to parent object */
+   GLuint Level;                /**< Which mipmap level am I? */
+   GLuint Face;                 /**< Which cube face am I? */
 
    FetchTexelFuncC FetchTexelc;	/**< GLchan texel fetch function pointer */
    FetchTexelFuncF FetchTexelf;	/**< Float texel fetch function pointer */
