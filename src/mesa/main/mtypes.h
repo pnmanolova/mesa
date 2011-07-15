@@ -1241,9 +1241,6 @@ struct gl_texture_image
    GLuint HeightLog2;		/**< = log2(Height2) */
    GLuint DepthLog2;		/**< = log2(Depth2) */
    GLuint MaxLog2;		/**< = MAX(WidthLog2, HeightLog2) */
-   GLfloat WidthScale;		/**< used for mipmap LOD computation */
-   GLfloat HeightScale;		/**< used for mipmap LOD computation */
-   GLfloat DepthScale;		/**< used for mipmap LOD computation */
    GLboolean IsClientData;	/**< Data owned by client? */
    GLboolean _IsPowerOfTwo;	/**< Are all dimensions powers of two? */
 

@@ -369,6 +369,18 @@ _swrast_alloc_texture_image_buffer(struct gl_context *ctx,
    assert(!swImage->Data);
    swImage->Data = _mesa_align_malloc(bytes, 512);
 
+   if (texImage->TexObject->Target == GL_TEXTURE_RECTANGLE_NV) {
+      /* scale = 1.0 since texture coords directly map to texels */
+      swImage->WidthScale = 1.0;
+      swImage->HeightScale = 1.0;
+      swImage->DepthScale = 1.0;
+   }
+   else {
+      swImage->WidthScale = (GLfloat) width;
+      swImage->HeightScale = (GLfloat) height;
+      swImage->DepthScale = (GLfloat) depth;
+   }
+
    return swImage->Data != NULL;
 }
 

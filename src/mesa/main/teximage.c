@@ -1108,19 +1108,6 @@ _mesa_init_teximage_fields(struct gl_context *ctx, GLenum target,
    else
       img->_IsPowerOfTwo = GL_FALSE;
 
-   /* Compute Width/Height/DepthScale for mipmap lod computation */
-   if (target == GL_TEXTURE_RECTANGLE_NV) {
-      /* scale = 1.0 since texture coords directly map to texels */
-      img->WidthScale = 1.0;
-      img->HeightScale = 1.0;
-      img->DepthScale = 1.0;
-   }
-   else {
-      img->WidthScale = (GLfloat) img->Width;
-      img->HeightScale = (GLfloat) img->Height;
-      img->DepthScale = (GLfloat) img->Depth;
-   }
-
    img->TexFormat = format;
 }
 

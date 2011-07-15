@@ -136,6 +136,9 @@ struct swrast_texture_image
 {
    struct gl_texture_image Base;
 
+   /** used for mipmap LOD computation */
+   GLfloat WidthScale, HeightScale, DepthScale;
+
    GLubyte *Data;    /**< The actual texture data in malloc'd memory */
 
    GLint TexelSize;  /**< bytes per texel block */

@@ -101,10 +101,10 @@ fetch_texel_deriv( struct gl_context *ctx, const GLfloat texcoord[4],
    const struct gl_texture_object *texObj = texUnit->_Current;
 
    if (texObj) {
-      const struct gl_texture_image *texImg =
-         texObj->Image[0][texObj->BaseLevel];
-      const GLfloat texW = (GLfloat) texImg->WidthScale;
-      const GLfloat texH = (GLfloat) texImg->HeightScale;
+      const struct swrast_texture_image *swImg =
+         swrast_texture_image_const(texObj->Image[0][texObj->BaseLevel]);
+      const GLfloat texW = swImg->WidthScale;
+      const GLfloat texH = swImg->HeightScale;
       GLfloat lambda;
       GLfloat rgba[4];
 
