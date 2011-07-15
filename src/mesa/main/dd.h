@@ -530,6 +530,20 @@ struct dd_function_table {
    void (*FreeTextureImageBuffer)(struct gl_context *ctx,
                                   struct gl_texture_image *texImage);
 
+   /** Map a slice of a texture image into user space.
+    * \param mode  bitmask of GL_MAP_READ_BIT, GL_MAP_WRITE_BIT.
+    */
+   void (*MapTextureImage)(struct gl_context *ctx,
+                           struct gl_texture_image *texImage,
+                           GLuint slice,
+                           GLuint x, GLuint y, GLuint w, GLuint h,
+                           GLbitfield mode,
+                           GLubyte **mapOut, GLint *rowStrideOut);
+ 
+   void (*UnmapTextureImage)(struct gl_context *ctx,
+                             struct gl_texture_image *texImage,
+                             GLuint slice);
+
    /** Map texture image data into user space */
    void (*MapTexture)( struct gl_context *ctx, struct gl_texture_object *tObj );
    /** Unmap texture images from user space */
