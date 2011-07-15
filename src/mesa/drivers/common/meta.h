@@ -114,5 +114,11 @@ _mesa_meta_CopyConvolutionFilter2D(struct gl_context *ctx, GLenum target,
                                    GLenum internalFormat, GLint x, GLint y,
                                    GLsizei width, GLsizei height);
 
+void
+_mesa_meta_decompress_texture_image(struct gl_context *ctx,
+                                    struct gl_texture_image *texImage,
+                                    GLuint slice,
+                                    GLenum destFormat, GLenum destType,
+                                    GLvoid *dest, GLint destRowLength);
 
 #endif /* META_H */
