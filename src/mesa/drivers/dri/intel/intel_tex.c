@@ -104,8 +104,6 @@ intelGenerateMipmap(struct gl_context *ctx, GLenum target,
                   intel_texture_image(texObj->Image[face][i]);
                if (!intelImage)
                   break;
-               intelImage->level = i;
-               intelImage->face = face;
                /* Unreference the miptree to signal that the new Data is a
                 * bare pointer from mesa.
                 */
