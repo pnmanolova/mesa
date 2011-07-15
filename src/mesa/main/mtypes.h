@@ -1242,7 +1242,6 @@ struct gl_texture_image
    GLuint DepthLog2;		/**< = log2(Depth2) */
    GLuint MaxLog2;		/**< = MAX(WidthLog2, HeightLog2) */
    GLboolean IsClientData;	/**< Data owned by client? */
-   GLboolean _IsPowerOfTwo;	/**< Are all dimensions powers of two? */
 
    struct gl_texture_object *TexObject;  /**< Pointer back to parent object */
    GLuint Level;                /**< Which mipmap level am I? */

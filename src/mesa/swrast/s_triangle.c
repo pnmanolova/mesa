@@ -1067,7 +1067,7 @@ _swrast_choose_triangle( struct gl_context *ctx )
              && texObj2D->Sampler.WrapS == GL_REPEAT
              && texObj2D->Sampler.WrapT == GL_REPEAT
              && texObj2D->_Swizzle == SWIZZLE_NOOP
-             && texImg->_IsPowerOfTwo
+             && swImg->_IsPowerOfTwo
              && texImg->Border == 0
              && texImg->Width == swImg->RowStride
              && (format == MESA_FORMAT_RGB888 || format == MESA_FORMAT_RGBA8888)

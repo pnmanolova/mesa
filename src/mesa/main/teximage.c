@@ -1101,13 +1101,6 @@ _mesa_init_teximage_fields(struct gl_context *ctx, GLenum target,
 
    img->MaxLog2 = MAX2(img->WidthLog2, img->HeightLog2);
 
-   if ((width == 1 || _mesa_is_pow_two(img->Width2)) &&
-       (height == 1 || _mesa_is_pow_two(img->Height2)) &&
-       (depth == 1 || _mesa_is_pow_two(img->Depth2)))
-      img->_IsPowerOfTwo = GL_TRUE;
-   else
-      img->_IsPowerOfTwo = GL_FALSE;
-
    img->TexFormat = format;
 }
 

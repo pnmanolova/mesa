@@ -94,6 +94,18 @@ _swrast_unmap_renderbuffer(struct gl_context *ctx,
 
 
 /**
+ * Are the dimensions of the texture image all powers of two?
+ */
+static GLboolean
+is_power_of_two_teximage(const struct gl_texture_image *texImage)
+{
+   return ((texImage->Width == 1 || _mesa_is_pow_two(texImage->Width2)) &&
+           (texImage->Height == 1 || _mesa_is_pow_two(texImage->Height2)) &&
+           (texImage->Depth == 1 || _mesa_is_pow_two(texImage->Depth2)));
+}
+
+
+/**
  * Error checking for debugging only.
  */
 static void
@@ -365,6 +377,13 @@ _swrast_alloc_texture_image_buffer(struct gl_context *ctx,
 {
    struct swrast_texture_image *swImage = swrast_texture_image(texImage);
    GLuint bytes = _mesa_format_image_size(format, width, height, depth);
+
+   /* This _should_ be true (revisit if these ever fail) */
+   assert(texImage->Width == width);
+   assert(texImage->Height == height);
+   assert(texImage->Depth == depth);
+
+   swImage->_IsPowerOfTwo = is_power_of_two_teximage(texImage);
 
    assert(!swImage->Data);
    swImage->Data = _mesa_align_malloc(bytes, 512);

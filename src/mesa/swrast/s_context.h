@@ -138,6 +138,7 @@ struct swrast_texture_image
 
    /** used for mipmap LOD computation */
    GLfloat WidthScale, HeightScale, DepthScale;
+   GLboolean _IsPowerOfTwo;  /**< Are all dimensions powers of two? */
 
    GLubyte *Data;    /**< The actual texture data in malloc'd memory */
 

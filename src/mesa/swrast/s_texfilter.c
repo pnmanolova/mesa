@@ -159,11 +159,12 @@ linear_texel_locations(GLenum wrapMode,
                        GLint size, GLfloat s,
                        GLint *i0, GLint *i1, GLfloat *weight)
 {
+   const struct swrast_texture_image *swImg = swrast_texture_image_const(img);
    GLfloat u;
    switch (wrapMode) {
    case GL_REPEAT:
       u = s * size - 0.5F;
-      if (img->_IsPowerOfTwo) {
+      if (swImg->_IsPowerOfTwo) {
          *i0 = IFLOOR(u) & (size - 1);
          *i1 = (*i0 + 1) & (size - 1);
       }
@@ -285,6 +286,7 @@ nearest_texel_location(GLenum wrapMode,
                        const struct gl_texture_image *img,
                        GLint size, GLfloat s)
 {
+   const struct swrast_texture_image *swImg = swrast_texture_image_const(img);
    GLint i;
 
    switch (wrapMode) {
@@ -292,7 +294,7 @@ nearest_texel_location(GLenum wrapMode,
       /* s limited to [0,1) */
       /* i limited to [0,size-1] */
       i = IFLOOR(s * size);
-      if (img->_IsPowerOfTwo)
+      if (swImg->_IsPowerOfTwo)
          i &= (size - 1);
       else
          i = REMAINDER(i, size);
@@ -1174,7 +1176,7 @@ sample_2d_linear_repeat(struct gl_context *ctx,
    ASSERT(tObj->Sampler.WrapT == GL_REPEAT);
    ASSERT(img->Border == 0);
    ASSERT(img->_BaseFormat != GL_COLOR_INDEX);
-   ASSERT(img->_IsPowerOfTwo);
+   ASSERT(swImg->_IsPowerOfTwo);
 
    linear_repeat_texel_location(width,  texcoord[0], &i0, &i1, &wi);
    linear_repeat_texel_location(height, texcoord[1], &j0, &j1, &wj);
@@ -1321,10 +1323,11 @@ sample_linear_2d(struct gl_context *ctx,
 {
    GLuint i;
    struct gl_texture_image *image = tObj->Image[0][tObj->BaseLevel];
+   const struct swrast_texture_image *swImg = swrast_texture_image_const(image);
    (void) lambda;
    if (tObj->Sampler.WrapS == GL_REPEAT &&
        tObj->Sampler.WrapT == GL_REPEAT &&
-       image->_IsPowerOfTwo &&
+       swImg->_IsPowerOfTwo &&
        image->Border == 0) {
       for (i = 0; i < n; i++) {
          sample_2d_linear_repeat(ctx, tObj, image, texcoords[i], rgba[i]);
@@ -1366,7 +1369,7 @@ opt_sample_rgb_2d(struct gl_context *ctx,
    ASSERT(tObj->Sampler.WrapT==GL_REPEAT);
    ASSERT(img->Border==0);
    ASSERT(img->TexFormat == MESA_FORMAT_RGB888);
-   ASSERT(img->_IsPowerOfTwo);
+   ASSERT(swImg->_IsPowerOfTwo);
 
    for (k=0; k<n; k++) {
       GLint i = IFLOOR(texcoords[k][0] * width) & colMask;
@@ -1409,7 +1412,7 @@ opt_sample_rgba_2d(struct gl_context *ctx,
    ASSERT(tObj->Sampler.WrapT==GL_REPEAT);
    ASSERT(img->Border==0);
    ASSERT(img->TexFormat == MESA_FORMAT_RGBA8888);
-   ASSERT(img->_IsPowerOfTwo);
+   ASSERT(swImg->_IsPowerOfTwo);
 
    for (i = 0; i < n; i++) {
       const GLint col = IFLOOR(texcoords[i][0] * width) & colMask;
@@ -1440,7 +1443,7 @@ sample_lambda_2d(struct gl_context *ctx,
       && (tObj->Sampler.WrapT == GL_REPEAT)
       && (tImg->Border == 0 && (tImg->Width == swImg->RowStride))
       && (tImg->_BaseFormat != GL_COLOR_INDEX)
-      && tImg->_IsPowerOfTwo;
+      && swImg->_IsPowerOfTwo;
 
    ASSERT(lambda != NULL);
    compute_min_mag_ranges(tObj, n, lambda,
@@ -3640,17 +3643,19 @@ _swrast_choose_texture_sample_func( struct gl_context *ctx,
          else {
             /* check for a few optimized cases */
             const struct gl_texture_image *img = t->Image[0][t->BaseLevel];
+            const struct swrast_texture_image *swImg =
+               swrast_texture_image_const(img);
             ASSERT(t->Sampler.MinFilter == GL_NEAREST);
             if (t->Sampler.WrapS == GL_REPEAT &&
                 t->Sampler.WrapT == GL_REPEAT &&
-                img->_IsPowerOfTwo &&
+                swImg->_IsPowerOfTwo &&
                 img->Border == 0 &&
                 img->TexFormat == MESA_FORMAT_RGB888) {
                return &opt_sample_rgb_2d;
             }
             else if (t->Sampler.WrapS == GL_REPEAT &&
                      t->Sampler.WrapT == GL_REPEAT &&
-                     img->_IsPowerOfTwo &&
+                     swImg->_IsPowerOfTwo &&
                      img->Border == 0 &&
                      img->TexFormat == MESA_FORMAT_RGBA8888) {
                return &opt_sample_rgba_2d;
