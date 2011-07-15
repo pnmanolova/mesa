@@ -43,7 +43,6 @@
 #include "mfeatures.h"
 #include "state.h"
 #include "texcompress.h"
-#include "texfetch.h"
 #include "teximage.h"
 #include "texstate.h"
 #include "texpal.h"
@@ -56,28 +55,6 @@
  * (such as glReadBuffer to make sure we read from the right renderbuffer).
  */
 #define NEW_COPY_TEX_STATE (_NEW_BUFFERS | _NEW_PIXEL)
-
-
-
-/**
- * We allocate texture memory on 512-byte boundaries so we can use MMX/SSE
- * elsewhere.
- */
-void *
-_mesa_alloc_texmemory(GLsizei bytes)
-{
-   return _mesa_align_malloc(bytes, 512);
-}
-
-
-/**
- * Free texture memory allocated with _mesa_alloc_texmemory()
- */
-void
-_mesa_free_texmemory(void *m)
-{
-   _mesa_align_free(m);
-}
 
 
 /**
@@ -597,34 +574,10 @@ _mesa_new_texture_image( struct gl_context *ctx )
 
 
 /**
- * Free texture image data.
- * This function is a fallback called via ctx->Driver.FreeTexImageData().
- *
- * \param texImage texture image.
- *
- * Free the texture image data if it's not marked as client data.
- */
-void
-_mesa_free_texture_image_data(struct gl_context *ctx,
-                              struct gl_texture_image *texImage)
-{
-   (void) ctx;
-
-   if (texImage->Data && !texImage->IsClientData) {
-      /* free the old texture data */
-      _mesa_free_texmemory(texImage->Data);
-   }
-
-   texImage->Data = NULL;
-}
-
-
-/**
- * Free texture image.
- *
- * \param texImage texture image.
- *
  * Free the texture image structure and the associated image data.
+ *
+ * Called via ctx->Driver.DeleteTextureImage() unless overriden by a device
+ * driver.
  */
 void
 _mesa_delete_texture_image(struct gl_context *ctx,
@@ -633,12 +586,8 @@ _mesa_delete_texture_image(struct gl_context *ctx,
    /* Free texImage->Data and/or any other driver-specific texture
     * image storage.
     */
-   ASSERT(ctx->Driver.FreeTexImageData);
-   ctx->Driver.FreeTexImageData( ctx, texImage );
-
-   ASSERT(texImage->Data == NULL);
-   if (texImage->ImageOffsets)
-      free(texImage->ImageOffsets);
+   ASSERT(ctx->Driver.FreeTextureImageBuffer);
+   ctx->Driver.FreeTextureImageBuffer( ctx, texImage );
    free(texImage);
 }
 
@@ -1083,21 +1032,13 @@ clear_teximage_fields(struct gl_texture_image *img)
    img->Width = 0;
    img->Height = 0;
    img->Depth = 0;
-   img->RowStride = 0;
-   if (img->ImageOffsets) {
-      free(img->ImageOffsets);
-      img->ImageOffsets = NULL;
-   }
    img->Width2 = 0;
    img->Height2 = 0;
    img->Depth2 = 0;
    img->WidthLog2 = 0;
    img->HeightLog2 = 0;
    img->DepthLog2 = 0;
-   img->Data = NULL;
    img->TexFormat = MESA_FORMAT_NONE;
-   img->FetchTexelc = NULL;
-   img->FetchTexelf = NULL;
 }
 
 
@@ -1124,8 +1065,6 @@ _mesa_init_teximage_fields(struct gl_context *ctx, GLenum target,
                            GLint border, GLenum internalFormat,
                            gl_format format)
 {
-   GLint i, dims;
-
    ASSERT(img);
    ASSERT(width >= 0);
    ASSERT(height >= 0);
@@ -1169,19 +1108,6 @@ _mesa_init_teximage_fields(struct gl_context *ctx, GLenum target,
    else
       img->_IsPowerOfTwo = GL_FALSE;
 
-   /* RowStride and ImageOffsets[] describe how to address texels in 'Data' */
-   img->RowStride = width;
-   /* Allocate the ImageOffsets array and initialize to typical values.
-    * We allocate the array for 1D/2D textures too in order to avoid special-
-    * case code in the texstore routines.
-    */
-   if (img->ImageOffsets)
-      free(img->ImageOffsets);
-   img->ImageOffsets = (GLuint *) malloc(depth * sizeof(GLuint));
-   for (i = 0; i < depth; i++) {
-      img->ImageOffsets[i] = i * width * height;
-   }
-
    /* Compute Width/Height/DepthScale for mipmap lod computation */
    if (target == GL_TEXTURE_RECTANGLE_NV) {
       /* scale = 1.0 since texture coords directly map to texels */
@@ -1196,10 +1122,6 @@ _mesa_init_teximage_fields(struct gl_context *ctx, GLenum target,
    }
 
    img->TexFormat = format;
-
-   dims = _mesa_get_texture_dimensions(target);
-
-   _mesa_set_fetch_functions(img, dims);
 }
 
 
@@ -1216,7 +1138,7 @@ void
 _mesa_clear_texture_image(struct gl_context *ctx,
                           struct gl_texture_image *texImage)
 {
-   ctx->Driver.FreeTexImageData(ctx, texImage);
+   ctx->Driver.FreeTextureImageBuffer(ctx, texImage);
    clear_teximage_fields(texImage);
 }
 
@@ -2461,11 +2383,8 @@ teximage(struct gl_context *ctx, GLuint dims,
          else {
             gl_format texFormat;
 
-            if (texImage->Data) {
-               ctx->Driver.FreeTexImageData( ctx, texImage );
-            }
+            ctx->Driver.FreeTextureImageBuffer(ctx, texImage);
 
-            ASSERT(texImage->Data == NULL);
             texFormat = _mesa_choose_texture_format(ctx, texObj, target, level,
                                                     internalFormat, format,
                                                     type);
@@ -2601,11 +2520,10 @@ _mesa_EGLImageTargetTexture2DOES (GLenum target, GLeglImageOES image)
    texImage = _mesa_get_tex_image(ctx, texObj, target, 0);
    if (!texImage) {
       _mesa_error(ctx, GL_OUT_OF_MEMORY, "glEGLImageTargetTexture2D");
-   } else {
-      if (texImage->Data)
-	 ctx->Driver.FreeTexImageData( ctx, texImage );
+   }
+   else {
+      ctx->Driver.FreeTextureImageBuffer( ctx, texImage );
 
-      ASSERT(texImage->Data == NULL);
       ctx->Driver.EGLImageTargetTexture2D(ctx, target,
 					  texObj, texImage, image);
 
@@ -2801,11 +2719,7 @@ copyteximage(struct gl_context *ctx, GLuint dims,
       else {
          gl_format texFormat;
 
-         if (texImage->Data) {
-            ctx->Driver.FreeTexImageData( ctx, texImage );
-         }
-
-         ASSERT(texImage->Data == NULL);
+         ctx->Driver.FreeTextureImageBuffer(ctx, texImage);
 
          texFormat = _mesa_choose_texture_format(ctx, texObj, target, level,
                                                  internalFormat, GL_NONE,
@@ -3352,10 +3266,8 @@ compressedteximage(struct gl_context *ctx, GLuint dims,
          else {
             gl_format texFormat;
 
-            if (texImage->Data) {
-               ctx->Driver.FreeTexImageData( ctx, texImage );
-            }
-            ASSERT(texImage->Data == NULL);
+            /* Free old texture image data */
+            ctx->Driver.FreeTextureImageBuffer(ctx, texImage);
 
             texFormat = _mesa_choose_texture_format(ctx, texObj, target, level,
                                                     internalFormat, GL_NONE,

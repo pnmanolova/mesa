@@ -1216,39 +1216,8 @@ typedef enum
 
 
 /**
- * Texel fetch function prototype.  We use texel fetch functions to
- * extract RGBA, color indexes and depth components out of 1D, 2D and 3D
- * texture images.  These functions help to isolate us from the gritty
- * details of all the various texture image encodings.
- * 
- * \param texImage texture image.
- * \param col texel column.
- * \param row texel row.
- * \param img texel image level/layer.
- * \param texelOut output texel (up to 4 GLchans)
- */
-typedef void (*FetchTexelFuncC)( const struct gl_texture_image *texImage,
-                                 GLint col, GLint row, GLint img,
-                                 GLchan *texelOut );
-
-/**
- * As above, but returns floats.
- * Used for depth component images and for upcoming signed/float
- * texture images.
- */
-typedef void (*FetchTexelFuncF)( const struct gl_texture_image *texImage,
-                                 GLint col, GLint row, GLint img,
-                                 GLfloat *texelOut );
-
-
-typedef void (*StoreTexelFunc)(struct gl_texture_image *texImage,
-                               GLint col, GLint row, GLint img,
-                               const void *texel);
-
-
-/**
  * Texture image state.  Describes the dimensions of a texture image,
- * the texel format and pointers to Texel Fetch functions.
+ * the texel format, etc.
  */
 struct gl_texture_image
 {
@@ -1282,20 +1251,7 @@ struct gl_texture_image
    GLuint Level;                /**< Which mipmap level am I? */
    GLuint Face;                 /**< Which cube face am I? */
 
-   FetchTexelFuncC FetchTexelc;	/**< GLchan texel fetch function pointer */
-   FetchTexelFuncF FetchTexelf;	/**< Float texel fetch function pointer */
-
-   GLuint RowStride;		/**< Padded width in units of texels */
-   GLuint *ImageOffsets;        /**< if 3D texture: array [Depth] of offsets to
-                                     each 2D slice in 'Data', in texels */
-   GLvoid *Data;		/**< Image data, accessed via FetchTexel() */
-
-   /**
-    * \name For device driver:
-    */
-   /*@{*/
    void *DriverData;		/**< Arbitrary device driver data */
-   /*@}*/
 };
 
 

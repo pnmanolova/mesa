@@ -127,10 +127,12 @@ _swrast_culltriangle( struct gl_context *ctx,
       ctx->Texture.Unit[0].CurrentTex[TEXTURE_2D_INDEX];		\
    const struct gl_texture_image *texImg =				\
       obj->Image[0][obj->BaseLevel];					\
+   const struct swrast_texture_image *swImg =				\
+      swrast_texture_image_const(texImg);				\
    const GLfloat twidth = (GLfloat) texImg->Width;			\
    const GLfloat theight = (GLfloat) texImg->Height;			\
    const GLint twidth_log2 = texImg->WidthLog2;				\
-   const GLubyte *texture = (const GLubyte *) texImg->Data;		\
+   const GLubyte *texture = (const GLubyte *) swImg->SliceMaps[0];	\
    const GLint smask = texImg->Width - 1;				\
    const GLint tmask = texImg->Height - 1;				\
    ASSERT(texImg->TexFormat == MESA_FORMAT_RGB888);			\
@@ -181,10 +183,12 @@ _swrast_culltriangle( struct gl_context *ctx,
       ctx->Texture.Unit[0].CurrentTex[TEXTURE_2D_INDEX];		\
    const struct gl_texture_image *texImg = 				\
        obj->Image[0][obj->BaseLevel]; 					\
+   const struct swrast_texture_image *swImg =				\
+      swrast_texture_image_const(texImg);				\
    const GLfloat twidth = (GLfloat) texImg->Width;			\
    const GLfloat theight = (GLfloat) texImg->Height;			\
    const GLint twidth_log2 = texImg->WidthLog2;				\
-   const GLubyte *texture = (const GLubyte *) texImg->Data;		\
+   const GLubyte *texture = swImg->SliceMaps[0];				\
    const GLint smask = texImg->Width - 1;				\
    const GLint tmask = texImg->Height - 1;				\
    ASSERT(texImg->TexFormat == MESA_FORMAT_RGB888);			\
@@ -533,9 +537,11 @@ affine_span(struct gl_context *ctx, SWspan *span,
       ctx->Texture.Unit[0].CurrentTex[TEXTURE_2D_INDEX];		\
    const struct gl_texture_image *texImg = 				\
       obj->Image[0][obj->BaseLevel]; 					\
+   const struct swrast_texture_image *swImg =				\
+      swrast_texture_image_const(texImg);				\
    const GLfloat twidth = (GLfloat) texImg->Width;			\
    const GLfloat theight = (GLfloat) texImg->Height;			\
-   info.texture = (const GLchan *) texImg->Data;			\
+   info.texture = (const GLchan *) swImg->SliceMaps[0];			\
    info.twidth_log2 = texImg->WidthLog2;				\
    info.smask = texImg->Width - 1;					\
    info.tmask = texImg->Height - 1;					\
@@ -800,7 +806,9 @@ fast_persp_span(struct gl_context *ctx, SWspan *span,
       ctx->Texture.Unit[0].CurrentTex[TEXTURE_2D_INDEX];		\
    const struct gl_texture_image *texImg = 				\
       obj->Image[0][obj->BaseLevel];			 		\
-   info.texture = (const GLchan *) texImg->Data;			\
+   const struct swrast_texture_image *swImg =				\
+      swrast_texture_image_const(texImg);				\
+   info.texture = (const GLchan *) swImg->SliceMaps[0];			\
    info.twidth_log2 = texImg->WidthLog2;				\
    info.smask = texImg->Width - 1;					\
    info.tmask = texImg->Height - 1;					\
@@ -1038,11 +1046,13 @@ _swrast_choose_triangle( struct gl_context *ctx )
          /* Ugh, we do a _lot_ of tests to pick the best textured tri func */
          const struct gl_texture_object *texObj2D;
          const struct gl_texture_image *texImg;
+         const struct swrast_texture_image *swImg;
          GLenum minFilter, magFilter, envMode;
          gl_format format;
          texObj2D = ctx->Texture.Unit[0].CurrentTex[TEXTURE_2D_INDEX];
 
          texImg = texObj2D ? texObj2D->Image[0][texObj2D->BaseLevel] : NULL;
+         swImg = swrast_texture_image_const(texImg);
          format = texImg ? texImg->TexFormat : MESA_FORMAT_NONE;
          minFilter = texObj2D ? texObj2D->Sampler.MinFilter : GL_NONE;
          magFilter = texObj2D ? texObj2D->Sampler.MagFilter : GL_NONE;
@@ -1059,7 +1069,7 @@ _swrast_choose_triangle( struct gl_context *ctx )
              && texObj2D->_Swizzle == SWIZZLE_NOOP
              && texImg->_IsPowerOfTwo
              && texImg->Border == 0
-             && texImg->Width == texImg->RowStride
+             && texImg->Width == swImg->RowStride
              && (format == MESA_FORMAT_RGB888 || format == MESA_FORMAT_RGBA8888)
              && minFilter == magFilter
              && ctx->Light.Model.ColorControl == GL_SINGLE_COLOR

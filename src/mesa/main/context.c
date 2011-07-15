@@ -905,9 +905,9 @@ _mesa_initialize_context(struct gl_context *ctx,
    struct gl_shared_state *shared;
    int i;
 
-   /*ASSERT(driverContext);*/
+   /* We need to use some driver hooks right away.  Do some sanity checks */
    assert(driverFunctions->NewTextureObject);
-   assert(driverFunctions->FreeTextureImageBuffer);
+   assert(driverFunctions->AllocTextureImageBuffer);
 
    ctx->API = api;
    ctx->Visual = *visual;

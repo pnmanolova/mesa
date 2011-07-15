@@ -221,6 +221,8 @@ st_texture_image_map(struct st_context *st, struct st_texture_image *stImage,
 
    DBG("%s \n", __FUNCTION__);
 
+   assert(!stImage->transfer);
+
    stImage->transfer = pipe_get_transfer(st->pipe, pt, stImage->base.Level,
                                          stImage->base.Face + zoffset,
                                          usage, x, y, w, h);
@@ -243,6 +245,7 @@ st_texture_image_unmap(struct st_context *st,
    pipe_transfer_unmap(pipe, stImage->transfer);
 
    pipe->transfer_destroy(pipe, stImage->transfer);
+   stImage->transfer = NULL;
 }
 
 

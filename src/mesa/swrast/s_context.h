@@ -111,18 +111,18 @@ typedef void (*validate_texture_image_func)(struct gl_context *ctx,
 
 struct swrast_texture_image;
 
-typedef void (*SwrastFetchTexelFunc)(const struct swrast_texture_image *texImg,
-                                     GLint col, GLint row, GLint img,
-                                     GLfloat *texelOut);
+typedef void (*FetchTexelFunc)(const struct swrast_texture_image *texImg,
+                               GLint col, GLint row, GLint img,
+                               GLfloat *texelOut);
 
-typedef void (*SwrastStoreTexelFunc)(struct swrast_texture_image *texImg,
-                                     GLint col, GLint row, GLint img,
-                                     const void *texel);
+typedef void (*StoreTexelFunc)(struct swrast_texture_image *texImg,
+                               GLint col, GLint row, GLint img,
+                               const void *texel);
 
-extern SwrastFetchTexelFunc
+extern FetchTexelFunc
 _swrast_get_texel_fetch_func(gl_format format);
 
-extern SwrastStoreTexelFunc
+extern StoreTexelFunc
 _swrast_get_texel_store_func(gl_format format);
 
 
@@ -139,8 +139,8 @@ struct swrast_texture_image
    GLubyte *Data;    /**< The actual texture data in malloc'd memory */
 
    GLint TexelSize;  /**< bytes per texel block */
-   SwrastFetchTexelFunc Fetch;
-   SwrastStoreTexelFunc Store;
+   FetchTexelFunc Fetch;
+   StoreTexelFunc Store;
 
    /** These fields only valid when texture memory is mapped */
    GLubyte **SliceMaps;  /**< points to OneMap or a malloc'd array */

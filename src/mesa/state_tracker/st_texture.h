@@ -45,6 +45,9 @@ struct st_texture_image
 {
    struct gl_texture_image base;
 
+   GLubyte *Data;
+   GLint RowStride;
+
    /* If stImage->pt != NULL, image data is stored here.
     * Else if stImage->base.Data != NULL, image is stored there.
     * Else there is no image data.

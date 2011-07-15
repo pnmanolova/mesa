@@ -22,8 +22,7 @@
  */
 
 /**
- * Functions for allocating/freeing texture memory and mapping/unmapping
- * texture images.
+ * Functions for mapping/unmapping texture images and renderbuffers.
  */
 
 
@@ -32,7 +31,6 @@
 #include "swrast/s_context.h"
 
 
-/* XXX renderbuffer stuff to be revisited later */
 #if 0
 struct swrast_renderbuffer
 {
@@ -154,7 +152,6 @@ _swrast_map_teximage(struct gl_context *ctx,
    map = swImage->Data;
 
    if (texImage->TexObject->Target == GL_TEXTURE_3D ||
-       texImage->TexObject->Target == GL_TEXTURE_1D_ARRAY ||
        texImage->TexObject->Target == GL_TEXTURE_2D_ARRAY) {
       GLuint sliceSize = _mesa_format_image_size(texImage->TexFormat,
                                                  texImage->Width,
@@ -209,8 +206,8 @@ _swrast_map_texture(struct gl_context *ctx,
    const GLuint numFaces = texObj->Target == GL_TEXTURE_CUBE_MAP ? 6 : 1;
    gl_format format = find_texture_format(texObj);
    GLuint level, face, slice;
-   SwrastFetchTexelFunc fetch;
-   SwrastStoreTexelFunc store;
+   FetchTexelFunc fetch;
+   StoreTexelFunc store;
    const GLuint texelSize = _mesa_get_format_bytes(format);
 
    /* determine texture format, get fetch/store functions */

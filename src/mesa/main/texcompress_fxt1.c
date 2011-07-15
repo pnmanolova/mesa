@@ -39,6 +39,7 @@
 #include "texcompress.h"
 #include "texcompress_fxt1.h"
 #include "texstore.h"
+#include "swrast/s_context.h"
 
 
 #if FEATURE_texture_fxt1
@@ -167,7 +168,7 @@ _mesa_texstore_rgba_fxt1(TEXSTORE_PARAMS)
 
 
 void
-_mesa_fetch_texel_2d_f_rgba_fxt1( const struct gl_texture_image *texImage,
+_mesa_fetch_texel_2d_f_rgba_fxt1( const struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, GLfloat *texel )
 {
    /* just sample as GLchan and convert to float here */
@@ -182,7 +183,7 @@ _mesa_fetch_texel_2d_f_rgba_fxt1( const struct gl_texture_image *texImage,
 
 
 void
-_mesa_fetch_texel_2d_f_rgb_fxt1( const struct gl_texture_image *texImage,
+_mesa_fetch_texel_2d_f_rgb_fxt1( const struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, GLfloat *texel )
 {
    /* just sample as GLchan and convert to float here */

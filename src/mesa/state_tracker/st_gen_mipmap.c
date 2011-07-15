@@ -248,8 +248,8 @@ fallback_generate_mipmap(struct gl_context *ctx, GLenum target,
                                    PIPE_TRANSFER_WRITE, 0, 0,
                                    dstWidth, dstHeight);
 
-      srcData = (ubyte *) pipe_transfer_map(pipe, srcTrans);
-      dstData = (ubyte *) pipe_transfer_map(pipe, dstTrans);
+      srcData = (GLubyte *) pipe_transfer_map(pipe, srcTrans);
+      dstData = (GLubyte *) pipe_transfer_map(pipe, dstTrans);
 
       srcStride = srcTrans->stride / util_format_get_blocksize(srcTrans->resource->format);
       dstStride = dstTrans->stride / util_format_get_blocksize(dstTrans->resource->format);
@@ -264,7 +264,7 @@ fallback_generate_mipmap(struct gl_context *ctx, GLenum target,
          const uint srcHeight2 = align(srcHeight, bh);
          const uint dstWidth2 = align(dstWidth, bw);
          const uint dstHeight2 = align(dstHeight, bh);
-         uint8_t *srcTemp, *dstTemp;
+         GLubyte *srcTemp, *dstTemp;
 
          assert(comps == 4);
 
@@ -277,10 +277,10 @@ fallback_generate_mipmap(struct gl_context *ctx, GLenum target,
          _mesa_generate_mipmap_level(target, datatype, comps,
                                      0 /*border*/,
                                      srcWidth2, srcHeight2, srcDepth,
-                                     srcTemp,
+                                     (const GLubyte **) &srcTemp,
                                      srcWidth2, /* stride in texels */
                                      dstWidth2, dstHeight2, dstDepth,
-                                     dstTemp,
+                                     &dstTemp,
                                      dstWidth2); /* stride in texels */
 
          /* compress the new image: dstTemp -> dstData */
@@ -293,10 +293,10 @@ fallback_generate_mipmap(struct gl_context *ctx, GLenum target,
          _mesa_generate_mipmap_level(target, datatype, comps,
                                      0 /*border*/,
                                      srcWidth, srcHeight, srcDepth,
-                                     srcData,
+                                     &srcData,
                                      srcStride, /* stride in texels */
                                      dstWidth, dstHeight, dstDepth,
-                                     dstData,
+                                     &dstData,
                                      dstStride); /* stride in texels */
       }
 
@@ -444,8 +444,7 @@ st_generate_mipmap(struct gl_context *ctx, GLenum target,
       }
 
       /* Free old image data */
-      if (dstImage->Data)
-         ctx->Driver.FreeTextureImageBuffer(ctx, dstImage);
+      ctx->Driver.FreeTextureImageBuffer(ctx, dstImage);
 
       /* initialize new image */
       _mesa_init_teximage_fields(ctx, target, dstImage, dstWidth, dstHeight,
@@ -453,6 +452,7 @@ st_generate_mipmap(struct gl_context *ctx, GLenum target,
                                  srcImage->TexFormat);
 
       stImage = st_texture_image(dstImage);
+      stImage->base.Level = dstLevel;
 
       pipe_resource_reference(&stImage->pt, pt);
    }

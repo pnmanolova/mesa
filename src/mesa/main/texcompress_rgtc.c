@@ -43,6 +43,8 @@
 #include "texcompress.h"
 #include "texcompress_rgtc.h"
 #include "texstore.h"
+#include "swrast/s_context.h"
+
 
 #define RGTC_DEBUG 0
 
@@ -323,7 +325,7 @@ _mesa_texstore_signed_rg_rgtc2(TEXSTORE_PARAMS)
 }
 
 void
-_mesa_fetch_texel_2d_f_red_rgtc1(const struct gl_texture_image *texImage,
+_mesa_fetch_texel_2d_f_red_rgtc1(const struct swrast_texture_image *texImage,
 				 GLint i, GLint j, GLint k, GLfloat *texel)
 {
    GLubyte red;
@@ -336,7 +338,7 @@ _mesa_fetch_texel_2d_f_red_rgtc1(const struct gl_texture_image *texImage,
 }
 
 void
-_mesa_fetch_texel_2d_f_signed_red_rgtc1(const struct gl_texture_image *texImage,
+_mesa_fetch_texel_2d_f_signed_red_rgtc1(const struct swrast_texture_image *texImage,
 					GLint i, GLint j, GLint k, GLfloat *texel)
 {
    GLbyte red;
@@ -349,7 +351,7 @@ _mesa_fetch_texel_2d_f_signed_red_rgtc1(const struct gl_texture_image *texImage,
 }
 
 void
-_mesa_fetch_texel_2d_f_rg_rgtc2(const struct gl_texture_image *texImage,
+_mesa_fetch_texel_2d_f_rg_rgtc2(const struct swrast_texture_image *texImage,
 				 GLint i, GLint j, GLint k, GLfloat *texel)
 {
    GLubyte red, green;
@@ -364,7 +366,7 @@ _mesa_fetch_texel_2d_f_rg_rgtc2(const struct gl_texture_image *texImage,
 }
 
 void
-_mesa_fetch_texel_2d_f_signed_rg_rgtc2(const struct gl_texture_image *texImage,
+_mesa_fetch_texel_2d_f_signed_rg_rgtc2(const struct swrast_texture_image *texImage,
 				       GLint i, GLint j, GLint k, GLfloat *texel)
 {
    GLbyte red, green;
@@ -379,7 +381,7 @@ _mesa_fetch_texel_2d_f_signed_rg_rgtc2(const struct gl_texture_image *texImage,
 }
 
 void
-_mesa_fetch_texel_2d_f_l_latc1(const struct gl_texture_image *texImage,
+_mesa_fetch_texel_2d_f_l_latc1(const struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, GLfloat *texel)
 {
    GLubyte red;
@@ -392,7 +394,7 @@ _mesa_fetch_texel_2d_f_l_latc1(const struct gl_texture_image *texImage,
 }
 
 void
-_mesa_fetch_texel_2d_f_signed_l_latc1(const struct gl_texture_image *texImage,
+_mesa_fetch_texel_2d_f_signed_l_latc1(const struct swrast_texture_image *texImage,
                                         GLint i, GLint j, GLint k, GLfloat *texel)
 {
    GLbyte red;
@@ -405,7 +407,7 @@ _mesa_fetch_texel_2d_f_signed_l_latc1(const struct gl_texture_image *texImage,
 }
 
 void
-_mesa_fetch_texel_2d_f_la_latc2(const struct gl_texture_image *texImage,
+_mesa_fetch_texel_2d_f_la_latc2(const struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, GLfloat *texel)
 {
    GLubyte red, green;
@@ -420,7 +422,7 @@ _mesa_fetch_texel_2d_f_la_latc2(const struct gl_texture_image *texImage,
 }
 
 void
-_mesa_fetch_texel_2d_f_signed_la_latc2(const struct gl_texture_image *texImage,
+_mesa_fetch_texel_2d_f_signed_la_latc2(const struct swrast_texture_image *texImage,
                                        GLint i, GLint j, GLint k, GLfloat *texel)
 {
    GLbyte red, green;
