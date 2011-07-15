@@ -143,6 +143,7 @@ SWRAST_SOURCES = \
 	swrast/s_span.c \
 	swrast/s_stencil.c \
 	swrast/s_texcombine.c \
+	swrast/s_texfetch.c \
 	swrast/s_texfilter.c \
 	swrast/s_texrender.c \
 	swrast/s_texture.c \
