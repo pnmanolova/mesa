@@ -49,20 +49,6 @@ void intelSetTexBuffer2(__DRIcontext *pDRICtx,
 
 GLuint intel_finalize_mipmap_tree(struct intel_context *intel, GLuint unit);
 
-void intel_tex_map_level_images(struct intel_context *intel,
-				struct intel_texture_object *intelObj,
-				int level);
-
-void intel_tex_unmap_level_images(struct intel_context *intel,
-				  struct intel_texture_object *intelObj,
-				  int level);
-
-void intel_tex_map_images(struct intel_context *intel,
-                          struct intel_texture_object *intelObj);
-
-void intel_tex_unmap_images(struct intel_context *intel,
-                            struct intel_texture_object *intelObj);
-
 int intel_compressed_num_bytes(GLuint mesaFormat);
 
 GLboolean intel_copy_texsubimage(struct intel_context *intel,

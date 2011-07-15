@@ -55,9 +55,10 @@ intelTexSubimage(struct gl_context * ctx,
 {
    struct intel_context *intel = intel_context(ctx);
    struct intel_texture_image *intelImage = intel_texture_image(texImage);
-   GLuint dstRowStride = 0;
+   GLint dstRowStride = 0;
    drm_intel_bo *temp_bo = NULL, *dst_bo = NULL;
    unsigned int blit_x = 0, blit_y = 0;
+   GLubyte *dstBuffer;
 
    DBG("%s target %s level %d offset %d,%d %dx%d\n", __FUNCTION__,
        _mesa_lookup_enum_by_nr(target),
@@ -108,34 +109,28 @@ intelTexSubimage(struct gl_context * ctx,
             return;
          }
 
-	 texImage->Data = temp_bo->virtual;
-	 texImage->ImageOffsets[0] = 0;
+	 dstBuffer = temp_bo->virtual;
+	 intelImage->ImageOffsets[0] = 0;
 	 dstRowStride = pitch;
 
 	 intel_miptree_get_image_offset(intelImage->mt, level,
-					intelImage->base.Face, 0,
+					intelImage->base.Base.Face, 0,
 					&blit_x, &blit_y);
 	 blit_x += xoffset;
 	 blit_y += yoffset;
 	 xoffset = 0;
 	 yoffset = 0;
       } else {
-	 texImage->Data = intel_miptree_image_map(intel,
-						  intelImage->mt,
-						  intelImage->base.Face,
-						  intelImage->base.Level,
-						  &dstRowStride,
-						  texImage->ImageOffsets);
+	 dstBuffer = intel_miptree_image_map(intel,
+                                             intelImage->mt,
+                                             intelImage->base.Base.Face,
+                                             intelImage->base.Base.Level,
+                                             &dstRowStride,
+                                             intelImage->ImageOffsets);
       }
    } else {
-      if (_mesa_is_format_compressed(texImage->TexFormat)) {
-         dstRowStride =
-            _mesa_format_row_stride(texImage->TexFormat, width);
-         assert(dims != 3);
-      }
-      else {
-         dstRowStride = texImage->RowStride * _mesa_get_format_bytes(texImage->TexFormat);
-      }
+      /* texture data is in malloc'd memory */
+      dstRowStride = _mesa_format_row_stride(texImage->TexFormat, width);
    }
 
    assert(dstRowStride);
@@ -144,22 +139,22 @@ intelTexSubimage(struct gl_context * ctx,
       if (intelImage->mt) {
          struct intel_region *dst = intelImage->mt->region;
          
-         _mesa_copy_rect(texImage->Data, dst->cpp, dst->pitch,
+         _mesa_copy_rect(dstBuffer, dst->cpp, dst->pitch,
                          xoffset, yoffset / 4,
                          (width + 3)  & ~3, (height + 3) / 4,
                          pixels, (width + 3) & ~3, 0, 0);
       }
       else {
-        memcpy(texImage->Data, pixels, imageSize);
+         memcpy(dstBuffer, pixels, imageSize);
       }
    }
    else {
       if (!_mesa_texstore(ctx, dims, texImage->_BaseFormat,
                           texImage->TexFormat,
-                          texImage->Data,
+                          dstBuffer,
                           xoffset, yoffset, zoffset,
                           dstRowStride,
-                          texImage->ImageOffsets,
+                          intelImage->ImageOffsets,
                           width, height, depth,
                           format, type, pixels, packing)) {
          _mesa_error(ctx, GL_OUT_OF_MEMORY, "intelTexSubImage");
@@ -171,11 +166,10 @@ intelTexSubimage(struct gl_context * ctx,
 	    intelImage->mt->cpp;
 
 	 drm_intel_gem_bo_unmap_gtt(temp_bo);
-	 texImage->Data = NULL;
 
 	 ret = intelEmitCopyBlit(intel,
 				 intelImage->mt->cpp,
-				 dstRowStride / intelImage->mt->cpp,
+				 dstRowStride / intelImage->mt->cpp, /* pixels */
 				 temp_bo, 0, GL_FALSE,
 				 dst_pitch / intelImage->mt->cpp, dst_bo, 0,
 				 intelImage->mt->region->tiling,
@@ -192,7 +186,6 @@ intelTexSubimage(struct gl_context * ctx,
       temp_bo = NULL;
    } else if (intelImage->mt) {
       intel_miptree_image_unmap(intel, intelImage->mt);
-      texImage->Data = NULL;
    }
 }
 

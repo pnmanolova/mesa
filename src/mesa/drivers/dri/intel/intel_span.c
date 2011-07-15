@@ -257,7 +257,7 @@ intel_framebuffer_unmap(struct intel_context *intel, struct gl_framebuffer *fb)
 
 /**
  * Prepare for software rendering.  Map current read/draw framebuffers'
- * renderbuffes and all currently bound texture objects.
+ * renderbuffes.
  *
  * Old note: Moved locking out to get reasonable span performance.
  */
@@ -272,10 +272,7 @@ intelSpanRenderStart(struct gl_context * ctx)
 
    for (i = 0; i < ctx->Const.MaxTextureImageUnits; i++) {
       if (ctx->Texture.Unit[i]._ReallyEnabled) {
-         struct gl_texture_object *texObj = ctx->Texture.Unit[i]._Current;
-
          intel_finalize_mipmap_tree(intel, i);
-         intel_tex_map_images(intel, intel_texture_object(texObj));
       }
    }
 
@@ -293,16 +290,8 @@ void
 intelSpanRenderFinish(struct gl_context * ctx)
 {
    struct intel_context *intel = intel_context(ctx);
-   GLuint i;
 
    _swrast_flush(ctx);
-
-   for (i = 0; i < ctx->Const.MaxTextureImageUnits; i++) {
-      if (ctx->Texture.Unit[i]._ReallyEnabled) {
-         struct gl_texture_object *texObj = ctx->Texture.Unit[i]._Current;
-         intel_tex_unmap_images(intel, intel_texture_object(texObj));
-      }
-   }
 
    intel_framebuffer_unmap(intel, ctx->DrawBuffer);
    if (ctx->ReadBuffer != ctx->DrawBuffer) {
@@ -322,39 +311,13 @@ intelInitSpanFuncs(struct gl_context * ctx)
 void
 intel_map_vertex_shader_textures(struct gl_context *ctx)
 {
-   struct intel_context *intel = intel_context(ctx);
-   int i;
-
-   if (ctx->VertexProgram._Current == NULL)
-      return;
-
-   for (i = 0; i < ctx->Const.MaxTextureImageUnits; i++) {
-      if (ctx->Texture.Unit[i]._ReallyEnabled &&
-	  ctx->VertexProgram._Current->Base.TexturesUsed[i] != 0) {
-         struct gl_texture_object *texObj = ctx->Texture.Unit[i]._Current;
-
-         intel_tex_map_images(intel, intel_texture_object(texObj));
-      }
-   }
+   /* no-op / remove */
 }
 
 void
 intel_unmap_vertex_shader_textures(struct gl_context *ctx)
 {
-   struct intel_context *intel = intel_context(ctx);
-   int i;
-
-   if (ctx->VertexProgram._Current == NULL)
-      return;
-
-   for (i = 0; i < ctx->Const.MaxTextureImageUnits; i++) {
-      if (ctx->Texture.Unit[i]._ReallyEnabled &&
-	  ctx->VertexProgram._Current->Base.TexturesUsed[i] != 0) {
-         struct gl_texture_object *texObj = ctx->Texture.Unit[i]._Current;
-
-         intel_tex_unmap_images(intel, intel_texture_object(texObj));
-      }
-   }
+   /* no-op / remove */
 }
 
 typedef void (*span_init_func)(struct gl_renderbuffer *rb);

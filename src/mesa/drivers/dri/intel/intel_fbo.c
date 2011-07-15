@@ -599,8 +599,8 @@ intel_renderbuffer_set_draw_offset(struct intel_renderbuffer *irb,
 
    /* compute offset of the particular 2D image within the texture region */
    intel_miptree_get_image_offset(intel_image->mt,
-				  intel_image->base.Level,
-				  intel_image->base.Face,
+				  intel_image->base.Base.Level,
+				  intel_image->base.Base.Face,
 				  zoffset,
 				  &dst_x, &dst_y);
 
@@ -712,18 +712,17 @@ intel_render_texture(struct gl_context * ctx,
       struct intel_mipmap_tree *new_mt;
 
       new_mt = intel_miptree_create(intel, image->TexObject->Target,
-				    intel_image->base.TexFormat,
-				    intel_image->base.Level,
-				    intel_image->base.Level,
-				    intel_image->base.Width,
-				    intel_image->base.Height,
-				    intel_image->base.Depth,
+				    image->TexFormat,
+				    image->Level, /* first level */
+				    image->Level, /* last level */
+				    image->Width,
+				    image->Height,
+				    image->Depth,
 				    GL_TRUE);
 
       intel_miptree_image_copy(intel,
                                new_mt,
-                               intel_image->base.Face,
-			       intel_image->base.Level,
+                               image->Face, image->Level,
 			       old_mt);
 
       intel_miptree_release(intel, &intel_image->mt);

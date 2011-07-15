@@ -174,7 +174,7 @@ GLubyte *intel_miptree_image_map(struct intel_context *intel,
                                  struct intel_mipmap_tree *mt,
                                  GLuint face,
                                  GLuint level,
-                                 GLuint * row_stride, GLuint * image_stride);
+                                 GLint * row_stride, GLuint * image_stride);
 
 void intel_miptree_image_unmap(struct intel_context *intel,
                                struct intel_mipmap_tree *mt);

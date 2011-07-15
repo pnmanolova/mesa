@@ -28,6 +28,9 @@
 #ifndef _INTEL_TEX_OBJ_H
 #define _INTEL_TEX_OBJ_H
 
+#include "swrast/s_context.h"
+
+
 struct intel_texture_object
 {
    struct gl_texture_object base;       /* The "parent" object */
@@ -48,15 +51,24 @@ struct intel_texture_object
    struct intel_mipmap_tree *mt;
 };
 
+
+/**
+ * Subclass of swrast_texture_image because the driver may use swrast
+ * for fallbacks.
+ */
 struct intel_texture_image
 {
-   struct gl_texture_image base;
+   struct swrast_texture_image base;
+
+   GLuint *ImageOffsets; /**< in texels */
 
    /* If intelImage->mt != NULL, image data is stored here.
-    * Else if intelImage->base.Data != NULL, image is stored there.
+    * Else if intelImage->Data != NULL, image is stored there.
     * Else there is no image data.
     */
    struct intel_mipmap_tree *mt;
+   GLubyte *Data;
+
    GLboolean used_as_render_target;
 
    /**
