@@ -1250,7 +1250,7 @@ _mesa_unpack_rgba_row(gl_format format, GLuint n,
           == unpack_ARGB2101010);
    assert(unpack_rgba_functions[MESA_FORMAT_Z32] == unpack_Z32);
    assert(unpack_rgba_functions[MESA_FORMAT_SIGNED_I16] == unpack_SIGNED_I16);
-   assert(unpack_rgba_functions[MESA_FORMAT_Z32_FLOAT] == unpack_Z32_FLOAT_X24S8);
+   assert(unpack_rgba_functions[MESA_FORMAT_Z32_FLOAT] == unpack_Z32_FLOAT);
 
    for (i = 0; i < n; i++) {
       unpack(srcPtr, dst[i]);
