@@ -98,8 +98,6 @@ struct gl_list_extensions;
 struct gl_meta_state;
 struct gl_pixelstore_attrib;
 struct gl_program_cache;
-struct gl_texture_format;
-struct gl_texture_image;
 struct gl_texture_object;
 struct gl_context;
 struct st_context;
