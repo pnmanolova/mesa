@@ -775,7 +775,7 @@ intelSetTexBuffer2(__DRIcontext *pDRICtx, GLint target,
 
    intelObj->mt = mt;
 
-   _mesa_init_teximage_fields(&intel->ctx, target, texImage,
+   _mesa_init_teximage_fields(&intel->ctx, texImage,
 			      rb->region->width, rb->region->height, 1,
 			      0, internalFormat, texFormat);
 
@@ -830,7 +830,7 @@ intel_image_target_texture_2d(struct gl_context *ctx, GLenum target,
       intel_miptree_release(intel, &intelObj->mt);
 
    intelObj->mt = mt;
-   _mesa_init_teximage_fields(&intel->ctx, target, texImage,
+   _mesa_init_teximage_fields(&intel->ctx, texImage,
 			      image->region->width, image->region->height, 1,
 			      0, image->internal_format, image->format);
 

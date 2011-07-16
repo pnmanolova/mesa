@@ -609,7 +609,7 @@ nouveau_set_texbuffer(__DRIcontext *dri_ctx,
         s->format = get_texbuffer_format(rb, format);
 
 	/* Update the image fields. */
-	_mesa_init_teximage_fields(ctx, target, ti, s->width, s->height,
+	_mesa_init_teximage_fields(ctx, ti, s->width, s->height,
 				   1, 0, s->cpp, s->format);
 	ti->RowStride = s->pitch / s->cpp;
 

@@ -502,7 +502,7 @@ void r300SetTexBuffer2(__DRIcontext *pDRICtx, GLint target, GLint texture_format
 		break;
 	}
 
-	_mesa_init_teximage_fields(radeon->glCtx, target, texImage,
+	_mesa_init_teximage_fields(radeon->glCtx, texImage,
 				   rb->base.Width, rb->base.Height, 1, 0,
 				   rb->cpp, texFormat);
 	texImage->RowStride = rb->pitch / rb->cpp;

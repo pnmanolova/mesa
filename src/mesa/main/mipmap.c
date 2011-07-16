@@ -1942,7 +1942,7 @@ generate_mipmap_uncompressed(struct gl_context *ctx, GLenum target,
       ctx->Driver.FreeTextureImageBuffer(ctx, dstImage);
 
       /* initialize new image */
-      _mesa_init_teximage_fields(ctx, target, dstImage, dstWidth, dstHeight,
+      _mesa_init_teximage_fields(ctx, dstImage, dstWidth, dstHeight,
                                  dstDepth, border, srcImage->InternalFormat,
                                  srcImage->TexFormat);
       dstImage->DriverData = NULL;
@@ -2112,7 +2112,7 @@ generate_mipmap_compressed(struct gl_context *ctx, GLenum target,
                                   &temp_dst, temp_dst_stride);
 
       /* initialize new image */
-      _mesa_init_teximage_fields(ctx, target, dstImage, dstWidth, dstHeight,
+      _mesa_init_teximage_fields(ctx, dstImage, dstWidth, dstHeight,
                                  dstDepth, border, srcImage->InternalFormat,
                                  srcImage->TexFormat);
 

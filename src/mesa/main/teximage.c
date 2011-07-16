@@ -1046,7 +1046,6 @@ clear_teximage_fields(struct gl_texture_image *img)
  * Initialize basic fields of the gl_texture_image struct.
  *
  * \param ctx GL context.
- * \param target texture target (GL_TEXTURE_1D, GL_TEXTURE_RECTANGLE, etc).
  * \param img texture image structure to be initialized.
  * \param width image width.
  * \param height image height.
@@ -1059,7 +1058,7 @@ clear_teximage_fields(struct gl_texture_image *img)
  * Note: width, height and depth include the border.
  */
 void
-_mesa_init_teximage_fields(struct gl_context *ctx, GLenum target,
+_mesa_init_teximage_fields(struct gl_context *ctx,
                            struct gl_texture_image *img,
                            GLsizei width, GLsizei height, GLsizei depth,
                            GLint border, GLenum internalFormat,
@@ -2329,7 +2328,7 @@ teximage(struct gl_context *ctx, GLuint dims,
                                                            format, type);
 
          if (legal_texture_size(ctx, texFormat, width, height, depth)) {
-            _mesa_init_teximage_fields(ctx, target, texImage, width, height,
+            _mesa_init_teximage_fields(ctx, texImage, width, height,
                                        depth, border, internalFormat,
                                        texFormat);
          }
@@ -2370,7 +2369,7 @@ teximage(struct gl_context *ctx, GLuint dims,
                                                     type);
 
             if (legal_texture_size(ctx, texFormat, width, height, depth)) {
-               _mesa_init_teximage_fields(ctx, target, texImage,
+               _mesa_init_teximage_fields(ctx, texImage,
                                           width, height, depth,
                                           border, internalFormat, texFormat);
 
@@ -2706,7 +2705,7 @@ copyteximage(struct gl_context *ctx, GLuint dims,
                                                  GL_NONE);
 
          if (legal_texture_size(ctx, texFormat, width, height, 1)) {
-            _mesa_init_teximage_fields(ctx, target, texImage, width, height, 1,
+            _mesa_init_teximage_fields(ctx, texImage, width, height, 1,
                                        border, internalFormat, texFormat);
 
             ASSERT(ctx->Driver.CopyTexImage2D);
@@ -3218,7 +3217,7 @@ compressedteximage(struct gl_context *ctx, GLuint dims,
          }
          else {
             /* no error: store the teximage parameters */
-            _mesa_init_teximage_fields(ctx, target, texImage, width, height,
+            _mesa_init_teximage_fields(ctx, texImage, width, height,
                                        depth, border, internalFormat,
                                        MESA_FORMAT_NONE);
          }
@@ -3254,7 +3253,7 @@ compressedteximage(struct gl_context *ctx, GLuint dims,
                                                     GL_NONE);
 
             if (legal_texture_size(ctx, texFormat, width, height, depth)) {
-               _mesa_init_teximage_fields(ctx, target, texImage,
+               _mesa_init_teximage_fields(ctx, texImage,
                                           width, height, depth,
                                           border, internalFormat, texFormat);
 

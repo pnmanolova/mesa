@@ -1409,7 +1409,7 @@ void evergreenSetTexBuffer(__DRIcontext *pDRICtx, GLint target, GLint glx_textur
 		break;
 	}
 
-	_mesa_init_teximage_fields(radeon->glCtx, target, texImage,
+	_mesa_init_teximage_fields(radeon->glCtx, texImage,
 				   rb->base.Width, rb->base.Height, 1, 0,
 				   rb->cpp, texFormat);
 	rImage->RowStride = rb->pitch / rb->cpp;
