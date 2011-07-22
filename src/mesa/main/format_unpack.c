@@ -1105,152 +1105,155 @@ unpack_R11_G11_B10_FLOAT(const void *src, GLfloat dst[4])
 }
 
 
-
+/**
+ * Return the unpacker function for the given format.
+ */
 static unpack_rgba_func
-unpack_rgba_functions[MESA_FORMAT_COUNT] = {
-   NULL,
-   unpack_RGBA8888,
-   unpack_RGBA8888_REV,
-   unpack_ARGB8888,
-   unpack_ARGB8888_REV,
-   unpack_XRGB8888,
-   unpack_XRGB8888_REV,
-   unpack_RGB888,
-   unpack_BGR888,
-   unpack_RGB565,
-   unpack_RGB565_REV,
-   unpack_ARGB4444,
-   unpack_ARGB4444_REV,
-   unpack_RGBA5551,
-   unpack_ARGB1555,
-   unpack_ARGB1555_REV,
-   unpack_AL44,
-   unpack_AL88,
-   unpack_AL88_REV,
-   unpack_AL1616,
-   unpack_AL1616_REV,
-   unpack_RGB332,
-   unpack_A8,
-   unpack_A16,
-   unpack_L8,
-   unpack_L16,
-   unpack_I8,
-   unpack_I16,
-   unpack_CI8,
-   unpack_YCBCR,
-   unpack_YCBCR_REV,
-   unpack_R8,
-   unpack_RG88,
-   unpack_RG88_REV,
-   unpack_R16,
-   unpack_RG1616,
-   unpack_RG1616_REV,
-   unpack_ARGB2101010,
-   unpack_Z24_S8,
-   unpack_S8_Z24,
-   unpack_Z16,
-   unpack_X8_Z24,
-   unpack_Z24_X8,
-   unpack_Z32,
-   unpack_S8,
-   unpack_SRGB8,
-   unpack_SRGBA8,
-   unpack_SARGB8,
-   unpack_SL8,
-   unpack_SLA8,
-   unpack_SRGB_DXT1,
-   unpack_SRGBA_DXT1,
-   unpack_SRGBA_DXT3,
-   unpack_SRGBA_DXT5,
+get_unpack_rgba_function(gl_format format)
+{
+   static unpack_rgba_func table[MESA_FORMAT_COUNT];
+   static GLboolean initialized = GL_FALSE;
 
-   unpack_RGB_FXT1,
-   unpack_RGBA_FXT1,
-   unpack_RGB_DXT1,
-   unpack_RGBA_DXT1,
-   unpack_RGBA_DXT3,
-   unpack_RGBA_DXT5,
+   if (!initialized) {
+      table[MESA_FORMAT_NONE] = NULL;
 
-   unpack_RGBA_FLOAT32,
-   unpack_RGBA_FLOAT16,
-   unpack_RGB_FLOAT32,
-   unpack_RGB_FLOAT16,
-   unpack_ALPHA_FLOAT32,
-   unpack_ALPHA_FLOAT16,
-   unpack_LUMINANCE_FLOAT32,
-   unpack_LUMINANCE_FLOAT16,
-   unpack_LUMINANCE_ALPHA_FLOAT32,
-   unpack_LUMINANCE_ALPHA_FLOAT16,
-   unpack_INTENSITY_FLOAT32,
-   unpack_INTENSITY_FLOAT16,
-   unpack_R_FLOAT32,
-   unpack_R_FLOAT16,
-   unpack_RG_FLOAT32,
-   unpack_RG_FLOAT16,
+      table[MESA_FORMAT_RGBA8888] = unpack_RGBA8888;
+      table[MESA_FORMAT_RGBA8888_REV] = unpack_RGBA8888_REV;
+      table[MESA_FORMAT_ARGB8888] = unpack_ARGB8888;
+      table[MESA_FORMAT_ARGB8888_REV] = unpack_ARGB8888_REV;
+      table[MESA_FORMAT_XRGB8888] = unpack_XRGB8888;
+      table[MESA_FORMAT_XRGB8888_REV] = unpack_XRGB8888_REV;
+      table[MESA_FORMAT_RGB888] = unpack_RGB888;
+      table[MESA_FORMAT_BGR888] = unpack_BGR888;
+      table[MESA_FORMAT_RGB565] = unpack_RGB565;
+      table[MESA_FORMAT_RGB565_REV] = unpack_RGB565_REV;
+      table[MESA_FORMAT_ARGB4444] = unpack_ARGB4444;
+      table[MESA_FORMAT_ARGB4444_REV] = unpack_ARGB4444_REV;
+      table[MESA_FORMAT_RGBA5551] = unpack_RGBA5551;
+      table[MESA_FORMAT_ARGB1555] = unpack_ARGB1555;
+      table[MESA_FORMAT_ARGB1555_REV] = unpack_ARGB1555_REV;
+      table[MESA_FORMAT_AL44] = unpack_AL44;
+      table[MESA_FORMAT_AL88] = unpack_AL88;
+      table[MESA_FORMAT_AL88_REV] = unpack_AL88_REV;
+      table[MESA_FORMAT_AL1616] = unpack_AL1616;
+      table[MESA_FORMAT_AL1616_REV] = unpack_AL1616_REV;
+      table[MESA_FORMAT_RGB332] = unpack_RGB332;
+      table[MESA_FORMAT_A8] = unpack_A8;
+      table[MESA_FORMAT_A16] = unpack_A16;
+      table[MESA_FORMAT_L8] = unpack_L8;
+      table[MESA_FORMAT_L16] = unpack_L16;
+      table[MESA_FORMAT_I8] = unpack_I8;
+      table[MESA_FORMAT_I16] = unpack_I16;
+      table[MESA_FORMAT_CI8] = unpack_CI8;
+      table[MESA_FORMAT_YCBCR] = unpack_YCBCR;
+      table[MESA_FORMAT_YCBCR_REV] = unpack_YCBCR_REV;
+      table[MESA_FORMAT_R8] = unpack_R8;
+      table[MESA_FORMAT_RG88] = unpack_RG88;
+      table[MESA_FORMAT_RG88_REV] = unpack_RG88_REV;
+      table[MESA_FORMAT_R16] = unpack_R16;
+      table[MESA_FORMAT_RG1616] = unpack_RG1616;
+      table[MESA_FORMAT_RG1616_REV] = unpack_RG1616_REV;
+      table[MESA_FORMAT_ARGB2101010] = unpack_ARGB2101010;
+      table[MESA_FORMAT_Z24_S8] = unpack_Z24_S8;
+      table[MESA_FORMAT_S8_Z24] = unpack_S8_Z24;
+      table[MESA_FORMAT_Z16] = unpack_Z16;
+      table[MESA_FORMAT_X8_Z24] = unpack_X8_Z24;
+      table[MESA_FORMAT_Z24_X8] = unpack_Z24_X8;
+      table[MESA_FORMAT_Z32] = unpack_Z32;
+      table[MESA_FORMAT_S8] = unpack_S8;
+      table[MESA_FORMAT_SRGB8] = unpack_SRGB8;
+      table[MESA_FORMAT_SRGBA8] = unpack_SRGBA8;
+      table[MESA_FORMAT_SARGB8] = unpack_SARGB8;
+      table[MESA_FORMAT_SL8] = unpack_SL8;
+      table[MESA_FORMAT_SLA8] = unpack_SLA8;
+      table[MESA_FORMAT_SRGB_DXT1] = unpack_SRGB_DXT1;
+      table[MESA_FORMAT_SRGBA_DXT1] = unpack_SRGBA_DXT1;
+      table[MESA_FORMAT_SRGBA_DXT3] = unpack_SRGBA_DXT3;
+      table[MESA_FORMAT_SRGBA_DXT5] = unpack_SRGBA_DXT5;
 
-   unpack_RGBA_INT8,
-   unpack_RGBA_INT16,
-   unpack_RGBA_INT32,
-   unpack_RGBA_UINT8,
-   unpack_RGBA_UINT16,
-   unpack_RGBA_UINT32,
+      table[MESA_FORMAT_RGB_FXT1] = unpack_RGB_FXT1;
+      table[MESA_FORMAT_RGBA_FXT1] = unpack_RGBA_FXT1;
+      table[MESA_FORMAT_RGB_DXT1] = unpack_RGB_DXT1;
+      table[MESA_FORMAT_RGBA_DXT1] = unpack_RGBA_DXT1;
+      table[MESA_FORMAT_RGBA_DXT3] = unpack_RGBA_DXT3;
+      table[MESA_FORMAT_RGBA_DXT5] = unpack_RGBA_DXT5;
 
-   unpack_DUDV8,
-   unpack_SIGNED_R8,
-   unpack_SIGNED_RG88_REV,
-   unpack_SIGNED_RGBX8888,
-   unpack_SIGNED_RGBA8888,
-   unpack_SIGNED_RGBA8888_REV,
-   unpack_SIGNED_R16,
-   unpack_SIGNED_GR1616,
-   unpack_SIGNED_RGB_16,
-   unpack_SIGNED_RGBA_16,
-   unpack_RGBA_16,
+      table[MESA_FORMAT_RGBA_FLOAT32] = unpack_RGBA_FLOAT32;
+      table[MESA_FORMAT_RGBA_FLOAT16] = unpack_RGBA_FLOAT16;
+      table[MESA_FORMAT_RGB_FLOAT32] = unpack_RGB_FLOAT32;
+      table[MESA_FORMAT_RGB_FLOAT16] = unpack_RGB_FLOAT16;
+      table[MESA_FORMAT_ALPHA_FLOAT32] = unpack_ALPHA_FLOAT32;
+      table[MESA_FORMAT_ALPHA_FLOAT16] = unpack_ALPHA_FLOAT16;
+      table[MESA_FORMAT_LUMINANCE_FLOAT32] = unpack_LUMINANCE_FLOAT32;
+      table[MESA_FORMAT_LUMINANCE_FLOAT16] = unpack_LUMINANCE_FLOAT16;
+      table[MESA_FORMAT_LUMINANCE_ALPHA_FLOAT32] = unpack_LUMINANCE_ALPHA_FLOAT32;
+      table[MESA_FORMAT_LUMINANCE_ALPHA_FLOAT16] = unpack_LUMINANCE_ALPHA_FLOAT16;
+      table[MESA_FORMAT_INTENSITY_FLOAT32] = unpack_INTENSITY_FLOAT32;
+      table[MESA_FORMAT_INTENSITY_FLOAT16] = unpack_INTENSITY_FLOAT16;
+      table[MESA_FORMAT_R_FLOAT32] = unpack_R_FLOAT32;
+      table[MESA_FORMAT_R_FLOAT16] = unpack_R_FLOAT16;
+      table[MESA_FORMAT_RG_FLOAT32] = unpack_RG_FLOAT32;
+      table[MESA_FORMAT_RG_FLOAT16] = unpack_RG_FLOAT16;
 
-   unpack_RED_RGTC1,
-   unpack_SIGNED_RED_RGTC1,
-   unpack_RG_RGTC2,
-   unpack_SIGNED_RG_RGTC2,
+      table[MESA_FORMAT_RGBA_INT8] = unpack_RGBA_INT8;
+      table[MESA_FORMAT_RGBA_INT16] = unpack_RGBA_INT16;
+      table[MESA_FORMAT_RGBA_INT32] = unpack_RGBA_INT32;
+      table[MESA_FORMAT_RGBA_UINT8] = unpack_RGBA_UINT8;
+      table[MESA_FORMAT_RGBA_UINT16] = unpack_RGBA_UINT16;
+      table[MESA_FORMAT_RGBA_UINT32] = unpack_RGBA_UINT32;
 
-   unpack_L_LATC1,
-   unpack_SIGNED_L_LATC1,
-   unpack_LA_LATC2,
-   unpack_SIGNED_LA_LATC2,
+      table[MESA_FORMAT_DUDV8] = unpack_DUDV8;
+      table[MESA_FORMAT_SIGNED_R8] = unpack_SIGNED_R8;
+      table[MESA_FORMAT_SIGNED_RG88_REV] = unpack_SIGNED_RG88_REV;
+      table[MESA_FORMAT_SIGNED_RGBX8888] = unpack_SIGNED_RGBX8888;
+      table[MESA_FORMAT_SIGNED_RGBA8888] = unpack_SIGNED_RGBA8888;
+      table[MESA_FORMAT_SIGNED_RGBA8888_REV] = unpack_SIGNED_RGBA8888_REV;
+      table[MESA_FORMAT_SIGNED_R16] = unpack_SIGNED_R16;
+      table[MESA_FORMAT_SIGNED_GR1616] = unpack_SIGNED_GR1616;
+      table[MESA_FORMAT_SIGNED_RGB_16] = unpack_SIGNED_RGB_16;
+      table[MESA_FORMAT_SIGNED_RGBA_16] = unpack_SIGNED_RGBA_16;
+      table[MESA_FORMAT_RGBA_16] = unpack_RGBA_16;
 
-   unpack_SIGNED_A8,
-   unpack_SIGNED_L8,
-   unpack_SIGNED_AL88,
-   unpack_SIGNED_I8,
-   unpack_SIGNED_A16,
-   unpack_SIGNED_L16,
-   unpack_SIGNED_AL1616,
-   unpack_SIGNED_I16,
+      table[MESA_FORMAT_RED_RGTC1] = unpack_RED_RGTC1;
+      table[MESA_FORMAT_SIGNED_RED_RGTC1] = unpack_SIGNED_RED_RGTC1;
+      table[MESA_FORMAT_RG_RGTC2] = unpack_RG_RGTC2;
+      table[MESA_FORMAT_SIGNED_RG_RGTC2] = unpack_SIGNED_RG_RGTC2;
 
-   unpack_RGB9_E5_FLOAT,
-   unpack_R11_G11_B10_FLOAT,
+      table[MESA_FORMAT_L_LATC1] = unpack_L_LATC1;
+      table[MESA_FORMAT_SIGNED_L_LATC1] = unpack_SIGNED_L_LATC1;
+      table[MESA_FORMAT_LA_LATC2] = unpack_LA_LATC2;
+      table[MESA_FORMAT_SIGNED_LA_LATC2] = unpack_SIGNED_LA_LATC2;
 
-   unpack_Z32_FLOAT,
-   unpack_Z32_FLOAT_X24S8
+      table[MESA_FORMAT_SIGNED_A8] = unpack_SIGNED_A8;
+      table[MESA_FORMAT_SIGNED_L8] = unpack_SIGNED_L8;
+      table[MESA_FORMAT_SIGNED_AL88] = unpack_SIGNED_AL88;
+      table[MESA_FORMAT_SIGNED_I8] = unpack_SIGNED_I8;
+      table[MESA_FORMAT_SIGNED_A16] = unpack_SIGNED_A16;
+      table[MESA_FORMAT_SIGNED_L16] = unpack_SIGNED_L16;
+      table[MESA_FORMAT_SIGNED_AL1616] = unpack_SIGNED_AL1616;
+      table[MESA_FORMAT_SIGNED_I16] = unpack_SIGNED_I16;
 
-};
+      table[MESA_FORMAT_RGB9_E5_FLOAT] = unpack_RGB9_E5_FLOAT;
+      table[MESA_FORMAT_R11_G11_B10_FLOAT] = unpack_R11_G11_B10_FLOAT;
+
+      table[MESA_FORMAT_Z32_FLOAT] = unpack_Z32_FLOAT;
+      table[MESA_FORMAT_Z32_FLOAT_X24S8] = unpack_Z32_FLOAT_X24S8;
+
+      initialized = GL_TRUE;
+   }
+
+   return table[format];
+}
 
 
 void
 _mesa_unpack_rgba_row(gl_format format, GLuint n,
                       const void *src, GLfloat dst[][4])
 {
-   unpack_rgba_func unpack = unpack_rgba_functions[format];
+   unpack_rgba_func unpack = get_unpack_rgba_function(format);
    GLuint srcStride = _mesa_get_format_bytes(format);
    const GLubyte *srcPtr = (GLubyte *) src;
    GLuint i;
-
-   /* spot-check table consistency */
-   assert(unpack_rgba_functions[MESA_FORMAT_ARGB4444_REV]
-          == unpack_ARGB4444_REV);
-   assert(unpack_rgba_functions[MESA_FORMAT_ARGB2101010]
-          == unpack_ARGB2101010);
-   assert(unpack_rgba_functions[MESA_FORMAT_Z32] == unpack_Z32);
-   assert(unpack_rgba_functions[MESA_FORMAT_SIGNED_I16] == unpack_SIGNED_I16);
-   assert(unpack_rgba_functions[MESA_FORMAT_Z32_FLOAT] == unpack_Z32_FLOAT);
 
    for (i = 0; i < n; i++) {
       unpack(srcPtr, dst[i]);
@@ -1278,7 +1281,7 @@ _mesa_unpack_rgba_block(gl_format format,
                         GLfloat dst[][4], GLint dstRowStride,
                         GLuint x, GLuint y, GLuint width, GLuint height)
 {
-   unpack_rgba_func unpack = unpack_rgba_functions[format];
+   unpack_rgba_func unpack = get_unpack_rgba_function(format);
    const GLuint srcPixStride = _mesa_get_format_bytes(format);
    const GLuint dstPixStride = 4 * sizeof(GLfloat);
    const GLubyte *srcRow, *srcPix;
