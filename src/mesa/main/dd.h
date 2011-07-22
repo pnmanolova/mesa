@@ -531,7 +531,12 @@ struct dd_function_table {
                                   struct gl_texture_image *texImage);
 
    /** Map a slice of a texture image into user space.
-    * \param mode  bitmask of GL_MAP_READ_BIT, GL_MAP_WRITE_BIT.
+    * \param texImage  the texture image
+    * \param slice  the 3D image slice or array texture slice
+    * \param x, y, w, h  region of interest
+    * \param mode  bitmask of GL_MAP_READ_BIT, GL_MAP_WRITE_BIT
+    * \param mapOut  returns start of mapping of region of interest
+    * \param rowStrideOut  returns row stride (in bytes)
     */
    void (*MapTextureImage)(struct gl_context *ctx,
                            struct gl_texture_image *texImage,
