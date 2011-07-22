@@ -128,13 +128,11 @@ _mesa_check_map_teximage(struct gl_texture_image *texImage,
  * (x,y,w,h) defines a region of interest (ROI).  Reading/writing texels
  * outside of the ROI is undefined.
  *
- * \param texObj  the texture object
- * \param level  the mipmap level
- * \param faceSlice  the cube face or 3D/array image slice
+ * \param texImage  the texture image
+ * \param slice  the 3D image slice or array texture slice
  * \param x, y, w, h  region of interest
- * \param mode  bitmask of GL_MAP_READ_BIT, GL_MAP_WRITE_BIT,
- *              GL_MAP_INVALIDATE_RANGE_BIT
- * \param mapOut  returns start of mapping of ROI
+ * \param mode  bitmask of GL_MAP_READ_BIT, GL_MAP_WRITE_BIT
+ * \param mapOut  returns start of mapping of region of interest
  * \param rowStrideOut  returns row stride (in bytes)
  */
 void
