@@ -319,6 +319,12 @@ _swrast_map_textures( struct gl_context *ctx );
 extern void
 _swrast_unmap_textures( struct gl_context *ctx );
 
+extern void
+_swrast_map_renderbuffers(struct gl_context *ctx);
+
+extern void
+_swrast_unmap_renderbuffers(struct gl_context *ctx);
+
 
 /**
  * Called prior to framebuffer reading/writing.

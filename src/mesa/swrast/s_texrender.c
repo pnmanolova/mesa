@@ -647,35 +647,7 @@ _swrast_render_texture(struct gl_context *ctx,
 {
    struct swrast_texture_image *swImg =
       swrast_texture_image(_mesa_get_attachment_teximage(att));
-   const GLenum target = swImg->Base.TexObject->Target;
-   gl_format format;
-   GLuint slice;
-
-   if (!swImg->SliceMaps) {
-      swImg->SliceMaps =
-         (GLubyte **) calloc(swImg->Base.Depth, sizeof(GLubyte *));
-      if (!swImg->SliceMaps) {
-         return; /* XXX error */
-      }
-   }
-   assert(swImg->SliceMaps);
-
-   /* We don't use the Zoffset for 1D array textures */
-   if (target == GL_TEXTURE_3D || target == GL_TEXTURE_2D_ARRAY)
-      slice = att->Zoffset;
-   else
-      slice = 0;
-
-   ctx->Driver.MapTextureImage(ctx,
-                               &swImg->Base,
-                               slice,
-                               0, 0,
-                               swImg->Base.Width, swImg->Base.Height,
-                               GL_MAP_READ_BIT | GL_MAP_WRITE_BIT,
-                               &swImg->SliceMaps[slice],
-                               &swImg->RowStride);
-
-   format = swImg->Base.TexFormat;
+   gl_format format = swImg->Base.TexFormat;
    swImg->TexelSize = _mesa_get_format_bytes(format);
    swImg->Fetch = _swrast_get_texel_fetch_func(format);
    swImg->Store = _swrast_get_texel_store_func(format);
@@ -691,11 +663,5 @@ void
 _swrast_finish_render_texture(struct gl_context *ctx,
                               struct gl_renderbuffer_attachment *att)
 {
-   struct gl_texture_image *texImage = _mesa_get_attachment_teximage(att);
-
-   struct swrast_texture_image *swImg = swrast_texture_image(texImage);
-
-   /* just unmap the texture image buffer */
-   ctx->Driver.UnmapTextureImage(ctx, texImage, att->Zoffset);
-   swImg->SliceMaps[0] = NULL;
+   /* nothing */
 }

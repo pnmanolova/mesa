@@ -27,6 +27,7 @@
 
 
 #include "main/context.h"
+#include "main/fbobject.h"
 #include "swrast/swrast.h"
 #include "swrast/s_context.h"
 
@@ -334,6 +335,120 @@ _swrast_unmap_textures(struct gl_context *ctx)
          ctx->Driver.UnmapTexture(ctx, texObj);
       }
       enabledUnits &= ~(1 << unit);
+   }
+}
+
+
+static void
+map_renderbuffer(struct gl_context *ctx,
+                 struct gl_renderbuffer_attachment *att)
+{
+   struct swrast_texture_image *swImg =
+      swrast_texture_image(_mesa_get_attachment_teximage(att));
+   const GLenum target = att->Texture->Target;
+   GLuint slice;
+
+   if (!swImg->SliceMaps) {
+      swImg->SliceMaps =
+         (GLubyte **) calloc(swImg->Base.Depth, sizeof(GLubyte *));
+      if (!swImg->SliceMaps) {
+         return; /* XXX error */
+      }
+   }
+   assert(swImg->SliceMaps);
+
+   /* We don't use the Zoffset for 1D array textures */
+   if (target == GL_TEXTURE_3D || target == GL_TEXTURE_2D_ARRAY)
+      slice = att->Zoffset;
+   else
+      slice = 0;
+
+   ctx->Driver.MapTextureImage(ctx,
+                               &swImg->Base,
+                               slice,
+                               0, 0,
+                               swImg->Base.Width, swImg->Base.Height,
+                               GL_MAP_READ_BIT | GL_MAP_WRITE_BIT,
+                               &swImg->SliceMaps[slice],
+                               &swImg->RowStride);
+}
+
+
+static void
+unmap_renderbuffer(struct gl_context *ctx,
+                   struct gl_renderbuffer_attachment *att)
+{
+   const GLenum target = att->Texture->Target;
+   struct gl_texture_image *texImage = _mesa_get_attachment_teximage(att);
+   struct swrast_texture_image *swImg = swrast_texture_image(texImage);
+   GLuint slice;
+
+   /* We don't use the Zoffset for 1D array textures */
+   if (target == GL_TEXTURE_3D || target == GL_TEXTURE_2D_ARRAY)
+      slice = att->Zoffset;
+   else
+      slice = 0;
+
+   /* just unmap the texture image buffer */
+   ctx->Driver.UnmapTextureImage(ctx, texImage, slice);
+   swImg->SliceMaps[slice] = NULL;
+}
+
+
+static void
+map_renderbuffers(struct gl_context *ctx, struct gl_framebuffer *fb)
+{
+   GLuint buf;
+
+   for (buf = 0; buf < Elements(fb->Attachment); buf++) {
+      struct gl_renderbuffer_attachment *att = &fb->Attachment[buf];
+      if (att->Texture) {
+         map_renderbuffer(ctx, att);
+      }
+   }
+}
+
+
+static void
+unmap_renderbuffers(struct gl_context *ctx, struct gl_framebuffer *fb)
+{
+   GLuint buf;
+
+   for (buf = 0; buf < Elements(fb->Attachment); buf++) {
+      struct gl_renderbuffer_attachment *att = &fb->Attachment[buf];
+      if (att->Texture) {
+         unmap_renderbuffer(ctx, att);
+      }
+   }
+}
+
+
+/**
+ * Map all the renderbuffers (or the textures they point at) prior
+ * to software rendering.
+ */
+void
+_swrast_map_renderbuffers(struct gl_context *ctx)
+{
+   map_renderbuffers(ctx, ctx->DrawBuffer);
+
+   if (ctx->ReadBuffer != ctx->DrawBuffer) {
+      map_renderbuffers(ctx, ctx->ReadBuffer);
+   }
+}
+
+
+/**
+ * Unmap all the renderbuffers (or the textures they point at) after
+ * software rendering.
+ */
+void
+_swrast_unmap_renderbuffers(struct gl_context *ctx)
+{
+   unmap_renderbuffers(ctx, ctx->DrawBuffer);
+
+   if (ctx->ReadBuffer != ctx->DrawBuffer) {
+      unmap_renderbuffers(ctx, ctx->ReadBuffer);
    }
 }
 

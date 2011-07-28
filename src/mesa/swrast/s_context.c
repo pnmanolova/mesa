@@ -758,6 +758,9 @@ _swrast_CreateContext( struct gl_context *ctx )
 
    ctx->swrast_context = swrast;
 
+   swrast->Driver.SpanRenderStart = _swrast_render_start;
+   swrast->Driver.SpanRenderFinish = _swrast_render_finish;
+
    return GL_TRUE;
 }
 
@@ -809,24 +812,23 @@ _swrast_render_primitive( struct gl_context *ctx, GLenum prim )
 }
 
 
+/** Called via swrast->Driver.SpanRenderStart() */
 void
 _swrast_render_start( struct gl_context *ctx )
 {
    SWcontext *swrast = SWRAST_CONTEXT(ctx);
    _swrast_map_textures(ctx);
-   if (swrast->Driver.SpanRenderStart)
-      swrast->Driver.SpanRenderStart( ctx );
+   _swrast_map_renderbuffers(ctx);
    swrast->PointSpan.end = 0;
 }
  
+/** Called via swrast->Driver.SpanRenderFinish() */
 void
 _swrast_render_finish( struct gl_context *ctx )
 {
-   SWcontext *swrast = SWRAST_CONTEXT(ctx);
-   if (swrast->Driver.SpanRenderFinish)
-      swrast->Driver.SpanRenderFinish( ctx );
-   _swrast_unmap_textures(ctx);
    _swrast_flush(ctx);
+   _swrast_unmap_renderbuffers(ctx);
+   _swrast_unmap_textures(ctx);
 }
 
 
