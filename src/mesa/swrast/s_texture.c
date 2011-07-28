@@ -117,8 +117,8 @@ _mesa_check_map_teximage(struct gl_texture_image *texImage,
    if (texImage->TexObject->Target == GL_TEXTURE_1D)
       assert(y == 0 && h == 1);
 
-   assert(x < texImage->Width);
-   assert(y < texImage->Height);
+   assert(x < texImage->Width || texImage->Width == 0);
+   assert(y < texImage->Height || texImage->Height == 0);
    assert(x + w <= texImage->Width);
    assert(y + h <= texImage->Height);
 }
