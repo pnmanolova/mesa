@@ -1636,7 +1636,7 @@ fxt1_decode_1 (const void *texture, GLint stride, /* in pixels */
    };
 
    const GLubyte *code = (const GLubyte *)texture +
-                         ((j / 4) * (stride / 8) + (i / 8)) * 16;
+                         (j / 4) * stride + (i / 8) * 16;
    GLint mode = CC_SEL(code, 125);
    GLint t = i & 7;
 

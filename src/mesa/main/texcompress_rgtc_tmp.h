@@ -33,7 +33,7 @@ static void TAG(fetch_texel_rgtc)(unsigned srcRowStride, const TYPE *pixdata,
 				  unsigned i, unsigned j, TYPE *value, unsigned comps)
 {
    TYPE decode;
-   const TYPE *blksrc = (pixdata + ((srcRowStride + 3) / 4 * (j / 4) + (i / 4)) * 8 * comps);
+   const TYPE *blksrc = (pixdata + srcRowStride * (j / 4) + (i / 4) * 8 * comps);
    const TYPE alpha0 = blksrc[0];
    const TYPE alpha1 = blksrc[1];
    const char bit_pos = ((j&3) * 4 + (i&3)) * 3;
