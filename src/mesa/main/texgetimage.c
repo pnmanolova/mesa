@@ -789,8 +789,12 @@ _mesa_GetnTexImageARB( GLenum target, GLint level, GLenum format,
                   format, type);
    }
 
-   ctx->Driver.GetTexImage(ctx, target, level, format, type, pixels,
-                           texObj, texImage);
+   _mesa_lock_texture(ctx, texObj);
+   {
+      ctx->Driver.GetTexImage(ctx, target, level, format, type, pixels,
+                              texObj, texImage);
+   }
+   _mesa_unlock_texture(ctx, texObj);
 }
 
 
