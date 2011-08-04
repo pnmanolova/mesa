@@ -207,6 +207,16 @@ struct st_context
 
    int32_t draw_stamp;
    int32_t read_stamp;
+
+   /* data related to hw accelerated GL_SELECT */
+   struct gl_selection_emul
+   {
+      GLboolean hw_unsupported;
+      struct gl_framebuffer *fbo;
+      GLuint rb_depth_name;
+      GLuint rb_color_name;
+      void *fs;
+   } select_emul;
 };
 
 

@@ -276,17 +276,28 @@ st_RenderMode(struct gl_context *ctx, GLenum newMode )
 {
    struct st_context *st = st_context(ctx);
    struct draw_context *draw = st->draw;
+   bool hw_acc_path = _mesa_getenv("MESA_HW_SELECT") && !st->select_emul.hw_unsupported;
 
    if (newMode == GL_RENDER) {
       /* restore normal VBO draw function */
       vbo_set_draw_func(ctx, st_draw_vbo);
    }
    else if (newMode == GL_SELECT) {
-      if (!st->selection_stage)
-         st->selection_stage = draw_glselect_stage(ctx, draw);
-      draw_set_rasterize_stage(draw, st->selection_stage);
-      /* Plug in new vbo draw function */
-      vbo_set_draw_func(ctx, st_feedback_draw_vbo);
+      if (hw_acc_path) {
+         if (st_select_emul_begin(ctx)) {
+            vbo_set_draw_func(ctx, st_select_draw_func);
+         }
+         else {
+            hw_acc_path = false;
+         }
+      }
+      if (!hw_acc_path) {
+         if (!st->selection_stage)
+            st->selection_stage = draw_glselect_stage(ctx, draw);
+         draw_set_rasterize_stage(draw, st->selection_stage);
+         /* Plug in new vbo draw function */
+         vbo_set_draw_func(ctx, st_feedback_draw_vbo);
+      }
    }
    else {
       if (!st->feedback_stage)

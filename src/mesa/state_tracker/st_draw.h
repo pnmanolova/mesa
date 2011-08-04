@@ -87,5 +87,22 @@ pointer_to_offset(const void *ptr)
    return (unsigned) (((unsigned long) ptr) & 0xffffffffUL);
 }
 
+/* Functions used by the hw accelerated GL_SELECT emulator
+ */
+extern bool
+st_select_emul_begin(struct gl_context *ctx);
+
+extern void
+st_select_emul_end(struct gl_context *ctx);
+
+extern void
+st_select_draw_func(struct gl_context *ctx,
+            const struct gl_client_array **arrays,
+            const struct _mesa_prim *prims,
+            GLuint nr_prims,
+            const struct _mesa_index_buffer *ib,
+            GLboolean index_bounds_valid,
+            GLuint min_index,
+            GLuint max_index);
 
 #endif

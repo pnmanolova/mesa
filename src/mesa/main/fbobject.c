@@ -1560,8 +1560,8 @@ _mesa_IsFramebufferEXT(GLuint framebuffer)
  * (render to texture).  Call ctx->Driver.RenderTexture() for such
  * attachments.
  */
-static void
-check_begin_texture_render(struct gl_context *ctx, struct gl_framebuffer *fb)
+void
+_mesa_check_begin_texture_render(struct gl_context *ctx, struct gl_framebuffer *fb)
 {
    GLuint i;
    ASSERT(ctx->Driver.RenderTexture);
@@ -1583,8 +1583,8 @@ check_begin_texture_render(struct gl_context *ctx, struct gl_framebuffer *fb)
  * If so, call ctx->Driver.FinishRenderTexture() for each texture to
  * notify the device driver that the texture image may have changed.
  */
-static void
-check_end_texture_render(struct gl_context *ctx, struct gl_framebuffer *fb)
+void
+_mesa_check_end_texture_render(struct gl_context *ctx, struct gl_framebuffer *fb)
 {
    if (is_winsys_fbo(fb))
       return; /* can't render to texture with winsys framebuffers */
@@ -1713,7 +1713,7 @@ _mesa_BindFramebufferEXT(GLenum target, GLuint framebuffer)
       FLUSH_VERTICES(ctx, _NEW_BUFFERS);
 
       /* check if old readbuffer was render-to-texture */
-      check_end_texture_render(ctx, oldReadFb);
+      _mesa_check_end_texture_render(ctx, oldReadFb);
 
       _mesa_reference_framebuffer(&ctx->ReadBuffer, newReadFb);
    }
@@ -1723,13 +1723,13 @@ _mesa_BindFramebufferEXT(GLenum target, GLuint framebuffer)
 
       /* check if old read/draw buffers were render-to-texture */
       if (!bindReadBuf)
-         check_end_texture_render(ctx, oldReadFb);
+         _mesa_check_end_texture_render(ctx, oldReadFb);
 
       if (oldDrawFb != oldReadFb)
-         check_end_texture_render(ctx, oldDrawFb);
+         _mesa_check_end_texture_render(ctx, oldDrawFb);
 
       /* check if newly bound framebuffer has any texture attachments */
-      check_begin_texture_render(ctx, newDrawFb);
+      _mesa_check_begin_texture_render(ctx, newDrawFb);
 
       _mesa_reference_framebuffer(&ctx->DrawBuffer, newDrawFb);
    }
