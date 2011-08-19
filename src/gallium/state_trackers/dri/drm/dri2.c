@@ -44,14 +44,10 @@
  * DRI2 flush extension.
  */
 static void
-dri2_flush_drawable(__DRIdrawable *dPriv)
+dri2_flush_drawable(__DRIdrawable *draw)
 {
-   struct dri_context *ctx = dri_get_current(dPriv->driScreenPriv);
-   struct dri_drawable *drawable = dri_drawable(dPriv);
+   struct dri_context *ctx = dri_get_current(draw->driScreenPriv);
 
-   struct pipe_resource *ptex = drawable->textures[ST_ATTACHMENT_BACK_LEFT];
-   if (ptex && ctx && ctx->pp && drawable->textures[ST_ATTACHMENT_DEPTH_STENCIL])
-      pp_run(ctx->pp, ptex, ptex, drawable->textures[ST_ATTACHMENT_DEPTH_STENCIL]);
    if (ctx)
       ctx->st->flush(ctx->st, 0, NULL);
 }
