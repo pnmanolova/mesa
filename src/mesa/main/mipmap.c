@@ -1985,14 +1985,13 @@ generate_mipmap_uncompressed(struct gl_context *ctx, GLenum target,
 static void
 generate_mipmap_compressed(struct gl_context *ctx, GLenum target,
 			   struct gl_texture_object *texObj,
-			   const struct gl_texture_image *srcImage,
+			   struct gl_texture_image *srcImage,
 			   GLuint maxLevel)
 {
    GLint level;
    gl_format temp_format;
    GLenum datatype;
    GLuint comps;
-   GLuint row;
    GLint components;
    GLuint temp_src_stride, temp_dst_stride; /* in bytes */
    GLchan *temp_src = NULL, *temp_dst = NULL;
@@ -2036,13 +2035,17 @@ generate_mipmap_compressed(struct gl_context *ctx, GLenum target,
    }
 
    /* decompress base image to the temporary */
-   for (row = 0; row < srcImage->Height; row++) {
-      GLuint col;
-      GLchan *dst = (GLchan *) temp_src + temp_src_stride * row;
-      for (col = 0; col < srcImage->Width; col++) {
-	 srcImage->FetchTexelc(srcImage, col, row, 0, dst);
-	 dst += components;
-      }
+   {
+      /* save pixel packing mode */
+      struct gl_pixelstore_attrib save = ctx->Pack;
+      /* use default/tight packing parameters */
+      ctx->Pack = ctx->DefaultPacking;
+      /* Get the uncompressed image */
+      ctx->Driver.GetTexImage(ctx, target, texObj->BaseLevel,
+                              srcImage->_BaseFormat, GL_UNSIGNED_BYTE,
+                              temp_src, texObj, srcImage);
+      /* restore packing mode */
+      ctx->Pack = save;
    }
 
    _mesa_format_to_type_and_comps(temp_format, &datatype, &comps);
@@ -2130,7 +2133,7 @@ void
 _mesa_generate_mipmap(struct gl_context *ctx, GLenum target,
                       struct gl_texture_object *texObj)
 {
-   const struct gl_texture_image *srcImage;
+   struct gl_texture_image *srcImage;
    GLint maxLevel;
 
    ASSERT(texObj);
