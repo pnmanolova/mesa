@@ -34,13 +34,13 @@
 #include "enums.h"
 #include "context.h"
 #include "formats.h"
+#include "format_unpack.h"
 #include "image.h"
 #include "mfeatures.h"
 #include "mtypes.h"
 #include "pack.h"
 #include "pbo.h"
 #include "texgetimage.h"
-#include "texfetch.h"
 #include "teximage.h"
 
 
@@ -124,8 +124,9 @@ get_tex_depth(struct gl_context *ctx, GLuint dimensions,
    const GLint width = texImage->Width;
    const GLint height = texImage->Height;
    const GLint depth = texImage->Depth;
-   GLint img, row, col;
+   GLint img, row;
    GLfloat *depthRow = (GLfloat *) malloc(width * sizeof(GLfloat));
+   const GLint texelSize = _mesa_get_format_bytes(texImage->TexFormat);
 
    if (!depthRow) {
       _mesa_error(ctx, GL_OUT_OF_MEMORY, "glGetTexImage");
@@ -137,11 +138,12 @@ get_tex_depth(struct gl_context *ctx, GLuint dimensions,
          void *dest = _mesa_image_address(dimensions, &ctx->Pack, pixels,
                                           width, height, format, type,
                                           img, row, 0);
-         assert(dest);
+         const GLubyte *src = (GLubyte *) texImage->Data +
+            (texImage->ImageOffsets[img] +
+             texImage->RowStride * row) * texelSize;
 
-         for (col = 0; col < width; col++) {
-            texImage->FetchTexelf(texImage, col, row, img, depthRow + col);
-         }
+         _mesa_unpack_float_z_row(texImage->TexFormat, width, src, depthRow);
+
          _mesa_pack_depth_span(ctx, width, dest, type, depthRow, &ctx->Pack);
       }
    }
@@ -240,9 +242,9 @@ get_tex_rgba(struct gl_context *ctx, GLuint dimensions,
    GLbitfield transferOps = 0x0;
    GLint img, row;
    GLfloat (*rgba)[4] = (GLfloat (*)[4]) malloc(4 * width * sizeof(GLfloat));
-   const GLboolean is_sampler_srgb_decode =
-       _mesa_get_format_color_encoding(texImage->TexFormat) == GL_SRGB &&
-       texImage->TexObject->Sampler.sRGBDecode == GL_DECODE_EXT;
+   /* don't want to apply sRGB -> RGB conversion here so override the format */
+   const gl_format texFormat = _mesa_get_srgb_format_linear(texImage->TexFormat);
+   const GLint texelSize = _mesa_get_format_bytes(texFormat);
 
    if (!rgba) {
       _mesa_error(ctx, GL_OUT_OF_MEMORY, "glGetTexImage");
@@ -262,52 +264,53 @@ get_tex_rgba(struct gl_context *ctx, GLuint dimensions,
       transferOps |= IMAGE_CLAMP_BIT;
    }
 
-   /* glGetTexImage always returns sRGB data for sRGB textures. Make sure the
-    * fetch functions return sRGB data without linearizing it.
-    */
-   if (is_sampler_srgb_decode) {
-      texImage->TexObject->Sampler.sRGBDecode = GL_SKIP_DECODE_EXT;
-      _mesa_set_fetch_functions(texImage, dimensions);
-   }
-
    for (img = 0; img < depth; img++) {
       for (row = 0; row < height; row++) {
          void *dest = _mesa_image_address(dimensions, &ctx->Pack, pixels,
                                           width, height, format, type,
                                           img, row, 0);
-         GLint col;
+         const GLubyte *src = (const GLubyte *) texImage->Data +
+            (texImage->ImageOffsets[img] +
+             texImage->RowStride * row) * texelSize;
 
-         for (col = 0; col < width; col++) {
-            texImage->FetchTexelf(texImage, col, row, img, rgba[col]);
-            if (texImage->_BaseFormat == GL_ALPHA) {
+         _mesa_unpack_rgba_row(texImage->TexFormat, width, src, rgba);
+
+         if (texImage->_BaseFormat == GL_ALPHA) {
+            GLint col;
+            for (col = 0; col < width; col++) {
                rgba[col][RCOMP] = 0.0F;
                rgba[col][GCOMP] = 0.0F;
                rgba[col][BCOMP] = 0.0F;
             }
-            else if (texImage->_BaseFormat == GL_LUMINANCE) {
-               rgba[col][GCOMP] = 0.0F;
-               rgba[col][BCOMP] = 0.0F;
-               rgba[col][ACOMP] = 1.0F;
-            }
-            else if (texImage->_BaseFormat == GL_LUMINANCE_ALPHA) {
-               rgba[col][GCOMP] = 0.0F;
-               rgba[col][BCOMP] = 0.0F;
-            }
-            else if (texImage->_BaseFormat == GL_INTENSITY) {
+         }
+         else if (texImage->_BaseFormat == GL_LUMINANCE) {
+            GLint col;
+            for (col = 0; col < width; col++) {
                rgba[col][GCOMP] = 0.0F;
                rgba[col][BCOMP] = 0.0F;
                rgba[col][ACOMP] = 1.0F;
             }
          }
+         else if (texImage->_BaseFormat == GL_LUMINANCE_ALPHA) {
+            GLint col;
+            for (col = 0; col < width; col++) {
+               rgba[col][GCOMP] = 0.0F;
+               rgba[col][BCOMP] = 0.0F;
+            }
+         }
+         else if (texImage->_BaseFormat == GL_INTENSITY) {
+            GLint col;
+            for (col = 0; col < width; col++) {
+               rgba[col][GCOMP] = 0.0F;
+               rgba[col][BCOMP] = 0.0F;
+               rgba[col][ACOMP] = 1.0F;
+            }
+         }
+
          _mesa_pack_rgba_span_float(ctx, width, (GLfloat (*)[4]) rgba,
                                     format, type, dest,
                                     &ctx->Pack, transferOps);
       }
-   }
-
-   if (is_sampler_srgb_decode) {
-      texImage->TexObject->Sampler.sRGBDecode = GL_DECODE_EXT;
-      _mesa_set_fetch_functions(texImage, dimensions);
    }
 
    free(rgba);
