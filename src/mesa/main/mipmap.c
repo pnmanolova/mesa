@@ -1956,15 +1956,13 @@ generate_mipmap_uncompressed(struct gl_context *ctx, GLenum target,
                                  srcImage->TexFormat);
       dstImage->DriverData = NULL;
 
-      /* Alloc new teximage data buffer */
-      {
-         GLuint size = _mesa_format_image_size(dstImage->TexFormat,
-                                               dstWidth, dstHeight, dstDepth);
-         dstImage->Data = _mesa_alloc_texmemory(size);
-         if (!dstImage->Data) {
-            _mesa_error(ctx, GL_OUT_OF_MEMORY, "generating mipmaps");
-            return;
-         }
+      /* Alloc storage for new texture image */
+      if (!ctx->Driver.AllocTextureImageBuffer(ctx, dstImage,
+                                               dstImage->TexFormat,
+                                               dstWidth, dstHeight,
+                                               dstDepth)) {
+         _mesa_error(ctx, GL_OUT_OF_MEMORY, "generating mipmaps");
+         return;
       }
 
       ASSERT(dstImage->TexFormat);
@@ -2084,6 +2082,9 @@ generate_mipmap_compressed(struct gl_context *ctx, GLenum target,
          _mesa_error(ctx, GL_OUT_OF_MEMORY, "generating mipmaps");
          return;
       }
+
+      /* Free old image data */
+      ctx->Driver.FreeTextureImageBuffer(ctx, dstImage);
 
       _mesa_generate_mipmap_level(target, datatype, comps, border,
                                   srcWidth, srcHeight, srcDepth,
