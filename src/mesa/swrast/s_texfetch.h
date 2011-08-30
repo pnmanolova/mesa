@@ -24,11 +24,11 @@
  */
 
 
-#ifndef TEXFETCH_H
-#define TEXFETCH_H
+#ifndef S_TEXFETCH_H
+#define S_TEXFETCH_H
 
-#include "mtypes.h"
-#include "formats.h"
+#include "main/mtypes.h"
+#include "main/formats.h"
 
 
 extern StoreTexelFunc
@@ -42,4 +42,5 @@ _mesa_set_fetch_functions(struct gl_texture_image *texImage, GLuint dims);
 
 void
 _mesa_update_fetch_functions(struct gl_texture_object *texObj);
-#endif
+
+#endif /* S_TEXFETCH_H */
