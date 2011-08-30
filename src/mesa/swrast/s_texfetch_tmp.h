@@ -43,7 +43,7 @@
 #if DIM == 1
 
 #define TEXEL_ADDR( type, image, i, j, k, size ) \
-	((void) (j), (void) (k), ((type *)(image)->Data + (i) * (size)))
+	((void) (j), (void) (k), ((type *)(image)->Base.Data + (i) * (size)))
 
 #define FETCH(x) fetch_texel_1d_##x
 
@@ -51,15 +51,15 @@
 
 #define TEXEL_ADDR( type, image, i, j, k, size )			\
 	((void) (k),							\
-	 ((type *)(image)->Data + ((image)->RowStride * (j) + (i)) * (size)))
+	 ((type *)(image)->Base.Data + ((image)->Base.RowStride * (j) + (i)) * (size)))
 
 #define FETCH(x) fetch_texel_2d_##x
 
 #elif DIM == 3
 
 #define TEXEL_ADDR( type, image, i, j, k, size )			\
-	((type *)(image)->Data + ((image)->ImageOffsets[k]		\
-             + (image)->RowStride * (j) + (i)) * (size))
+	((type *)(image)->Base.Data + ((image)->Base.ImageOffsets[k]		\
+             + (image)->Base.RowStride * (j) + (i)) * (size))
 
 #define FETCH(x) fetch_texel_3d_##x
 
@@ -74,7 +74,7 @@
  * returning 1 GLfloat.
  * Note: no GLchan version of this function.
  */
-static void FETCH(f_z32)( const struct gl_texture_image *texImage,
+static void FETCH(f_z32)( const struct swrast_texture_image *texImage,
                           GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint *src = TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -82,7 +82,7 @@ static void FETCH(f_z32)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_z32(struct gl_texture_image *texImage,
+static void store_texel_z32(struct swrast_texture_image *texImage,
                             GLint i, GLint j, GLint k, const void *texel)
 {
    const GLuint *depth = (const GLuint *) texel;
@@ -98,7 +98,7 @@ static void store_texel_z32(struct gl_texture_image *texImage,
  * returning 1 GLfloat.
  * Note: no GLchan version of this function.
  */
-static void FETCH(f_z16)(const struct gl_texture_image *texImage,
+static void FETCH(f_z16)(const struct swrast_texture_image *texImage,
                          GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort *src = TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -106,7 +106,7 @@ static void FETCH(f_z16)(const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_z16(struct gl_texture_image *texImage,
+static void store_texel_z16(struct swrast_texture_image *texImage,
                             GLint i, GLint j, GLint k, const void *texel)
 {
    const GLushort *depth = (const GLushort *) texel;
@@ -120,7 +120,7 @@ static void store_texel_z16(struct gl_texture_image *texImage,
 
 /* Fetch texel from 1D, 2D or 3D RGBA_FLOAT32 texture, returning 4 GLfloats.
  */
-static void FETCH(f_rgba_f32)( const struct gl_texture_image *texImage,
+static void FETCH(f_rgba_f32)( const struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLfloat *src = TEXEL_ADDR(GLfloat, texImage, i, j, k, 4);
@@ -131,7 +131,7 @@ static void FETCH(f_rgba_f32)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rgba_f32(struct gl_texture_image *texImage,
+static void store_texel_rgba_f32(struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *depth = (const GLfloat *) texel;
@@ -149,7 +149,7 @@ static void store_texel_rgba_f32(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D RGBA_FLOAT16 texture,
  * returning 4 GLfloats.
  */
-static void FETCH(f_rgba_f16)( const struct gl_texture_image *texImage,
+static void FETCH(f_rgba_f16)( const struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLhalfARB *src = TEXEL_ADDR(GLhalfARB, texImage, i, j, k, 4);
@@ -160,7 +160,7 @@ static void FETCH(f_rgba_f16)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rgba_f16(struct gl_texture_image *texImage,
+static void store_texel_rgba_f16(struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *src = (const GLfloat *) texel;
@@ -177,7 +177,7 @@ static void store_texel_rgba_f16(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D RGB_FLOAT32 texture,
  * returning 4 GLfloats.
  */
-static void FETCH(f_rgb_f32)( const struct gl_texture_image *texImage,
+static void FETCH(f_rgb_f32)( const struct swrast_texture_image *texImage,
                               GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLfloat *src = TEXEL_ADDR(GLfloat, texImage, i, j, k, 3);
@@ -188,7 +188,7 @@ static void FETCH(f_rgb_f32)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rgb_f32(struct gl_texture_image *texImage,
+static void store_texel_rgb_f32(struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *src = (const GLfloat *) texel;
@@ -205,7 +205,7 @@ static void store_texel_rgb_f32(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D RGB_FLOAT16 texture,
  * returning 4 GLfloats.
  */
-static void FETCH(f_rgb_f16)( const struct gl_texture_image *texImage,
+static void FETCH(f_rgb_f16)( const struct swrast_texture_image *texImage,
                               GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLhalfARB *src = TEXEL_ADDR(GLhalfARB, texImage, i, j, k, 3);
@@ -216,7 +216,7 @@ static void FETCH(f_rgb_f16)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rgb_f16(struct gl_texture_image *texImage,
+static void store_texel_rgb_f16(struct swrast_texture_image *texImage,
                                 GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *src = (const GLfloat *) texel;
@@ -233,7 +233,7 @@ static void store_texel_rgb_f16(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D ALPHA_FLOAT32 texture,
  * returning 4 GLfloats.
  */
-static void FETCH(f_alpha_f32)( const struct gl_texture_image *texImage,
+static void FETCH(f_alpha_f32)( const struct swrast_texture_image *texImage,
                               GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLfloat *src = TEXEL_ADDR(GLfloat, texImage, i, j, k, 1);
@@ -244,7 +244,7 @@ static void FETCH(f_alpha_f32)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_alpha_f32(struct gl_texture_image *texImage,
+static void store_texel_alpha_f32(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *rgba = (const GLfloat *) texel;
@@ -259,7 +259,7 @@ static void store_texel_alpha_f32(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D ALPHA_FLOAT16 texture,
  * returning 4 GLfloats.
  */
-static void FETCH(f_alpha_f16)( const struct gl_texture_image *texImage,
+static void FETCH(f_alpha_f16)( const struct swrast_texture_image *texImage,
                               GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLhalfARB *src = TEXEL_ADDR(GLhalfARB, texImage, i, j, k, 1);
@@ -270,7 +270,7 @@ static void FETCH(f_alpha_f16)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_alpha_f16(struct gl_texture_image *texImage,
+static void store_texel_alpha_f16(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *rgba = (const GLfloat *) texel;
@@ -285,7 +285,7 @@ static void store_texel_alpha_f16(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D LUMINANCE_FLOAT32 texture,
  * returning 4 GLfloats.
  */
-static void FETCH(f_luminance_f32)( const struct gl_texture_image *texImage,
+static void FETCH(f_luminance_f32)( const struct swrast_texture_image *texImage,
                                     GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLfloat *src = TEXEL_ADDR(GLfloat, texImage, i, j, k, 1);
@@ -296,7 +296,7 @@ static void FETCH(f_luminance_f32)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_luminance_f32(struct gl_texture_image *texImage,
+static void store_texel_luminance_f32(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *rgba = (const GLfloat *) texel;
@@ -311,7 +311,7 @@ static void store_texel_luminance_f32(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D LUMINANCE_FLOAT16 texture,
  * returning 4 GLfloats.
  */
-static void FETCH(f_luminance_f16)( const struct gl_texture_image *texImage,
+static void FETCH(f_luminance_f16)( const struct swrast_texture_image *texImage,
                                     GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLhalfARB *src = TEXEL_ADDR(GLhalfARB, texImage, i, j, k, 1);
@@ -322,7 +322,7 @@ static void FETCH(f_luminance_f16)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_luminance_f16(struct gl_texture_image *texImage,
+static void store_texel_luminance_f16(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *rgba = (const GLfloat *) texel;
@@ -337,7 +337,7 @@ static void store_texel_luminance_f16(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D LUMINANCE_ALPHA_FLOAT32 texture,
  * returning 4 GLfloats.
  */
-static void FETCH(f_luminance_alpha_f32)( const struct gl_texture_image *texImage,
+static void FETCH(f_luminance_alpha_f32)( const struct swrast_texture_image *texImage,
                                     GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLfloat *src = TEXEL_ADDR(GLfloat, texImage, i, j, k, 2);
@@ -348,7 +348,7 @@ static void FETCH(f_luminance_alpha_f32)( const struct gl_texture_image *texImag
 }
 
 #if DIM == 3
-static void store_texel_luminance_alpha_f32(struct gl_texture_image *texImage,
+static void store_texel_luminance_alpha_f32(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *rgba = (const GLfloat *) texel;
@@ -364,7 +364,7 @@ static void store_texel_luminance_alpha_f32(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D LUMINANCE_ALPHA_FLOAT16 texture,
  * returning 4 GLfloats.
  */
-static void FETCH(f_luminance_alpha_f16)( const struct gl_texture_image *texImage,
+static void FETCH(f_luminance_alpha_f16)( const struct swrast_texture_image *texImage,
                                     GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLhalfARB *src = TEXEL_ADDR(GLhalfARB, texImage, i, j, k, 2);
@@ -375,7 +375,7 @@ static void FETCH(f_luminance_alpha_f16)( const struct gl_texture_image *texImag
 }
 
 #if DIM == 3
-static void store_texel_luminance_alpha_f16(struct gl_texture_image *texImage,
+static void store_texel_luminance_alpha_f16(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *rgba = (const GLfloat *) texel;
@@ -391,7 +391,7 @@ static void store_texel_luminance_alpha_f16(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D INTENSITY_FLOAT32 texture,
  * returning 4 GLfloats.
  */
-static void FETCH(f_intensity_f32)( const struct gl_texture_image *texImage,
+static void FETCH(f_intensity_f32)( const struct swrast_texture_image *texImage,
                                     GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLfloat *src = TEXEL_ADDR(GLfloat, texImage, i, j, k, 1);
@@ -402,7 +402,7 @@ static void FETCH(f_intensity_f32)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_intensity_f32(struct gl_texture_image *texImage,
+static void store_texel_intensity_f32(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *rgba = (const GLfloat *) texel;
@@ -417,7 +417,7 @@ static void store_texel_intensity_f32(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D INTENSITY_FLOAT16 texture,
  * returning 4 GLfloats.
  */
-static void FETCH(f_intensity_f16)( const struct gl_texture_image *texImage,
+static void FETCH(f_intensity_f16)( const struct swrast_texture_image *texImage,
                                     GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLhalfARB *src = TEXEL_ADDR(GLhalfARB, texImage, i, j, k, 1);
@@ -428,7 +428,7 @@ static void FETCH(f_intensity_f16)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_intensity_f16(struct gl_texture_image *texImage,
+static void store_texel_intensity_f16(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *rgba = (const GLfloat *) texel;
@@ -443,7 +443,7 @@ static void store_texel_intensity_f16(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D R_FLOAT32 texture,
  * returning 4 GLfloats.
  */
-static void FETCH(f_r_f32)( const struct gl_texture_image *texImage,
+static void FETCH(f_r_f32)( const struct swrast_texture_image *texImage,
                             GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLfloat *src = TEXEL_ADDR(GLfloat, texImage, i, j, k, 1);
@@ -454,7 +454,7 @@ static void FETCH(f_r_f32)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_r_f32(struct gl_texture_image *texImage,
+static void store_texel_r_f32(struct swrast_texture_image *texImage,
                               GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *rgba = (const GLfloat *) texel;
@@ -469,7 +469,7 @@ static void store_texel_r_f32(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D R_FLOAT16 texture,
  * returning 4 GLfloats.
  */
-static void FETCH(f_r_f16)( const struct gl_texture_image *texImage,
+static void FETCH(f_r_f16)( const struct swrast_texture_image *texImage,
                             GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLhalfARB *src = TEXEL_ADDR(GLhalfARB, texImage, i, j, k, 1);
@@ -480,7 +480,7 @@ static void FETCH(f_r_f16)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_r_f16(struct gl_texture_image *texImage,
+static void store_texel_r_f16(struct swrast_texture_image *texImage,
                               GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *rgba = (const GLfloat *) texel;
@@ -495,7 +495,7 @@ static void store_texel_r_f16(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D RG_FLOAT32 texture,
  * returning 4 GLfloats.
  */
-static void FETCH(f_rg_f32)( const struct gl_texture_image *texImage,
+static void FETCH(f_rg_f32)( const struct swrast_texture_image *texImage,
                              GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLfloat *src = TEXEL_ADDR(GLfloat, texImage, i, j, k, 2);
@@ -506,7 +506,7 @@ static void FETCH(f_rg_f32)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rg_f32(struct gl_texture_image *texImage,
+static void store_texel_rg_f32(struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *rgba = (const GLfloat *) texel;
@@ -522,7 +522,7 @@ static void store_texel_rg_f32(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D RG_FLOAT16 texture,
  * returning 4 GLfloats.
  */
-static void FETCH(f_rg_f16)( const struct gl_texture_image *texImage,
+static void FETCH(f_rg_f16)( const struct swrast_texture_image *texImage,
                              GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLhalfARB *src = TEXEL_ADDR(GLhalfARB, texImage, i, j, k, 2);
@@ -533,7 +533,7 @@ static void FETCH(f_rg_f16)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rg_f16(struct gl_texture_image *texImage,
+static void store_texel_rg_f16(struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *rgba = (const GLfloat *) texel;
@@ -551,7 +551,7 @@ static void store_texel_rg_f16(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RGBA8888 ******************************************************/
 
 /* Fetch texel from 1D, 2D or 3D rgba8888 texture, return 4 GLfloats */
-static void FETCH(f_rgba8888)( const struct gl_texture_image *texImage,
+static void FETCH(f_rgba8888)( const struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint s = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -564,7 +564,7 @@ static void FETCH(f_rgba8888)( const struct gl_texture_image *texImage,
 
 
 #if DIM == 3
-static void store_texel_rgba8888(struct gl_texture_image *texImage,
+static void store_texel_rgba8888(struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -577,7 +577,7 @@ static void store_texel_rgba8888(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RGBA888_REV ***************************************************/
 
 /* Fetch texel from 1D, 2D or 3D abgr8888 texture, return 4 GLchans */
-static void FETCH(f_rgba8888_rev)( const struct gl_texture_image *texImage,
+static void FETCH(f_rgba8888_rev)( const struct swrast_texture_image *texImage,
                                    GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint s = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -588,7 +588,7 @@ static void FETCH(f_rgba8888_rev)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rgba8888_rev(struct gl_texture_image *texImage,
+static void store_texel_rgba8888_rev(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -601,7 +601,7 @@ static void store_texel_rgba8888_rev(struct gl_texture_image *texImage,
 /* MESA_FORMAT_ARGB8888 ******************************************************/
 
 /* Fetch texel from 1D, 2D or 3D argb8888 texture, return 4 GLchans */
-static void FETCH(f_argb8888)( const struct gl_texture_image *texImage,
+static void FETCH(f_argb8888)( const struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint s = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -612,7 +612,7 @@ static void FETCH(f_argb8888)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_argb8888(struct gl_texture_image *texImage,
+static void store_texel_argb8888(struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -625,7 +625,7 @@ static void store_texel_argb8888(struct gl_texture_image *texImage,
 /* MESA_FORMAT_ARGB8888_REV **************************************************/
 
 /* Fetch texel from 1D, 2D or 3D argb8888_rev texture, return 4 GLfloats */
-static void FETCH(f_argb8888_rev)( const struct gl_texture_image *texImage,
+static void FETCH(f_argb8888_rev)( const struct swrast_texture_image *texImage,
                                    GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint s = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -636,7 +636,7 @@ static void FETCH(f_argb8888_rev)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_argb8888_rev(struct gl_texture_image *texImage,
+static void store_texel_argb8888_rev(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -649,7 +649,7 @@ static void store_texel_argb8888_rev(struct gl_texture_image *texImage,
 /* MESA_FORMAT_XRGB8888 ******************************************************/
 
 /* Fetch texel from 1D, 2D or 3D xrgb8888 texture, return 4 GLchans */
-static void FETCH(f_xrgb8888)( const struct gl_texture_image *texImage,
+static void FETCH(f_xrgb8888)( const struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint s = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -660,7 +660,7 @@ static void FETCH(f_xrgb8888)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_xrgb8888(struct gl_texture_image *texImage,
+static void store_texel_xrgb8888(struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -673,7 +673,7 @@ static void store_texel_xrgb8888(struct gl_texture_image *texImage,
 /* MESA_FORMAT_XRGB8888_REV **************************************************/
 
 /* Fetch texel from 1D, 2D or 3D xrgb8888_rev texture, return 4 GLfloats */
-static void FETCH(f_xrgb8888_rev)( const struct gl_texture_image *texImage,
+static void FETCH(f_xrgb8888_rev)( const struct swrast_texture_image *texImage,
                                    GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint s = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -684,7 +684,7 @@ static void FETCH(f_xrgb8888_rev)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_xrgb8888_rev(struct gl_texture_image *texImage,
+static void store_texel_xrgb8888_rev(struct swrast_texture_image *texImage,
                                      GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -697,7 +697,7 @@ static void store_texel_xrgb8888_rev(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RGB888 ********************************************************/
 
 /* Fetch texel from 1D, 2D or 3D rgb888 texture, return 4 GLchans */
-static void FETCH(f_rgb888)( const struct gl_texture_image *texImage,
+static void FETCH(f_rgb888)( const struct swrast_texture_image *texImage,
                              GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLubyte *src = TEXEL_ADDR(GLubyte, texImage, i, j, k, 3);
@@ -708,7 +708,7 @@ static void FETCH(f_rgb888)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rgb888(struct gl_texture_image *texImage,
+static void store_texel_rgb888(struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -723,7 +723,7 @@ static void store_texel_rgb888(struct gl_texture_image *texImage,
 /* MESA_FORMAT_BGR888 ********************************************************/
 
 /* Fetch texel from 1D, 2D or 3D bgr888 texture, return 4 GLchans */
-static void FETCH(f_bgr888)( const struct gl_texture_image *texImage,
+static void FETCH(f_bgr888)( const struct swrast_texture_image *texImage,
                              GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLubyte *src = TEXEL_ADDR(GLubyte, texImage, i, j, k, 3);
@@ -734,7 +734,7 @@ static void FETCH(f_bgr888)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_bgr888(struct gl_texture_image *texImage,
+static void store_texel_bgr888(struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -752,7 +752,7 @@ static void store_texel_bgr888(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RGB565 ********************************************************/
 
 /* Fetch texel from 1D, 2D or 3D rgb565 texture, return 4 GLchans */
-static void FETCH(f_rgb565)( const struct gl_texture_image *texImage,
+static void FETCH(f_rgb565)( const struct swrast_texture_image *texImage,
                              GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort *src = TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -764,7 +764,7 @@ static void FETCH(f_rgb565)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rgb565(struct gl_texture_image *texImage,
+static void store_texel_rgb565(struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -777,7 +777,7 @@ static void store_texel_rgb565(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RGB565_REV ****************************************************/
 
 /* Fetch texel from 1D, 2D or 3D rgb565_rev texture, return 4 GLchans */
-static void FETCH(f_rgb565_rev)( const struct gl_texture_image *texImage,
+static void FETCH(f_rgb565_rev)( const struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort *src = TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -789,7 +789,7 @@ static void FETCH(f_rgb565_rev)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rgb565_rev(struct gl_texture_image *texImage,
+static void store_texel_rgb565_rev(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -802,7 +802,7 @@ static void store_texel_rgb565_rev(struct gl_texture_image *texImage,
 /* MESA_FORMAT_ARGB4444 ******************************************************/
 
 /* Fetch texel from 1D, 2D or 3D argb444 texture, return 4 GLchans */
-static void FETCH(f_argb4444)( const struct gl_texture_image *texImage,
+static void FETCH(f_argb4444)( const struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort *src = TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -814,7 +814,7 @@ static void FETCH(f_argb4444)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_argb4444(struct gl_texture_image *texImage,
+static void store_texel_argb4444(struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -827,7 +827,7 @@ static void store_texel_argb4444(struct gl_texture_image *texImage,
 /* MESA_FORMAT_ARGB4444_REV **************************************************/
 
 /* Fetch texel from 1D, 2D or 3D argb4444_rev texture, return 4 GLchans */
-static void FETCH(f_argb4444_rev)( const struct gl_texture_image *texImage,
+static void FETCH(f_argb4444_rev)( const struct swrast_texture_image *texImage,
                                    GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort s = *TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -838,7 +838,7 @@ static void FETCH(f_argb4444_rev)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_argb4444_rev(struct gl_texture_image *texImage,
+static void store_texel_argb4444_rev(struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -850,7 +850,7 @@ static void store_texel_argb4444_rev(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RGBA5551 ******************************************************/
 
 /* Fetch texel from 1D, 2D or 3D argb1555 texture, return 4 GLchans */
-static void FETCH(f_rgba5551)( const struct gl_texture_image *texImage,
+static void FETCH(f_rgba5551)( const struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort *src = TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -862,7 +862,7 @@ static void FETCH(f_rgba5551)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rgba5551(struct gl_texture_image *texImage,
+static void store_texel_rgba5551(struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -874,7 +874,7 @@ static void store_texel_rgba5551(struct gl_texture_image *texImage,
 /* MESA_FORMAT_ARGB1555 ******************************************************/
 
 /* Fetch texel from 1D, 2D or 3D argb1555 texture, return 4 GLchans */
-static void FETCH(f_argb1555)( const struct gl_texture_image *texImage,
+static void FETCH(f_argb1555)( const struct swrast_texture_image *texImage,
 			     GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort *src = TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -886,7 +886,7 @@ static void FETCH(f_argb1555)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_argb1555(struct gl_texture_image *texImage,
+static void store_texel_argb1555(struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -899,7 +899,7 @@ static void store_texel_argb1555(struct gl_texture_image *texImage,
 /* MESA_FORMAT_ARGB1555_REV **************************************************/
 
 /* Fetch texel from 1D, 2D or 3D argb1555_rev texture, return 4 GLchans */
-static void FETCH(f_argb1555_rev)( const struct gl_texture_image *texImage,
+static void FETCH(f_argb1555_rev)( const struct swrast_texture_image *texImage,
                                    GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort *src = TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -911,7 +911,7 @@ static void FETCH(f_argb1555_rev)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_argb1555_rev(struct gl_texture_image *texImage,
+static void store_texel_argb1555_rev(struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -924,7 +924,7 @@ static void store_texel_argb1555_rev(struct gl_texture_image *texImage,
 /* MESA_FORMAT_ARGB2101010 ***************************************************/
 
 /* Fetch texel from 1D, 2D or 3D argb2101010 texture, return 4 GLchans */
-static void FETCH(f_argb2101010)( const struct gl_texture_image *texImage,
+static void FETCH(f_argb2101010)( const struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint *src = TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -936,7 +936,7 @@ static void FETCH(f_argb2101010)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_argb2101010(struct gl_texture_image *texImage,
+static void store_texel_argb2101010(struct swrast_texture_image *texImage,
                                     GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -949,7 +949,7 @@ static void store_texel_argb2101010(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RG88 **********************************************************/
 
 /* Fetch texel from 1D, 2D or 3D rg88 texture, return 4 GLchans */
-static void FETCH(f_rg88)( const struct gl_texture_image *texImage,
+static void FETCH(f_rg88)( const struct swrast_texture_image *texImage,
                            GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort s = *TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -960,7 +960,7 @@ static void FETCH(f_rg88)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rg88(struct gl_texture_image *texImage,
+static void store_texel_rg88(struct swrast_texture_image *texImage,
                              GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -973,7 +973,7 @@ static void store_texel_rg88(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RG88_REV ******************************************************/
 
 /* Fetch texel from 1D, 2D or 3D rg88_rev texture, return 4 GLchans */
-static void FETCH(f_rg88_rev)( const struct gl_texture_image *texImage,
+static void FETCH(f_rg88_rev)( const struct swrast_texture_image *texImage,
                            GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort s = *TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -984,7 +984,7 @@ static void FETCH(f_rg88_rev)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rg88_rev(struct gl_texture_image *texImage,
+static void store_texel_rg88_rev(struct swrast_texture_image *texImage,
                              GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -997,7 +997,7 @@ static void store_texel_rg88_rev(struct gl_texture_image *texImage,
 /* MESA_FORMAT_AL44 **********************************************************/
 
 /* Fetch texel from 1D, 2D or 3D al44 texture, return 4 GLchans */
-static void FETCH(f_al44)( const struct gl_texture_image *texImage,
+static void FETCH(f_al44)( const struct swrast_texture_image *texImage,
                            GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLubyte s = *TEXEL_ADDR(GLubyte, texImage, i, j, k, 1);
@@ -1008,7 +1008,7 @@ static void FETCH(f_al44)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_al44(struct gl_texture_image *texImage,
+static void store_texel_al44(struct swrast_texture_image *texImage,
                              GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1021,7 +1021,7 @@ static void store_texel_al44(struct gl_texture_image *texImage,
 /* MESA_FORMAT_AL88 **********************************************************/
 
 /* Fetch texel from 1D, 2D or 3D al88 texture, return 4 GLchans */
-static void FETCH(f_al88)( const struct gl_texture_image *texImage,
+static void FETCH(f_al88)( const struct swrast_texture_image *texImage,
                            GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort s = *TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -1032,7 +1032,7 @@ static void FETCH(f_al88)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_al88(struct gl_texture_image *texImage,
+static void store_texel_al88(struct swrast_texture_image *texImage,
                              GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1045,7 +1045,7 @@ static void store_texel_al88(struct gl_texture_image *texImage,
 /* MESA_FORMAT_R8 ************************************************************/
 
 /* Fetch texel from 1D, 2D or 3D rg88 texture, return 4 GLchans */
-static void FETCH(f_r8)(const struct gl_texture_image *texImage,
+static void FETCH(f_r8)(const struct swrast_texture_image *texImage,
 			GLint i, GLint j, GLint k, GLfloat *texel)
 {
    const GLubyte s = *TEXEL_ADDR(GLubyte, texImage, i, j, k, 1);
@@ -1056,7 +1056,7 @@ static void FETCH(f_r8)(const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_r8(struct gl_texture_image *texImage,
+static void store_texel_r8(struct swrast_texture_image *texImage,
 			   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1069,7 +1069,7 @@ static void store_texel_r8(struct gl_texture_image *texImage,
 /* MESA_FORMAT_R16 ***********************************************************/
 
 /* Fetch texel from 1D, 2D or 3D r16 texture, return 4 GLchans */
-static void FETCH(f_r16)(const struct gl_texture_image *texImage,
+static void FETCH(f_r16)(const struct swrast_texture_image *texImage,
 			GLint i, GLint j, GLint k, GLfloat *texel)
 {
    const GLushort s = *TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -1080,7 +1080,7 @@ static void FETCH(f_r16)(const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_r16(struct gl_texture_image *texImage,
+static void store_texel_r16(struct swrast_texture_image *texImage,
 			    GLint i, GLint j, GLint k, const void *texel)
 {
    const GLushort *rgba = (const GLushort *) texel;
@@ -1093,7 +1093,7 @@ static void store_texel_r16(struct gl_texture_image *texImage,
 /* MESA_FORMAT_AL88_REV ******************************************************/
 
 /* Fetch texel from 1D, 2D or 3D al88_rev texture, return 4 GLchans */
-static void FETCH(f_al88_rev)( const struct gl_texture_image *texImage,
+static void FETCH(f_al88_rev)( const struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort s = *TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -1104,7 +1104,7 @@ static void FETCH(f_al88_rev)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_al88_rev(struct gl_texture_image *texImage,
+static void store_texel_al88_rev(struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1117,7 +1117,7 @@ static void store_texel_al88_rev(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RG1616 ********************************************************/
 
 /* Fetch texel from 1D, 2D or 3D rg1616 texture, return 4 GLchans */
-static void FETCH(f_rg1616)( const struct gl_texture_image *texImage,
+static void FETCH(f_rg1616)( const struct swrast_texture_image *texImage,
                            GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint s = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -1128,7 +1128,7 @@ static void FETCH(f_rg1616)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rg1616(struct gl_texture_image *texImage,
+static void store_texel_rg1616(struct swrast_texture_image *texImage,
                              GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1141,7 +1141,7 @@ static void store_texel_rg1616(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RG1616_REV ****************************************************/
 
 /* Fetch texel from 1D, 2D or 3D rg1616_rev texture, return 4 GLchans */
-static void FETCH(f_rg1616_rev)( const struct gl_texture_image *texImage,
+static void FETCH(f_rg1616_rev)( const struct swrast_texture_image *texImage,
                            GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint s = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -1152,7 +1152,7 @@ static void FETCH(f_rg1616_rev)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rg1616_rev(struct gl_texture_image *texImage,
+static void store_texel_rg1616_rev(struct swrast_texture_image *texImage,
                              GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1165,7 +1165,7 @@ static void store_texel_rg1616_rev(struct gl_texture_image *texImage,
 /* MESA_FORMAT_AL1616 ********************************************************/
 
 /* Fetch texel from 1D, 2D or 3D al1616 texture, return 4 GLchans */
-static void FETCH(f_al1616)( const struct gl_texture_image *texImage,
+static void FETCH(f_al1616)( const struct swrast_texture_image *texImage,
 			     GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint s = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -1176,7 +1176,7 @@ static void FETCH(f_al1616)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_al1616(struct gl_texture_image *texImage,
+static void store_texel_al1616(struct swrast_texture_image *texImage,
                              GLint i, GLint j, GLint k, const void *texel)
 {
    const GLushort *rgba = (const GLushort *) texel;
@@ -1189,7 +1189,7 @@ static void store_texel_al1616(struct gl_texture_image *texImage,
 /* MESA_FORMAT_AL1616_REV ****************************************************/
 
 /* Fetch texel from 1D, 2D or 3D al1616_rev texture, return 4 GLchans */
-static void FETCH(f_al1616_rev)( const struct gl_texture_image *texImage,
+static void FETCH(f_al1616_rev)( const struct swrast_texture_image *texImage,
 				 GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint s = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -1200,7 +1200,7 @@ static void FETCH(f_al1616_rev)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_al1616_rev(struct gl_texture_image *texImage,
+static void store_texel_al1616_rev(struct swrast_texture_image *texImage,
 				   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLushort *rgba = (const GLushort *) texel;
@@ -1213,7 +1213,7 @@ static void store_texel_al1616_rev(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RGB332 ********************************************************/
 
 /* Fetch texel from 1D, 2D or 3D rgb332 texture, return 4 GLchans */
-static void FETCH(f_rgb332)( const struct gl_texture_image *texImage,
+static void FETCH(f_rgb332)( const struct swrast_texture_image *texImage,
                              GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLubyte *src = TEXEL_ADDR(GLubyte, texImage, i, j, k, 1);
@@ -1225,7 +1225,7 @@ static void FETCH(f_rgb332)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rgb332(struct gl_texture_image *texImage,
+static void store_texel_rgb332(struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1238,7 +1238,7 @@ static void store_texel_rgb332(struct gl_texture_image *texImage,
 /* MESA_FORMAT_A8 ************************************************************/
 
 /* Fetch texel from 1D, 2D or 3D a8 texture, return 4 GLchans */
-static void FETCH(f_a8)( const struct gl_texture_image *texImage,
+static void FETCH(f_a8)( const struct swrast_texture_image *texImage,
                          GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLubyte *src = TEXEL_ADDR(GLubyte, texImage, i, j, k, 1);
@@ -1249,7 +1249,7 @@ static void FETCH(f_a8)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_a8(struct gl_texture_image *texImage,
+static void store_texel_a8(struct swrast_texture_image *texImage,
                            GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1262,7 +1262,7 @@ static void store_texel_a8(struct gl_texture_image *texImage,
 /* MESA_FORMAT_A16 ************************************************************/
 
 /* Fetch texel from 1D, 2D or 3D a8 texture, return 4 GLchans */
-static void FETCH(f_a16)( const struct gl_texture_image *texImage,
+static void FETCH(f_a16)( const struct swrast_texture_image *texImage,
                           GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort *src = TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -1273,7 +1273,7 @@ static void FETCH(f_a16)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_a16(struct gl_texture_image *texImage,
+static void store_texel_a16(struct swrast_texture_image *texImage,
                             GLint i, GLint j, GLint k, const void *texel)
 {
    const GLushort *rgba = (const GLushort *) texel;
@@ -1286,7 +1286,7 @@ static void store_texel_a16(struct gl_texture_image *texImage,
 /* MESA_FORMAT_L8 ************************************************************/
 
 /* Fetch texel from 1D, 2D or 3D l8 texture, return 4 GLchans */
-static void FETCH(f_l8)( const struct gl_texture_image *texImage,
+static void FETCH(f_l8)( const struct swrast_texture_image *texImage,
                          GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLubyte *src = TEXEL_ADDR(GLubyte, texImage, i, j, k, 1);
@@ -1297,7 +1297,7 @@ static void FETCH(f_l8)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_l8(struct gl_texture_image *texImage,
+static void store_texel_l8(struct swrast_texture_image *texImage,
                            GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1310,7 +1310,7 @@ static void store_texel_l8(struct gl_texture_image *texImage,
 /* MESA_FORMAT_L16 ***********************************************************/
 
 /* Fetch texel from 1D, 2D or 3D l16 texture, return 4 GLchans */
-static void FETCH(f_l16)( const struct gl_texture_image *texImage,
+static void FETCH(f_l16)( const struct swrast_texture_image *texImage,
                           GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort *src = TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -1321,7 +1321,7 @@ static void FETCH(f_l16)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_l16(struct gl_texture_image *texImage,
+static void store_texel_l16(struct swrast_texture_image *texImage,
                             GLint i, GLint j, GLint k, const void *texel)
 {
    const GLushort *rgba = (const GLushort *) texel;
@@ -1334,7 +1334,7 @@ static void store_texel_l16(struct gl_texture_image *texImage,
 /* MESA_FORMAT_I8 ************************************************************/
 
 /* Fetch texel from 1D, 2D or 3D i8 texture, return 4 GLchans */
-static void FETCH(f_i8)( const struct gl_texture_image *texImage,
+static void FETCH(f_i8)( const struct swrast_texture_image *texImage,
                          GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLubyte *src = TEXEL_ADDR(GLubyte, texImage, i, j, k, 1);
@@ -1345,7 +1345,7 @@ static void FETCH(f_i8)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_i8(struct gl_texture_image *texImage,
+static void store_texel_i8(struct swrast_texture_image *texImage,
                            GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1358,7 +1358,7 @@ static void store_texel_i8(struct gl_texture_image *texImage,
 /* MESA_FORMAT_I16 ***********************************************************/
 
 /* Fetch texel from 1D, 2D or 3D i16 texture, return 4 GLchans */
-static void FETCH(f_i16)( const struct gl_texture_image *texImage,
+static void FETCH(f_i16)( const struct swrast_texture_image *texImage,
                           GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort *src = TEXEL_ADDR(GLushort, texImage, i, j, k, 1);
@@ -1369,7 +1369,7 @@ static void FETCH(f_i16)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_i16(struct gl_texture_image *texImage,
+static void store_texel_i16(struct swrast_texture_image *texImage,
                             GLint i, GLint j, GLint k, const void *texel)
 {
    const GLushort *rgba = (const GLushort *) texel;
@@ -1381,7 +1381,7 @@ static void store_texel_i16(struct gl_texture_image *texImage,
 
 /* Fetch texel from 1D, 2D or 3D srgb8 texture, return 4 GLfloats */
 /* Note: component order is same as for MESA_FORMAT_RGB888 */
-static void FETCH(srgb8)(const struct gl_texture_image *texImage,
+static void FETCH(srgb8)(const struct swrast_texture_image *texImage,
                          GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLubyte *src = TEXEL_ADDR(GLubyte, texImage, i, j, k, 3);
@@ -1392,7 +1392,7 @@ static void FETCH(srgb8)(const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_srgb8(struct gl_texture_image *texImage,
+static void store_texel_srgb8(struct swrast_texture_image *texImage,
                               GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1404,7 +1404,7 @@ static void store_texel_srgb8(struct gl_texture_image *texImage,
 #endif
 
 /* Fetch texel from 1D, 2D or 3D srgba8 texture, return 4 GLfloats */
-static void FETCH(srgba8)(const struct gl_texture_image *texImage,
+static void FETCH(srgba8)(const struct swrast_texture_image *texImage,
                           GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint s = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -1415,7 +1415,7 @@ static void FETCH(srgba8)(const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_srgba8(struct gl_texture_image *texImage,
+static void store_texel_srgba8(struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1425,7 +1425,7 @@ static void store_texel_srgba8(struct gl_texture_image *texImage,
 #endif
 
 /* Fetch texel from 1D, 2D or 3D sargb8 texture, return 4 GLfloats */
-static void FETCH(sargb8)(const struct gl_texture_image *texImage,
+static void FETCH(sargb8)(const struct swrast_texture_image *texImage,
                           GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint s = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -1436,7 +1436,7 @@ static void FETCH(sargb8)(const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_sargb8(struct gl_texture_image *texImage,
+static void store_texel_sargb8(struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1446,7 +1446,7 @@ static void store_texel_sargb8(struct gl_texture_image *texImage,
 #endif
 
 /* Fetch texel from 1D, 2D or 3D sl8 texture, return 4 GLfloats */
-static void FETCH(sl8)(const struct gl_texture_image *texImage,
+static void FETCH(sl8)(const struct swrast_texture_image *texImage,
                        GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLubyte *src = TEXEL_ADDR(GLubyte, texImage, i, j, k, 1);
@@ -1457,7 +1457,7 @@ static void FETCH(sl8)(const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_sl8(struct gl_texture_image *texImage,
+static void store_texel_sl8(struct swrast_texture_image *texImage,
                             GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1467,7 +1467,7 @@ static void store_texel_sl8(struct gl_texture_image *texImage,
 #endif
 
 /* Fetch texel from 1D, 2D or 3D sla8 texture, return 4 GLfloats */
-static void FETCH(sla8)(const struct gl_texture_image *texImage,
+static void FETCH(sla8)(const struct swrast_texture_image *texImage,
                        GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLubyte *src = TEXEL_ADDR(GLubyte, texImage, i, j, k, 2);
@@ -1478,7 +1478,7 @@ static void FETCH(sla8)(const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_sla8(struct gl_texture_image *texImage,
+static void store_texel_sla8(struct swrast_texture_image *texImage,
                             GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1492,7 +1492,7 @@ static void store_texel_sla8(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RGBA_INT8 **************************************************/
 
 static void
-FETCH(rgba_int8)(const struct gl_texture_image *texImage,
+FETCH(rgba_int8)(const struct swrast_texture_image *texImage,
                  GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLbyte *src = TEXEL_ADDR(GLbyte, texImage, i, j, k, 4);
@@ -1504,7 +1504,7 @@ FETCH(rgba_int8)(const struct gl_texture_image *texImage,
 
 #if DIM == 3
 static void
-store_texel_rgba_int8(struct gl_texture_image *texImage,
+store_texel_rgba_int8(struct swrast_texture_image *texImage,
                       GLint i, GLint j, GLint k, const void *texel)
 {
    const GLbyte *rgba = (const GLbyte *) texel;
@@ -1520,7 +1520,7 @@ store_texel_rgba_int8(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RGBA_INT16 **************************************************/
 
 static void
-FETCH(rgba_int16)(const struct gl_texture_image *texImage,
+FETCH(rgba_int16)(const struct swrast_texture_image *texImage,
                   GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLshort *src = TEXEL_ADDR(GLshort, texImage, i, j, k, 4);
@@ -1532,7 +1532,7 @@ FETCH(rgba_int16)(const struct gl_texture_image *texImage,
 
 #if DIM == 3
 static void
-store_texel_rgba_int16(struct gl_texture_image *texImage,
+store_texel_rgba_int16(struct swrast_texture_image *texImage,
                        GLint i, GLint j, GLint k, const void *texel)
 {
    const GLshort *rgba = (const GLshort *) texel;
@@ -1548,7 +1548,7 @@ store_texel_rgba_int16(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RGBA_INT32 **************************************************/
 
 static void
-FETCH(rgba_int32)(const struct gl_texture_image *texImage,
+FETCH(rgba_int32)(const struct swrast_texture_image *texImage,
                   GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLint *src = TEXEL_ADDR(GLint, texImage, i, j, k, 4);
@@ -1560,7 +1560,7 @@ FETCH(rgba_int32)(const struct gl_texture_image *texImage,
 
 #if DIM == 3
 static void
-store_texel_rgba_int32(struct gl_texture_image *texImage,
+store_texel_rgba_int32(struct swrast_texture_image *texImage,
                        GLint i, GLint j, GLint k, const void *texel)
 {
    const GLint *rgba = (const GLint *) texel;
@@ -1576,7 +1576,7 @@ store_texel_rgba_int32(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RGBA_UINT8 **************************************************/
 
 static void
-FETCH(rgba_uint8)(const struct gl_texture_image *texImage,
+FETCH(rgba_uint8)(const struct swrast_texture_image *texImage,
                  GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLubyte *src = TEXEL_ADDR(GLubyte, texImage, i, j, k, 4);
@@ -1588,7 +1588,7 @@ FETCH(rgba_uint8)(const struct gl_texture_image *texImage,
 
 #if DIM == 3
 static void
-store_texel_rgba_uint8(struct gl_texture_image *texImage,
+store_texel_rgba_uint8(struct swrast_texture_image *texImage,
                       GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1604,7 +1604,7 @@ store_texel_rgba_uint8(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RGBA_UINT16 **************************************************/
 
 static void
-FETCH(rgba_uint16)(const struct gl_texture_image *texImage,
+FETCH(rgba_uint16)(const struct swrast_texture_image *texImage,
                   GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort *src = TEXEL_ADDR(GLushort, texImage, i, j, k, 4);
@@ -1616,7 +1616,7 @@ FETCH(rgba_uint16)(const struct gl_texture_image *texImage,
 
 #if DIM == 3
 static void
-store_texel_rgba_uint16(struct gl_texture_image *texImage,
+store_texel_rgba_uint16(struct swrast_texture_image *texImage,
                        GLint i, GLint j, GLint k, const void *texel)
 {
    const GLushort *rgba = (const GLushort *) texel;
@@ -1632,7 +1632,7 @@ store_texel_rgba_uint16(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RGBA_UINT32 **************************************************/
 
 static void
-FETCH(rgba_uint32)(const struct gl_texture_image *texImage,
+FETCH(rgba_uint32)(const struct swrast_texture_image *texImage,
                   GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint *src = TEXEL_ADDR(GLuint, texImage, i, j, k, 4);
@@ -1644,7 +1644,7 @@ FETCH(rgba_uint32)(const struct gl_texture_image *texImage,
 
 #if DIM == 3
 static void
-store_texel_rgba_uint32(struct gl_texture_image *texImage,
+store_texel_rgba_uint32(struct swrast_texture_image *texImage,
                        GLint i, GLint j, GLint k, const void *texel)
 {
    const GLuint *rgba = (const GLuint *) texel;
@@ -1661,7 +1661,7 @@ store_texel_rgba_uint32(struct gl_texture_image *texImage,
 
 /* this format by definition produces 0,0,0,1 as rgba values,
    however we'll return the dudv values as rg and fix up elsewhere */
-static void FETCH(dudv8)(const struct gl_texture_image *texImage,
+static void FETCH(dudv8)(const struct swrast_texture_image *texImage,
                          GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLbyte *src = TEXEL_ADDR(GLbyte, texImage, i, j, k, 2);
@@ -1674,7 +1674,7 @@ static void FETCH(dudv8)(const struct gl_texture_image *texImage,
 
 /* MESA_FORMAT_SIGNED_R8 ***********************************************/
 
-static void FETCH(signed_r8)( const struct gl_texture_image *texImage,
+static void FETCH(signed_r8)( const struct swrast_texture_image *texImage,
                               GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLbyte s = *TEXEL_ADDR(GLbyte, texImage, i, j, k, 1);
@@ -1685,7 +1685,7 @@ static void FETCH(signed_r8)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_signed_r8(struct gl_texture_image *texImage,
+static void store_texel_signed_r8(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLbyte *rgba = (const GLbyte *) texel;
@@ -1697,7 +1697,7 @@ static void store_texel_signed_r8(struct gl_texture_image *texImage,
 
 /* MESA_FORMAT_SIGNED_A8 ***********************************************/
 
-static void FETCH(signed_a8)( const struct gl_texture_image *texImage,
+static void FETCH(signed_a8)( const struct swrast_texture_image *texImage,
                               GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLbyte s = *TEXEL_ADDR(GLbyte, texImage, i, j, k, 1);
@@ -1708,7 +1708,7 @@ static void FETCH(signed_a8)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_signed_a8(struct gl_texture_image *texImage,
+static void store_texel_signed_a8(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLbyte *rgba = (const GLbyte *) texel;
@@ -1720,7 +1720,7 @@ static void store_texel_signed_a8(struct gl_texture_image *texImage,
 
 /* MESA_FORMAT_SIGNED_L8 ***********************************************/
 
-static void FETCH(signed_l8)( const struct gl_texture_image *texImage,
+static void FETCH(signed_l8)( const struct swrast_texture_image *texImage,
                               GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLbyte s = *TEXEL_ADDR(GLbyte, texImage, i, j, k, 1);
@@ -1731,7 +1731,7 @@ static void FETCH(signed_l8)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_signed_l8(struct gl_texture_image *texImage,
+static void store_texel_signed_l8(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLbyte *rgba = (const GLbyte *) texel;
@@ -1743,7 +1743,7 @@ static void store_texel_signed_l8(struct gl_texture_image *texImage,
 
 /* MESA_FORMAT_SIGNED_I8 ***********************************************/
 
-static void FETCH(signed_i8)( const struct gl_texture_image *texImage,
+static void FETCH(signed_i8)( const struct swrast_texture_image *texImage,
                               GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLbyte s = *TEXEL_ADDR(GLbyte, texImage, i, j, k, 1);
@@ -1754,7 +1754,7 @@ static void FETCH(signed_i8)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_signed_i8(struct gl_texture_image *texImage,
+static void store_texel_signed_i8(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    const GLbyte *rgba = (const GLbyte *) texel;
@@ -1766,7 +1766,7 @@ static void store_texel_signed_i8(struct gl_texture_image *texImage,
 
 /* MESA_FORMAT_SIGNED_RG88_REV ***********************************************/
 
-static void FETCH(signed_rg88_rev)( const struct gl_texture_image *texImage,
+static void FETCH(signed_rg88_rev)( const struct swrast_texture_image *texImage,
                                     GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort s = *TEXEL_ADDR(GLshort, texImage, i, j, k, 1);
@@ -1777,7 +1777,7 @@ static void FETCH(signed_rg88_rev)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_signed_rg88_rev(struct gl_texture_image *texImage,
+static void store_texel_signed_rg88_rev(struct swrast_texture_image *texImage,
                                         GLint i, GLint j, GLint k, const void *texel)
 {
    const GLbyte *rg = (const GLbyte *) texel;
@@ -1789,7 +1789,7 @@ static void store_texel_signed_rg88_rev(struct gl_texture_image *texImage,
 
 /* MESA_FORMAT_SIGNED_AL88 ***********************************************/
 
-static void FETCH(signed_al88)( const struct gl_texture_image *texImage,
+static void FETCH(signed_al88)( const struct swrast_texture_image *texImage,
                                 GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort s = *TEXEL_ADDR(GLshort, texImage, i, j, k, 1);
@@ -1800,7 +1800,7 @@ static void FETCH(signed_al88)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_signed_al88(struct gl_texture_image *texImage,
+static void store_texel_signed_al88(struct swrast_texture_image *texImage,
                                     GLint i, GLint j, GLint k, const void *texel)
 {
    const GLbyte *rg = (const GLbyte *) texel;
@@ -1812,7 +1812,7 @@ static void store_texel_signed_al88(struct gl_texture_image *texImage,
 
 /* MESA_FORMAT_SIGNED_RGBX8888 ***********************************************/
 
-static void FETCH(signed_rgbx8888)( const struct gl_texture_image *texImage,
+static void FETCH(signed_rgbx8888)( const struct swrast_texture_image *texImage,
 			            GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint s = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -1823,7 +1823,7 @@ static void FETCH(signed_rgbx8888)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_signed_rgbx8888(struct gl_texture_image *texImage,
+static void store_texel_signed_rgbx8888(struct swrast_texture_image *texImage,
                                         GLint i, GLint j, GLint k, const void *texel)
 {
    const GLbyte *rgba = (const GLbyte *) texel;
@@ -1835,7 +1835,7 @@ static void store_texel_signed_rgbx8888(struct gl_texture_image *texImage,
 
 /* MESA_FORMAT_SIGNED_RGBA8888 ***********************************************/
 
-static void FETCH(signed_rgba8888)( const struct gl_texture_image *texImage,
+static void FETCH(signed_rgba8888)( const struct swrast_texture_image *texImage,
 			            GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint s = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -1846,7 +1846,7 @@ static void FETCH(signed_rgba8888)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_signed_rgba8888(struct gl_texture_image *texImage,
+static void store_texel_signed_rgba8888(struct swrast_texture_image *texImage,
                                         GLint i, GLint j, GLint k, const void *texel)
 {
    const GLbyte *rgba = (const GLbyte *) texel;
@@ -1855,7 +1855,7 @@ static void store_texel_signed_rgba8888(struct gl_texture_image *texImage,
 }
 #endif
 
-static void FETCH(signed_rgba8888_rev)( const struct gl_texture_image *texImage,
+static void FETCH(signed_rgba8888_rev)( const struct swrast_texture_image *texImage,
                                         GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint s = *TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -1866,7 +1866,7 @@ static void FETCH(signed_rgba8888_rev)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_signed_rgba8888_rev(struct gl_texture_image *texImage,
+static void store_texel_signed_rgba8888_rev(struct swrast_texture_image *texImage,
                                             GLint i, GLint j, GLint k, const void *texel)
 {
    const GLubyte *rgba = (const GLubyte *) texel;
@@ -1880,7 +1880,7 @@ static void store_texel_signed_rgba8888_rev(struct gl_texture_image *texImage,
 /* MESA_FORMAT_SIGNED_R16 ***********************************************/
 
 static void
-FETCH(signed_r16)(const struct gl_texture_image *texImage,
+FETCH(signed_r16)(const struct swrast_texture_image *texImage,
                   GLint i, GLint j, GLint k, GLfloat *texel)
 {
    const GLshort s = *TEXEL_ADDR(GLshort, texImage, i, j, k, 1);
@@ -1892,7 +1892,7 @@ FETCH(signed_r16)(const struct gl_texture_image *texImage,
 
 #if DIM == 3
 static void
-store_texel_signed_r16(struct gl_texture_image *texImage,
+store_texel_signed_r16(struct swrast_texture_image *texImage,
                        GLint i, GLint j, GLint k, const void *texel)
 {
    const GLshort *rgba = (const GLshort *) texel;
@@ -1905,7 +1905,7 @@ store_texel_signed_r16(struct gl_texture_image *texImage,
 /* MESA_FORMAT_SIGNED_A16 ***********************************************/
 
 static void
-FETCH(signed_a16)(const struct gl_texture_image *texImage,
+FETCH(signed_a16)(const struct swrast_texture_image *texImage,
                   GLint i, GLint j, GLint k, GLfloat *texel)
 {
    const GLshort s = *TEXEL_ADDR(GLshort, texImage, i, j, k, 1);
@@ -1917,7 +1917,7 @@ FETCH(signed_a16)(const struct gl_texture_image *texImage,
 
 #if DIM == 3
 static void
-store_texel_signed_a16(struct gl_texture_image *texImage,
+store_texel_signed_a16(struct swrast_texture_image *texImage,
                        GLint i, GLint j, GLint k, const void *texel)
 {
    const GLshort *rgba = (const GLshort *) texel;
@@ -1930,7 +1930,7 @@ store_texel_signed_a16(struct gl_texture_image *texImage,
 /* MESA_FORMAT_SIGNED_L16 ***********************************************/
 
 static void
-FETCH(signed_l16)(const struct gl_texture_image *texImage,
+FETCH(signed_l16)(const struct swrast_texture_image *texImage,
                   GLint i, GLint j, GLint k, GLfloat *texel)
 {
    const GLshort s = *TEXEL_ADDR(GLshort, texImage, i, j, k, 1);
@@ -1942,7 +1942,7 @@ FETCH(signed_l16)(const struct gl_texture_image *texImage,
 
 #if DIM == 3
 static void
-store_texel_signed_l16(struct gl_texture_image *texImage,
+store_texel_signed_l16(struct swrast_texture_image *texImage,
                        GLint i, GLint j, GLint k, const void *texel)
 {
    const GLshort *rgba = (const GLshort *) texel;
@@ -1955,7 +1955,7 @@ store_texel_signed_l16(struct gl_texture_image *texImage,
 /* MESA_FORMAT_SIGNED_I16 ***********************************************/
 
 static void
-FETCH(signed_i16)(const struct gl_texture_image *texImage,
+FETCH(signed_i16)(const struct swrast_texture_image *texImage,
                   GLint i, GLint j, GLint k, GLfloat *texel)
 {
    const GLshort s = *TEXEL_ADDR(GLshort, texImage, i, j, k, 1);
@@ -1967,7 +1967,7 @@ FETCH(signed_i16)(const struct gl_texture_image *texImage,
 
 #if DIM == 3
 static void
-store_texel_signed_i16(struct gl_texture_image *texImage,
+store_texel_signed_i16(struct swrast_texture_image *texImage,
                        GLint i, GLint j, GLint k, const void *texel)
 {
    const GLshort *rgba = (const GLshort *) texel;
@@ -1980,7 +1980,7 @@ store_texel_signed_i16(struct gl_texture_image *texImage,
 /* MESA_FORMAT_SIGNED_RG1616 ***********************************************/
 
 static void
-FETCH(signed_rg1616)(const struct gl_texture_image *texImage,
+FETCH(signed_rg1616)(const struct swrast_texture_image *texImage,
                     GLint i, GLint j, GLint k, GLfloat *texel)
 {
    const GLshort *s = TEXEL_ADDR(GLshort, texImage, i, j, k, 2);
@@ -1992,7 +1992,7 @@ FETCH(signed_rg1616)(const struct gl_texture_image *texImage,
 
 #if DIM == 3
 static void
-store_texel_signed_rg1616(struct gl_texture_image *texImage,
+store_texel_signed_rg1616(struct swrast_texture_image *texImage,
                          GLint i, GLint j, GLint k, const void *texel)
 {
    const GLshort *rgba = (const GLshort *) texel;
@@ -2006,7 +2006,7 @@ store_texel_signed_rg1616(struct gl_texture_image *texImage,
 /* MESA_FORMAT_SIGNED_AL1616 ***********************************************/
 
 static void
-FETCH(signed_al1616)(const struct gl_texture_image *texImage,
+FETCH(signed_al1616)(const struct swrast_texture_image *texImage,
                     GLint i, GLint j, GLint k, GLfloat *texel)
 {
    const GLshort *s = TEXEL_ADDR(GLshort, texImage, i, j, k, 2);
@@ -2018,7 +2018,7 @@ FETCH(signed_al1616)(const struct gl_texture_image *texImage,
 
 #if DIM == 3
 static void
-store_texel_signed_al1616(struct gl_texture_image *texImage,
+store_texel_signed_al1616(struct swrast_texture_image *texImage,
                          GLint i, GLint j, GLint k, const void *texel)
 {
    const GLshort *rgba = (const GLshort *) texel;
@@ -2032,7 +2032,7 @@ store_texel_signed_al1616(struct gl_texture_image *texImage,
 /* MESA_FORMAT_SIGNED_RGB_16 ***********************************************/
 
 static void 
-FETCH(signed_rgb_16)(const struct gl_texture_image *texImage,
+FETCH(signed_rgb_16)(const struct swrast_texture_image *texImage,
                      GLint i, GLint j, GLint k, GLfloat *texel)
 {
    const GLshort *s = TEXEL_ADDR(GLshort, texImage, i, j, k, 3);
@@ -2044,7 +2044,7 @@ FETCH(signed_rgb_16)(const struct gl_texture_image *texImage,
 
 #if DIM == 3
 static void
-store_texel_signed_rgb_16(struct gl_texture_image *texImage,
+store_texel_signed_rgb_16(struct swrast_texture_image *texImage,
                           GLint i, GLint j, GLint k, const void *texel)
 {
    const GLshort *rgba = (const GLshort *) texel;
@@ -2059,7 +2059,7 @@ store_texel_signed_rgb_16(struct gl_texture_image *texImage,
 /* MESA_FORMAT_SIGNED_RGBA_16 ***********************************************/
 
 static void
-FETCH(signed_rgba_16)(const struct gl_texture_image *texImage,
+FETCH(signed_rgba_16)(const struct swrast_texture_image *texImage,
                       GLint i, GLint j, GLint k, GLfloat *texel)
 {
    const GLshort *s = TEXEL_ADDR(GLshort, texImage, i, j, k, 4);
@@ -2071,7 +2071,7 @@ FETCH(signed_rgba_16)(const struct gl_texture_image *texImage,
 
 #if DIM == 3
 static void
-store_texel_signed_rgba_16(struct gl_texture_image *texImage,
+store_texel_signed_rgba_16(struct swrast_texture_image *texImage,
                            GLint i, GLint j, GLint k, const void *texel)
 {
    const GLshort *rgba = (const GLshort *) texel;
@@ -2088,7 +2088,7 @@ store_texel_signed_rgba_16(struct gl_texture_image *texImage,
 /* MESA_FORMAT_RGBA_16 ***********************************************/
 
 static void
-FETCH(rgba_16)(const struct gl_texture_image *texImage,
+FETCH(rgba_16)(const struct swrast_texture_image *texImage,
                GLint i, GLint j, GLint k, GLfloat *texel)
 {
    const GLushort *s = TEXEL_ADDR(GLushort, texImage, i, j, k, 4);
@@ -2100,7 +2100,7 @@ FETCH(rgba_16)(const struct gl_texture_image *texImage,
 
 #if DIM == 3
 static void
-store_texel_rgba_16(struct gl_texture_image *texImage,
+store_texel_rgba_16(struct swrast_texture_image *texImage,
                     GLint i, GLint j, GLint k, const void *texel)
 {
    const GLushort *rgba = (const GLushort *) texel;
@@ -2119,7 +2119,7 @@ store_texel_rgba_16(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D ycbcr texture, return 4 GLfloats.
  * We convert YCbCr to RGB here.
  */
-static void FETCH(f_ycbcr)( const struct gl_texture_image *texImage,
+static void FETCH(f_ycbcr)( const struct swrast_texture_image *texImage,
                             GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort *src0 = TEXEL_ADDR(GLushort, texImage, (i & ~1), j, k, 1); /* even */
@@ -2142,7 +2142,7 @@ static void FETCH(f_ycbcr)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_ycbcr(struct gl_texture_image *texImage,
+static void store_texel_ycbcr(struct swrast_texture_image *texImage,
                               GLint i, GLint j, GLint k, const void *texel)
 {
    (void) texImage;
@@ -2160,7 +2160,7 @@ static void store_texel_ycbcr(struct gl_texture_image *texImage,
 /* Fetch texel from 1D, 2D or 3D ycbcr_rev texture, return 4 GLfloats.
  * We convert YCbCr to RGB here.
  */
-static void FETCH(f_ycbcr_rev)( const struct gl_texture_image *texImage,
+static void FETCH(f_ycbcr_rev)( const struct swrast_texture_image *texImage,
                                 GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLushort *src0 = TEXEL_ADDR(GLushort, texImage, (i & ~1), j, k, 1); /* even */
@@ -2183,7 +2183,7 @@ static void FETCH(f_ycbcr_rev)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_ycbcr_rev(struct gl_texture_image *texImage,
+static void store_texel_ycbcr_rev(struct swrast_texture_image *texImage,
                                   GLint i, GLint j, GLint k, const void *texel)
 {
    (void) texImage;
@@ -2198,21 +2198,21 @@ static void store_texel_ycbcr_rev(struct gl_texture_image *texImage,
 
 /* MESA_TEXFORMAT_Z24_S8 ***************************************************/
 
-static void FETCH(f_z24_s8)( const struct gl_texture_image *texImage,
+static void FETCH(f_z24_s8)( const struct swrast_texture_image *texImage,
                              GLint i, GLint j, GLint k, GLfloat *texel )
 {
    /* only return Z, not stencil data */
    const GLuint *src = TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
    const GLfloat scale = 1.0F / (GLfloat) 0xffffff;
    texel[0] = ((*src) >> 8) * scale;
-   ASSERT(texImage->TexFormat == MESA_FORMAT_Z24_S8 ||
-	  texImage->TexFormat == MESA_FORMAT_Z24_X8);
+   ASSERT(texImage->Base.TexFormat == MESA_FORMAT_Z24_S8 ||
+	  texImage->Base.TexFormat == MESA_FORMAT_Z24_X8);
    ASSERT(texel[0] >= 0.0F);
    ASSERT(texel[0] <= 1.0F);
 }
 
 #if DIM == 3
-static void store_texel_z24_s8(struct gl_texture_image *texImage,
+static void store_texel_z24_s8(struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, const void *texel)
 {
    /* only store Z, not stencil */
@@ -2226,21 +2226,21 @@ static void store_texel_z24_s8(struct gl_texture_image *texImage,
 
 /* MESA_TEXFORMAT_S8_Z24 ***************************************************/
 
-static void FETCH(f_s8_z24)( const struct gl_texture_image *texImage,
+static void FETCH(f_s8_z24)( const struct swrast_texture_image *texImage,
                              GLint i, GLint j, GLint k, GLfloat *texel )
 {
    /* only return Z, not stencil data */
    const GLuint *src = TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
    const GLfloat scale = 1.0F / (GLfloat) 0xffffff;
    texel[0] = ((*src) & 0x00ffffff) * scale;
-   ASSERT(texImage->TexFormat == MESA_FORMAT_S8_Z24 ||
-	  texImage->TexFormat == MESA_FORMAT_X8_Z24);
+   ASSERT(texImage->Base.TexFormat == MESA_FORMAT_S8_Z24 ||
+	  texImage->Base.TexFormat == MESA_FORMAT_X8_Z24);
    ASSERT(texel[0] >= 0.0F);
    ASSERT(texel[0] <= 1.0F);
 }
 
 #if DIM == 3
-static void store_texel_s8_z24(struct gl_texture_image *texImage,
+static void store_texel_s8_z24(struct swrast_texture_image *texImage,
                                GLint i, GLint j, GLint k, const void *texel)
 {
    /* only store Z, not stencil */
@@ -2254,7 +2254,7 @@ static void store_texel_s8_z24(struct gl_texture_image *texImage,
 
 /* MESA_FORMAT_RGB9_E5 ******************************************************/
 
-static void FETCH(rgb9_e5)( const struct gl_texture_image *texImage,
+static void FETCH(rgb9_e5)( const struct swrast_texture_image *texImage,
                             GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint *src = TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -2263,7 +2263,7 @@ static void FETCH(rgb9_e5)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_rgb9_e5(struct gl_texture_image *texImage,
+static void store_texel_rgb9_e5(struct swrast_texture_image *texImage,
                                 GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *src = (const GLfloat *) texel;
@@ -2275,7 +2275,7 @@ static void store_texel_rgb9_e5(struct gl_texture_image *texImage,
 
 /* MESA_FORMAT_R11_G11_B10_FLOAT *********************************************/
 
-static void FETCH(r11_g11_b10f)( const struct gl_texture_image *texImage,
+static void FETCH(r11_g11_b10f)( const struct swrast_texture_image *texImage,
                                  GLint i, GLint j, GLint k, GLfloat *texel )
 {
    const GLuint *src = TEXEL_ADDR(GLuint, texImage, i, j, k, 1);
@@ -2284,7 +2284,7 @@ static void FETCH(r11_g11_b10f)( const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_r11_g11_b10f(struct gl_texture_image *texImage,
+static void store_texel_r11_g11_b10f(struct swrast_texture_image *texImage,
                                      GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *src = (const GLfloat *) texel;
@@ -2296,7 +2296,7 @@ static void store_texel_r11_g11_b10f(struct gl_texture_image *texImage,
 
 /* MESA_FORMAT_Z32_FLOAT_X24S8 ***********************************************/
 
-static void FETCH(z32f_x24s8)(const struct gl_texture_image *texImage,
+static void FETCH(z32f_x24s8)(const struct swrast_texture_image *texImage,
 			      GLint i, GLint j, GLint k, GLfloat *texel)
 {
    const GLfloat *src = TEXEL_ADDR(GLfloat, texImage, i, j, k, 2);
@@ -2307,7 +2307,7 @@ static void FETCH(z32f_x24s8)(const struct gl_texture_image *texImage,
 }
 
 #if DIM == 3
-static void store_texel_z32f_x24s8(struct gl_texture_image *texImage,
+static void store_texel_z32f_x24s8(struct swrast_texture_image *texImage,
                                    GLint i, GLint j, GLint k, const void *texel)
 {
    const GLfloat *src = (const GLfloat *) texel;
