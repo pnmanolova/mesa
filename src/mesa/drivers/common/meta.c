@@ -3275,6 +3275,8 @@ decompress_texture_image(struct gl_context *ctx,
  * This is just a wrapper around _mesa_get_tex_image() and
  * decompress_texture_image().  Meta functions should not be directly called
  * from core Mesa.
+ * NOTE: decompression of compressed textures does not work properly for
+ * signed texels.
  */
 void
 _mesa_meta_GetTexImage(struct gl_context *ctx, GLenum target, GLint level,
