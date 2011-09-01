@@ -3284,7 +3284,9 @@ _mesa_meta_GetTexImage(struct gl_context *ctx, GLenum target, GLint level,
                        struct gl_texture_object *texObj,
                        struct gl_texture_image *texImage)
 {
-   if (_mesa_is_format_compressed(texImage->TexFormat)) {
+   if (_mesa_is_format_compressed(texImage->TexFormat) &&
+       _mesa_get_format_datatype(texImage->TexFormat)
+       == GL_UNSIGNED_NORMALIZED) {
       const GLuint slice = 0; /* only 2D compressed textures for now */
       /* Need to unlock the texture here to prevent deadlock... */
       _mesa_unlock_texture(ctx, texObj);
