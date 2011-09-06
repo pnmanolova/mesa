@@ -318,7 +318,7 @@ get_tex_rgba(struct gl_context *ctx, GLuint dimensions,
                (texImage->ImageOffsets[img] +
                 texImage->RowStride * row) * texelSize;
 
-            _mesa_unpack_rgba_row(texImage->TexFormat, width, src, rgba);
+            _mesa_unpack_rgba_row(texFormat, width, src, rgba);
 
             if (texImage->_BaseFormat == GL_ALPHA) {
                GLint col;
