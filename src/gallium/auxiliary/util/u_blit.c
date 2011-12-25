@@ -109,6 +109,7 @@ util_create_blit(struct pipe_context *pipe, struct cso_context *cso)
    memset(&ctx->rasterizer, 0, sizeof(ctx->rasterizer));
    ctx->rasterizer.cull_face = PIPE_FACE_NONE;
    ctx->rasterizer.gl_rasterization_rules = 1;
+   ctx->rasterizer.depth_clip = 1;
 
    /* samplers */
    memset(&ctx->sampler, 0, sizeof(ctx->sampler));

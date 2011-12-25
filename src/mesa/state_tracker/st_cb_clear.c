@@ -68,6 +68,7 @@ st_init_clear(struct st_context *st)
    memset(&st->clear, 0, sizeof(st->clear));
 
    st->clear.raster.gl_rasterization_rules = 1;
+   st->clear.raster.depth_clip = 1;
    st->clear.enable_ds_separate = pscreen->get_param(pscreen, PIPE_CAP_DEPTHSTENCIL_CLEAR_SEPARATE);
 }
 
