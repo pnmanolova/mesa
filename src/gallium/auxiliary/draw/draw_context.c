@@ -130,7 +130,7 @@ boolean draw_init(struct draw_context *draw)
    draw->clip_xy = TRUE;
    draw->clip_z = TRUE;
 
-
+   draw->pt.user.planes = (float (*) [DRAW_TOTAL_CLIP_PLANES][4]) &(draw->plane[0]);
    draw->reduced_prim = ~0; /* != any of PIPE_PRIM_x */
 
 
@@ -288,7 +288,6 @@ void draw_set_clip_state( struct draw_context *draw,
    draw_do_flush( draw, DRAW_FLUSH_STATE_CHANGE );
 
    memcpy(&draw->plane[6], clip->ucp, sizeof(clip->ucp));
-   draw->pt.user.planes = (float (*) [DRAW_TOTAL_CLIP_PLANES][4]) &(draw->plane[0]);
 }
 
 
