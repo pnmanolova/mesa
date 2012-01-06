@@ -135,9 +135,13 @@ struct pipe_rasterizer_state
    unsigned depth_clip:1;
 
    /**
-    * Enable bits for user clip planes.
+    * Enable bits for clipping half-spaces.
+    * This applies to both user clip planes and shader clip distances.
+    * Note that if the bound shader exports any clip distances, these
+    * replace all user clip planes, and clip half-spaces enabled here
+    * but not written by the shader count as disabled.
     */
-   unsigned user_clip_plane_enable:PIPE_MAX_CLIP_PLANES;
+   unsigned clip_plane_enable:PIPE_MAX_CLIP_PLANES;
 
    unsigned line_stipple_factor:8;  /**< [1..256] actually */
    unsigned line_stipple_pattern:16;

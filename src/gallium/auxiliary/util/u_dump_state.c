@@ -330,7 +330,7 @@ util_dump_rasterizer_state(FILE *stream, const struct pipe_rasterizer_state *sta
    util_dump_member(stream, bool, state, gl_rasterization_rules);
    util_dump_member(stream, bool, state, rasterizer_discard);
    util_dump_member(stream, bool, state, depth_clip);
-   util_dump_member(stream, uint, state, user_clip_plane_enable);
+   util_dump_member(stream, uint, state, clip_plane_enable);
 
    util_dump_member(stream, float, state, line_width);
    util_dump_member(stream, float, state, point_size);

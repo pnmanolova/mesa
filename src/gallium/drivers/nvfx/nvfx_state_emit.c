@@ -126,7 +126,7 @@ nvfx_ucp_validate(struct nvfx_context* nvfx)
 	unsigned i, enable = 0, nr = 0;
 
 	for (i = 0; i < 6; i++) {
-		if (nvfx->rasterizer->pipe.user_clip_plane_enable & (1 << i)) {
+		if (nvfx->rasterizer->pipe.clip_plane_enable & (1 << i)) {
 			enable |= enables[i];
 			nr = i+1;
 		}
@@ -153,7 +153,7 @@ nvfx_vertprog_ucp_validate(struct nvfx_context* nvfx)
 	struct nouveau_grobj *eng3d = nvfx->screen->eng3d;
 	unsigned i;
 	struct nvfx_vertex_program* vp = nvfx->hw_vertprog;
-	unsigned enable = nvfx->rasterizer->pipe.user_clip_plane_enable;
+	unsigned enable = nvfx->rasterizer->pipe.clip_plane_enable;
 	unsigned nr = util_bitcount(enable);
 
 	if(nr != vp->clip_nr)
@@ -295,7 +295,7 @@ nvfx_state_validate_common(struct nvfx_context *nvfx)
 	if(nvfx->is_nv4x)
 	{
 		unsigned vp_output = nvfx->hw_vertprog->or | nvfx->hw_fragprog->or;
-		vp_output |= ((1 << (nvfx->rasterizer->pipe.user_clip_plane_enable & 63)) - 1) << 6;
+		vp_output |= ((1 << (nvfx->rasterizer->pipe.clip_plane_enable & 63)) - 1) << 6;
 
 		if(vp_output != nvfx->hw_vp_output)
 		{

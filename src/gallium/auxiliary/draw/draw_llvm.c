@@ -1449,7 +1449,7 @@ draw_llvm_make_variant_key(struct draw_llvm *llvm, char *store)
    key->bypass_viewport = llvm->draw->identity_viewport;
    key->clip_halfz = !llvm->draw->rasterizer->gl_rasterization_rules;
    key->need_edgeflags = (llvm->draw->vs.edgeflag_output ? TRUE : FALSE);
-   key->ucp_enable = llvm->draw->rasterizer->user_clip_plane_enable;
+   key->ucp_enable = llvm->draw->rasterizer->clip_plane_enable;
    key->pad = 0;
 
    /* All variants of this shader will have the same value for

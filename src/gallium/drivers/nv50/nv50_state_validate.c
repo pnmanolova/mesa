@@ -249,7 +249,7 @@ nv50_validate_clip(struct nv50_context *nv50)
    if (likely(!vp))
       vp = nv50->vertprog;
 
-   clip_enable = nv50->rast->pipe.user_clip_plane_enable;
+   clip_enable = nv50->rast->pipe.clip_plane_enable;
 
    BEGIN_RING(chan, RING_3D(VP_CLIP_DISTANCE_ENABLE), 1);
    OUT_RING  (chan, clip_enable);

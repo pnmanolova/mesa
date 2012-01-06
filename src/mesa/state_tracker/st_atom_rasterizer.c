@@ -263,7 +263,7 @@ static void update_raster_state( struct st_context *st )
 
    /* _NEW_TRANSFORM */
    raster->depth_clip = ctx->Transform.DepthClamp == GL_FALSE;
-   raster->user_clip_plane_enable = ctx->Transform.ClipPlanesEnabled;
+   raster->clip_plane_enable = ctx->Transform.ClipPlanesEnabled;
 
    cso_set_rasterizer(st->cso_context, raster);
 }

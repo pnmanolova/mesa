@@ -148,7 +148,7 @@ void trace_dump_rasterizer_state(const struct pipe_rasterizer_state *state)
    trace_dump_member(bool, state, gl_rasterization_rules);
    trace_dump_member(bool, state, rasterizer_discard);
    trace_dump_member(bool, state, depth_clip);
-   trace_dump_member(uint, state, user_clip_plane_enable);
+   trace_dump_member(uint, state, clip_plane_enable);
 
    trace_dump_member(float, state, line_width);
    trace_dump_member(float, state, point_size);

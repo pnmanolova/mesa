@@ -315,7 +315,7 @@ nvc0_validate_clip(struct nvc0_context *nvc0)
    clip_enable = vp->vp.clip_enable;
 
    if (!clip_enable) {
-      clip_enable = nvc0->rast->pipe.user_clip_plane_enable;
+      clip_enable = nvc0->rast->pipe.clip_plane_enable;
       if (unlikely(clip_enable))
          nvc0_check_program_ucps(nvc0, vp, clip_enable);
    }

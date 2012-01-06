@@ -224,7 +224,7 @@ static void update_clip_flags( struct draw_context *draw )
    draw->clip_z = (!draw->driver.bypass_clip_z &&
                    draw->rasterizer && draw->rasterizer->depth_clip);
    draw->clip_user = draw->rasterizer &&
-                     draw->rasterizer->user_clip_plane_enable != 0;
+                     draw->rasterizer->clip_plane_enable != 0;
 }
 
 /**

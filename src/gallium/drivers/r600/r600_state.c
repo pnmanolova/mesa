@@ -1028,7 +1028,7 @@ static void *r600_create_rs_state(struct pipe_context *ctx,
 	r600_pipe_state_add_reg(rstate, R_028DFC_PA_SU_POLY_OFFSET_CLAMP, fui(state->offset_clamp), 0xFFFFFFFF, NULL, 0);
 	r600_pipe_state_add_reg(rstate, R_02820C_PA_SC_CLIPRECT_RULE, clip_rule, 0xFFFFFFFF, NULL, 0);
 	r600_pipe_state_add_reg(rstate, R_028810_PA_CL_CLIP_CNTL,
-			S_028810_PS_UCP_MODE(3) | (state->user_clip_plane_enable & 63) |
+			S_028810_PS_UCP_MODE(3) | (state->clip_plane_enable & 63) |
 			S_028810_ZCLIP_NEAR_DISABLE(!state->depth_clip) |
 			S_028810_ZCLIP_FAR_DISABLE(!state->depth_clip), 0xFFFFFFFF, NULL, 0);
 

@@ -36,7 +36,7 @@ static boolean TAG(do_cliptest)( struct pt_post_vs *pvs,
    /* const */ float (*plane)[4] = pvs->draw->plane;
    const unsigned pos = draw_current_shader_position_output(pvs->draw);
    const unsigned ef = pvs->draw->vs.edgeflag_output;
-   const unsigned ucp_enable = pvs->draw->rasterizer->user_clip_plane_enable;
+   const unsigned ucp_enable = pvs->draw->rasterizer->clip_plane_enable;
    const unsigned flags = (FLAGS);
    unsigned need_pipeline = 0;
    unsigned j;
