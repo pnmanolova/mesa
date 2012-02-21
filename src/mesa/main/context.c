@@ -717,8 +717,10 @@ check_context_limits(struct gl_context *ctx)
    assert(MAX_TEXTURE_LEVELS >= MAX_CUBE_TEXTURE_LEVELS);
 
    /* Max texture size should be <= max viewport size (render to texture) */
-   assert((1 << (MAX_TEXTURE_LEVELS - 1)) <= ctx->Const.MaxViewportWidth);
-   assert((1 << (MAX_TEXTURE_LEVELS - 1)) <= ctx->Const.MaxViewportHeight);
+   assert((1 << (ctx->Const.MaxTextureLevels - 1))
+          <= ctx->Const.MaxViewportWidth);
+   assert((1 << (ctx->Const.MaxTextureLevels - 1))
+          <= ctx->Const.MaxViewportHeight);
 
    assert(ctx->Const.MaxDrawBuffers <= MAX_DRAW_BUFFERS);
 
