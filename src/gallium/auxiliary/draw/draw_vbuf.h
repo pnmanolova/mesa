@@ -130,6 +130,10 @@ struct vbuf_render {
 
 
 
+struct vbuf_render *
+draw_vbuf_ply_create(struct vbuf_render *render);
+
+
 struct draw_stage *
 draw_vbuf_stage( struct draw_context *draw,
                  struct vbuf_render *render );

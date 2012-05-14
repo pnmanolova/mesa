@@ -39,6 +39,7 @@
 #include "draw_context.h"
 #include "draw_vs.h"
 #include "draw_gs.h"
+#include "draw_vbuf.h"
 
 #if HAVE_LLVM
 #include "gallivm/lp_bld_init.h"
@@ -624,6 +625,10 @@ void draw_set_render( struct draw_context *draw,
 		      struct vbuf_render *render )
 {
    draw->render = render;
+
+   if (0) {
+      draw->render = draw_vbuf_ply_create(draw->render);
+   }
 }
 
 

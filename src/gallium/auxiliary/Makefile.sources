@@ -33,6 +33,7 @@ C_SOURCES := \
 	draw/draw_pt_so_emit.c \
 	draw/draw_pt_util.c \
 	draw/draw_pt_vsplit.c \
+	draw/draw_vbuf_ply.c \
 	draw/draw_vertex.c \
 	draw/draw_vs.c \
 	draw/draw_vs_exec.c \
