@@ -367,7 +367,7 @@ def generate(env):
                     '-mtune=i686' # use i686 where we can
                 ]
         if env['machine'] == 'x86_64':
-            ccflags += ['-m64']
+            ccflags += ['-m64', '-mavx', '-mavx2']
             if platform == 'darwin':
                 ccflags += ['-fno-common']
         if env['platform'] not in ('cygwin', 'haiku', 'windows'):
