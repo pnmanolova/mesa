@@ -254,6 +254,31 @@ transpose4_epi32(const __m128i * restrict a,
 
 #define SCALAR_EPI32(m, i) _mm_shuffle_epi32((m), _MM_SHUFFLE(i,i,i,i))
 
+#if defined(PIPE_ARCH_AVX2)
+
+#include <immintrin.h>
+
+static INLINE void
+transpose4_epi64(const __m256i * restrict a,
+                 const __m256i * restrict b,
+                 const __m256i * restrict c,
+                 const __m256i * restrict d,
+                 __m256i * restrict o,
+                 __m256i * restrict p,
+                 __m256i * restrict q,
+                 __m256i * restrict r)
+{
+  __m256i t0 = _mm256_unpacklo_epi64(*a, *b);
+  __m256i t1 = _mm256_unpacklo_epi64(*c, *d);
+  __m256i t2 = _mm256_unpackhi_epi64(*a, *b);
+  __m256i t3 = _mm256_unpackhi_epi64(*c, *d);
+
+  *o = _mm256_unpacklo_epi64(t0, t1);
+  *p = _mm256_unpackhi_epi64(t0, t1);
+  *q = _mm256_unpacklo_epi64(t2, t3);
+  *r = _mm256_unpackhi_epi64(t2, t3);
+}
+#endif /* PIPE_ARCH_AVX2 */
 
 #endif /* PIPE_ARCH_SSE */
 

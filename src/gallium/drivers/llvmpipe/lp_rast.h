@@ -46,10 +46,11 @@ struct lp_scene;
 struct lp_fence;
 struct cmd_bin;
 
-#define FIXED_TYPE_WIDTH 32
+#define FIXED_TYPE_WIDTH 64
 /** For sub-pixel positioning */
-#define FIXED_ORDER 4
+#define FIXED_ORDER 8
 #define FIXED_ONE (1<<FIXED_ORDER)
+#define FIXED_SHIFT (FIXED_TYPE_WIDTH - 1)
 /** Maximum length of an edge in a primitive in pixels.
  *  If the framebuffer is large we have to think about fixed-point
  *  integer overflow. Coordinates need ((FIXED_TYPE_WIDTH/2) - 1) bits
@@ -64,6 +65,7 @@ struct cmd_bin;
 
 #define LP_MAX_ACTIVE_BINNED_QUERIES 16
 
+#define IMUL64(a, b) (((int64_t)a) * ((int64_t)b))
 
 struct lp_rasterizer_task;
 
@@ -107,13 +109,13 @@ struct lp_rast_shader_inputs {
  */
 struct lp_rast_plane {
    /* edge function values at minx,miny ?? */
-   int c;
+   int64_t c;
 
-   int dcdx;
-   int dcdy;
+   int64_t dcdx;
+   int64_t dcdy;
 
    /* one-pixel sized trivial reject offsets for each plane */
-   int eo;
+   int64_t eo;
 };
 
 /**

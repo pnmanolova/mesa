@@ -42,11 +42,15 @@
 
 #define NUM_CHANNELS 4
 
+#if defined(PIPE_ARCH_AVX2)
+#include <immintrin.h>
+#endif
+
 #if defined(PIPE_ARCH_SSE)
 #include <emmintrin.h>
 #endif
-   
-static INLINE int
+
+static INLINE int64_t
 subpixel_snap(float a)
 {
    return util_iround(FIXED_ONE * a);
@@ -61,13 +65,13 @@ fixed_to_float(int a)
 
 /* Position and area in fixed point coordinates */
 struct fixed_position {
-   int x[4];
-   int y[4];
-   int area;
-   int dx01;
-   int dy01;
-   int dx20;
-   int dy20;
+   int64_t x[4];
+   int64_t y[4];
+   int64_t area;
+   int64_t dx01;
+   int64_t dy01;
+   int64_t dx20;
+   int64_t dy20;
 };
 
 
@@ -362,7 +366,72 @@ do_triangle_ccw(struct lp_setup_context *setup,
 
    plane = GET_PLANES(tri);
 
-#if defined(PIPE_ARCH_SSE)
+#if defined(PIPE_ARCH_AVX2)
+   {
+      __m256i vertx, verty;
+      __m256i shufx, shufy;
+      __m256i dcdx, dcdy, c;
+      __m256i unused;
+      __m256i dcdx_neg_mask;
+      __m256i dcdy_neg_mask;
+      __m256i dcdx_zero_mask;
+      __m256i top_left_flag;
+      __m256i c_inc_mask, c_inc;
+      __m256i eo, p0, p1, p2;
+      __m256i zero = _mm256_setzero_si256();
+
+      vertx = _mm256_loadu_si256((__m256i *)position->x); /* vertex x coords */
+      verty = _mm256_loadu_si256((__m256i *)position->y); /* vertex y coords */
+
+      shufx = _mm256_shuffle_epi64(vertx, _MM_SHUFFLE(3,0,2,1));
+      shufy = _mm256_shuffle_epi64(verty, _MM_SHUFFLE(3,0,2,1));
+
+      dcdx = _mm256_sub_epi64(verty, shufy);
+      dcdy = _mm256_sub_epi64(vertx, shufx);
+
+      dcdx_neg_mask = _mm256_srai_epi64(dcdx, FIXED_SHIFT);
+      dcdx_zero_mask = _mm256_cmpeq_epi64(dcdx, zero);
+      dcdy_neg_mask = _mm256_srai_epi64(dcdy, FIXED_SHIFT);
+
+      top_left_flag = _mm256_set1_epi64x(
+         (setup->bottom_edge_rule == 0) ? ~0 : 0);
+
+      c_inc_mask = _mm256_or_si256(
+         dcdx_neg_mask,
+         _mm256_and_si256(dcdx_zero_mask,
+                          _mm256_xor_si256(dcdy_neg_mask,
+                                           top_left_flag)));
+
+      c_inc = _mm256_srli_epi64(c_inc_mask, FIXED_SHIFT);
+
+      c = _mm256_sub_epi64(mm256_mullo_epi64(dcdx, vertx),
+                           mm256_mullo_epi64(dcdy, verty));
+
+      c = _mm256_add_epi64(c, c_inc);
+
+      /* Scale up to match c:
+       */
+      dcdx = _mm256_slli_epi64(dcdx, FIXED_ORDER);
+      dcdy = _mm256_slli_epi64(dcdy, FIXED_ORDER);
+
+      /* Calculate trivial reject values:
+       */
+      eo = _mm256_sub_epi64(_mm256_andnot_si256(dcdy_neg_mask, dcdy),
+                            _mm256_and_si256(dcdx_neg_mask, dcdx));
+
+      /* ei = _mm_sub_epi32(_mm_sub_epi32(dcdy, dcdx), eo); */
+
+      /* Pointless transpose which gets undone immediately in
+       * rasterization:
+       */
+      transpose4_epi64(&c, &dcdx, &dcdy, &eo,
+                       &p0, &p1, &p2, &unused);
+
+      _mm256_store_si256((__m256i *)&plane[0], p0);
+      _mm256_store_si256((__m256i *)&plane[1], p1);
+      _mm256_store_si256((__m256i *)&plane[2], p2);
+   }
+#elif defined(PIPE_ARCH_SSE)
    {
       __m128i vertx, verty;
       __m128i shufx, shufy;
@@ -439,7 +508,8 @@ do_triangle_ccw(struct lp_setup_context *setup,
          /* half-edge constants, will be interated over the whole render
           * target.
           */
-         plane[i].c = plane[i].dcdx * position->x[i] - plane[i].dcdy * position->y[i];
+         plane[i].c = IMUL64(plane[i].dcdx, position->x[i]) -
+               IMUL64(plane[i].dcdy, position->y[i]);
 
          /* correct for top-left vs. bottom-left fill convention.
           */         
@@ -476,19 +546,19 @@ do_triangle_ccw(struct lp_setup_context *setup,
 #endif
 
    if (0) {
-      debug_printf("p0: %08x/%08x/%08x/%08x\n",
+      debug_printf("p0: %16lx/%08lx/%08lx/%08lx\n",
                    plane[0].c,
                    plane[0].dcdx,
                    plane[0].dcdy,
                    plane[0].eo);
       
-      debug_printf("p1: %08x/%08x/%08x/%08x\n",
+      debug_printf("p1: %16lx/%08lx/%08lx/%08lx\n",
                    plane[1].c,
                    plane[1].dcdx,
                    plane[1].dcdy,
                    plane[1].eo);
       
-      debug_printf("p0: %08x/%08x/%08x/%08x\n",
+      debug_printf("p2: %16lx/%08lx/%08lx/%08lx\n",
                    plane[2].c,
                    plane[2].dcdx,
                    plane[2].dcdy,
@@ -669,7 +739,7 @@ lp_setup_bin_triangle( struct lp_setup_context *setup,
    else
    {
       struct lp_rast_plane *plane = GET_PLANES(tri);
-      int c[MAX_PLANES];
+      int64_t c[MAX_PLANES];
       int ei[MAX_PLANES];
 
       int eo[MAX_PLANES];
@@ -684,8 +754,8 @@ lp_setup_bin_triangle( struct lp_setup_context *setup,
       
       for (i = 0; i < nr_planes; i++) {
          c[i] = (plane[i].c + 
-                 plane[i].dcdy * iy0 * TILE_SIZE - 
-                 plane[i].dcdx * ix0 * TILE_SIZE);
+                 IMUL64(plane[i].dcdy, iy0) * TILE_SIZE -
+                 IMUL64(plane[i].dcdx, ix0) * TILE_SIZE);
 
          ei[i] = (plane[i].dcdy - 
                   plane[i].dcdx - 
@@ -705,22 +775,22 @@ lp_setup_bin_triangle( struct lp_setup_context *setup,
        */
       for (y = iy0; y <= iy1; y++)
       {
-	 boolean in = FALSE;  /* are we inside the triangle? */
-	 int cx[MAX_PLANES];
+         boolean in = FALSE;  /* are we inside the triangle? */
+         int64_t cx[MAX_PLANES];
 
          for (i = 0; i < nr_planes; i++)
             cx[i] = c[i];
 
-	 for (x = ix0; x <= ix1; x++)
-	 {
+         for (x = ix0; x <= ix1; x++)
+         {
             int out = 0;
             int partial = 0;
 
             for (i = 0; i < nr_planes; i++) {
-               int planeout = cx[i] + eo[i];
-               int planepartial = cx[i] + ei[i] - 1;
-               out |= (planeout >> 31);
-               partial |= (planepartial >> 31) & (1<<i);
+               int64_t planeout = cx[i] + eo[i];
+               int64_t planepartial = cx[i] + ei[i] - 1;
+               out |= (planeout >> 63);
+               partial |= (planepartial >> 63) & (1<<i);
             }
 
             if (out) {
@@ -730,7 +800,7 @@ lp_setup_bin_triangle( struct lp_setup_context *setup,
                LP_COUNT(nr_empty_64);
             }
             else if (partial) {
-               /* Not trivially accepted by at least one plane - 
+               /* Not trivially accepted by at least one plane -
                 * rasterize/shade partial tile
                 */
                int count = util_bitcount(partial);
@@ -738,7 +808,7 @@ lp_setup_bin_triangle( struct lp_setup_context *setup,
                
                if (!lp_scene_bin_cmd_with_state( scene, x, y,
                                                  setup->fs.stored,
-                                                 lp_rast_tri_tab[count], 
+                                                 lp_rast_tri_tab[count],
                                                  lp_rast_arg_triangle(tri, partial) ))
                   goto fail;
 
@@ -752,14 +822,12 @@ lp_setup_bin_triangle( struct lp_setup_context *setup,
                   goto fail;
             }
 
-	    /* Iterate cx values across the region:
-	     */
+            /* Iterate cx values across the region: */
             for (i = 0; i < nr_planes; i++)
                cx[i] += xstep[i];
-	 }
-      
-	 /* Iterate c values down the region:
-	  */
+         }
+
+         /* Iterate c values down the region: */
          for (i = 0; i < nr_planes; i++)
             c[i] += ystep[i];
       }
@@ -823,7 +891,8 @@ calc_fixed_position( struct lp_setup_context *setup,
    position->dx20 = position->x[2] - position->x[0];
    position->dy20 = position->y[2] - position->y[0];
 
-   position->area = position->dx01 * position->dy20 - position->dx20 * position->dy01;
+   position->area = IMUL64(position->dx01, position->dy20) -
+         IMUL64(position->dx20, position->dy01);
 }
 
 
