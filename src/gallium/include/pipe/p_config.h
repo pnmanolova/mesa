@@ -98,22 +98,22 @@
 #if defined(PIPE_CC_GCC) && !defined(__SSE2__)
 /* #warning SSE2 support requires -msse -msse2 compiler options */
 #else
-#define PIPE_ARCH_SSE
+//#define PIPE_ARCH_SSE
 #endif
 #if defined(PIPE_CC_GCC) && !defined(__SSSE3__)
 /* #warning SSE3 support requires -msse3 compiler options */
 #else
-#define PIPE_ARCH_SSSE3
+//#define PIPE_ARCH_SSSE3
 #endif
 #if defined(PIPE_CC_GCC) && !defined(__AVX__)
 /* #warning AVX support requires -mavx compiler options */
 #else
-#define PIPE_ARCH_AVX
+//#define PIPE_ARCH_AVX
 #endif
 #if defined(PIPE_CC_GCC) && !defined(__AVX2__)
 /* #warning AVX2 support requires -mavx2 compiler options */
 #else
-#define PIPE_ARCH_AVX2
+//#define PIPE_ARCH_AVX2
 #endif
 #endif
 
