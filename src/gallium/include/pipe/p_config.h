@@ -105,6 +105,16 @@
 #else
 #define PIPE_ARCH_SSSE3
 #endif
+#if defined(PIPE_CC_GCC) && !defined(__AVX__)
+/* #warning AVX support requires -mavx compiler options */
+#else
+#define PIPE_ARCH_AVX
+#endif
+#if defined(PIPE_CC_GCC) && !defined(__AVX2__)
+/* #warning AVX2 support requires -mavx2 compiler options */
+#else
+#define PIPE_ARCH_AVX2
+#endif
 #endif
 
 #if defined(__ppc__) || defined(__ppc64__) || defined(__PPC__)
