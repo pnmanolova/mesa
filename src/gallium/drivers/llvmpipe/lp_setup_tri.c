@@ -42,10 +42,6 @@
 
 #define NUM_CHANNELS 4
 
-#if defined(PIPE_ARCH_AVX2)
-#include <immintrin.h>
-#endif
-
 #if defined(PIPE_ARCH_SSE)
 #include <emmintrin.h>
 #endif
@@ -366,72 +362,7 @@ do_triangle_ccw(struct lp_setup_context *setup,
 
    plane = GET_PLANES(tri);
 
-#if defined(PIPE_ARCH_AVX2)
-   {
-      __m256i vertx, verty;
-      __m256i shufx, shufy;
-      __m256i dcdx, dcdy, c;
-      __m256i unused;
-      __m256i dcdx_neg_mask;
-      __m256i dcdy_neg_mask;
-      __m256i dcdx_zero_mask;
-      __m256i top_left_flag;
-      __m256i c_inc_mask, c_inc;
-      __m256i eo, p0, p1, p2;
-      __m256i zero = _mm256_setzero_si256();
-
-      vertx = _mm256_loadu_si256((__m256i *)position->x); /* vertex x coords */
-      verty = _mm256_loadu_si256((__m256i *)position->y); /* vertex y coords */
-
-      shufx = _mm256_shuffle_epi64(vertx, _MM_SHUFFLE(3,0,2,1));
-      shufy = _mm256_shuffle_epi64(verty, _MM_SHUFFLE(3,0,2,1));
-
-      dcdx = _mm256_sub_epi64(verty, shufy);
-      dcdy = _mm256_sub_epi64(vertx, shufx);
-
-      dcdx_neg_mask = _mm256_srai_epi64(dcdx, FIXED_SHIFT);
-      dcdx_zero_mask = _mm256_cmpeq_epi64(dcdx, zero);
-      dcdy_neg_mask = _mm256_srai_epi64(dcdy, FIXED_SHIFT);
-
-      top_left_flag = _mm256_set1_epi64x(
-         (setup->bottom_edge_rule == 0) ? ~0 : 0);
-
-      c_inc_mask = _mm256_or_si256(
-         dcdx_neg_mask,
-         _mm256_and_si256(dcdx_zero_mask,
-                          _mm256_xor_si256(dcdy_neg_mask,
-                                           top_left_flag)));
-
-      c_inc = _mm256_srli_epi64(c_inc_mask, FIXED_SHIFT);
-
-      c = _mm256_sub_epi64(mm256_mullo_epi64(dcdx, vertx),
-                           mm256_mullo_epi64(dcdy, verty));
-
-      c = _mm256_add_epi64(c, c_inc);
-
-      /* Scale up to match c:
-       */
-      dcdx = _mm256_slli_epi64(dcdx, FIXED_ORDER);
-      dcdy = _mm256_slli_epi64(dcdy, FIXED_ORDER);
-
-      /* Calculate trivial reject values:
-       */
-      eo = _mm256_sub_epi64(_mm256_andnot_si256(dcdy_neg_mask, dcdy),
-                            _mm256_and_si256(dcdx_neg_mask, dcdx));
-
-      /* ei = _mm_sub_epi32(_mm_sub_epi32(dcdy, dcdx), eo); */
-
-      /* Pointless transpose which gets undone immediately in
-       * rasterization:
-       */
-      transpose4_epi64(&c, &dcdx, &dcdy, &eo,
-                       &p0, &p1, &p2, &unused);
-
-      _mm256_store_si256((__m256i *)&plane[0], p0);
-      _mm256_store_si256((__m256i *)&plane[1], p1);
-      _mm256_store_si256((__m256i *)&plane[2], p2);
-   }
-#elif defined(PIPE_ARCH_SSE)
+#if defined(PIPE_ARCH_SSE)
    {
       __m128i vertx, verty;
       __m128i shufx, shufy;
