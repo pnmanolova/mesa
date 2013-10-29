@@ -42,6 +42,9 @@
 
 #define NUM_CHANNELS 4
 
+/* TODO */
+#undef PIPE_ARCH_SSE
+
 #if defined(PIPE_ARCH_SSE)
 #include <emmintrin.h>
 #endif

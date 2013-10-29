@@ -35,6 +35,9 @@
 #include "lp_perf.h"
 #include "lp_rast_priv.h"
 
+/* TODO */
+#undef PIPE_ARCH_SSE
+
 
 
 
