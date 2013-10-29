@@ -464,8 +464,12 @@ do_triangle_ccw(struct lp_setup_context *setup,
             }
          }
 
-         plane[i].dcdx *= FIXED_ONE;
-         plane[i].dcdy *= FIXED_ONE;
+         /* Scale up to match c:
+          */
+         assert((plane[i].dcdx << FIXED_ORDER) >> FIXED_ORDER == plane[i].dcdx);
+         assert((plane[i].dcdy << FIXED_ORDER) >> FIXED_ORDER == plane[i].dcdy);
+         plane[i].dcdx <<= FIXED_ORDER;
+         plane[i].dcdy <<= FIXED_ORDER;
 
          /* find trivial reject offsets for each edge for a single-pixel
           * sized block.  These will be scaled up at each recursive level to
