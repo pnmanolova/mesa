@@ -65,7 +65,7 @@ struct cmd_bin;
 
 #define LP_MAX_ACTIVE_BINNED_QUERIES 16
 
-#define IMUL64(a, b) (((int64_t)a) * ((int64_t)b))
+#define IMUL64(a, b) (((int64_t)(a)) * ((int64_t)(b)))
 
 struct lp_rasterizer_task;
 
