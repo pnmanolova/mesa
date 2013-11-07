@@ -678,11 +678,11 @@ lp_setup_bin_triangle( struct lp_setup_context *setup,
    {
       struct lp_rast_plane *plane = GET_PLANES(tri);
       int64_t c[MAX_PLANES];
-      int ei[MAX_PLANES];
+      int64_t ei[MAX_PLANES];
 
-      int eo[MAX_PLANES];
-      int xstep[MAX_PLANES];
-      int ystep[MAX_PLANES];
+      int64_t eo[MAX_PLANES];
+      int64_t xstep[MAX_PLANES];
+      int64_t ystep[MAX_PLANES];
       int x, y;
 
       int ix0 = trimmed_box.x0 / TILE_SIZE;
@@ -700,8 +700,8 @@ lp_setup_bin_triangle( struct lp_setup_context *setup,
                   plane[i].eo) << TILE_ORDER;
 
          eo[i] = plane[i].eo << TILE_ORDER;
-         xstep[i] = -(plane[i].dcdx << TILE_ORDER);
-         ystep[i] = plane[i].dcdy << TILE_ORDER;
+         xstep[i] = -(((int64_t)plane[i].dcdx) << TILE_ORDER);
+         ystep[i] = ((int64_t)plane[i].dcdy) << TILE_ORDER;
       }
 
 
