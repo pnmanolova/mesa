@@ -484,19 +484,19 @@ do_triangle_ccw(struct lp_setup_context *setup,
 #endif
 
    if (0) {
-      debug_printf("p0: %16lx/%08lx/%08lx/%08lx\n",
+      debug_printf("p0: %16lx/%08x/%08x/%16lx\n",
                    plane[0].c,
                    plane[0].dcdx,
                    plane[0].dcdy,
                    plane[0].eo);
       
-      debug_printf("p1: %16lx/%08lx/%08lx/%08lx\n",
+      debug_printf("p1: %16lx/%08x/%08x/%16lx\n",
                    plane[1].c,
                    plane[1].dcdx,
                    plane[1].dcdy,
                    plane[1].eo);
       
-      debug_printf("p2: %16lx/%08lx/%08lx/%08lx\n",
+      debug_printf("p2: %16lx/%08x/%08x/%16lx\n",
                    plane[2].c,
                    plane[2].dcdx,
                    plane[2].dcdy,

@@ -111,13 +111,8 @@ struct lp_rast_plane {
    /* edge function values at minx,miny ?? */
    int64_t c;
 
-#if 0
-   int64_t dcdx;
-   int64_t dcdy;
-#else
    int32_t dcdx;
    int32_t dcdy;
-#endif
 
    /* one-pixel sized trivial reject offsets for each plane */
    int64_t eo;
