@@ -190,6 +190,19 @@ lp_rast_tri_tab[MAX_PLANES+1] = {
    LP_RAST_OP_TRIANGLE_8
 };
 
+static unsigned
+lp_rast_32_tri_tab[MAX_PLANES+1] = {
+   0,               /* should be impossible */
+   LP_RAST_OP_TRIANGLE_32_1,
+   LP_RAST_OP_TRIANGLE_32_2,
+   LP_RAST_OP_TRIANGLE_32_3,
+   LP_RAST_OP_TRIANGLE_32_4,
+   LP_RAST_OP_TRIANGLE_32_5,
+   LP_RAST_OP_TRIANGLE_32_6,
+   LP_RAST_OP_TRIANGLE_32_7,
+   LP_RAST_OP_TRIANGLE_32_8
+};
+
 
 
 /**
@@ -586,7 +599,6 @@ lp_setup_bin_triangle( struct lp_setup_context *setup,
    struct lp_scene *scene = setup->scene;
    struct u_rect trimmed_box = *bbox;   
    int i;
-
    /* What is the largest power-of-two boundary this triangle crosses:
     */
    int dx = floor_pot((bbox->x0 ^ bbox->x1) |
@@ -595,8 +607,10 @@ lp_setup_bin_triangle( struct lp_setup_context *setup,
    /* The largest dimension of the rasterized area of the triangle
     * (aligned to a 4x4 grid), rounded down to the nearest power of two:
     */
-   int sz = floor_pot((bbox->x1 - (bbox->x0 & ~3)) |
-		      (bbox->y1 - (bbox->y0 & ~3)));
+   int max_sz = ((bbox->x1 - (bbox->x0 & ~3)) |
+                 (bbox->y1 - (bbox->y0 & ~3)));
+   int sz = floor_pot(max_sz);
+   boolean use_32bits = max_sz <= MAX_FIXED_LENGTH32;
 
    /* Now apply scissor, etc to the bounding box.  Could do this
     * earlier, but it confuses the logic for tri-16 and would force
@@ -627,6 +641,8 @@ lp_setup_bin_triangle( struct lp_setup_context *setup,
             assert(py + 4 <= TILE_SIZE);
             return lp_scene_bin_cmd_with_state( scene, ix0, iy0,
                                                 setup->fs.stored,
+                                                use_32bits ?
+                                                LP_RAST_OP_TRIANGLE_32_3_4 :
                                                 LP_RAST_OP_TRIANGLE_3_4,
                                                 lp_rast_arg_triangle_contained(tri, px, py) );
          }
@@ -649,6 +665,8 @@ lp_setup_bin_triangle( struct lp_setup_context *setup,
 
             return lp_scene_bin_cmd_with_state( scene, ix0, iy0,
                                                 setup->fs.stored,
+                                                use_32bits ?
+                                                LP_RAST_OP_TRIANGLE_32_3_16 :
                                                 LP_RAST_OP_TRIANGLE_3_16,
                                                 lp_rast_arg_triangle_contained(tri, px, py) );
          }
@@ -663,6 +681,8 @@ lp_setup_bin_triangle( struct lp_setup_context *setup,
 
          return lp_scene_bin_cmd_with_state(scene, ix0, iy0,
                                             setup->fs.stored,
+                                            use_32bits ?
+                                            LP_RAST_OP_TRIANGLE_32_4_16 :
                                             LP_RAST_OP_TRIANGLE_4_16,
                                             lp_rast_arg_triangle_contained(tri, px, py));
       }
@@ -670,9 +690,10 @@ lp_setup_bin_triangle( struct lp_setup_context *setup,
 
       /* Triangle is contained in a single tile:
        */
-      return lp_scene_bin_cmd_with_state( scene, ix0, iy0, setup->fs.stored,
-                                          lp_rast_tri_tab[nr_planes], 
-                                          lp_rast_arg_triangle(tri, (1<<nr_planes)-1) );
+      return lp_scene_bin_cmd_with_state(
+         scene, ix0, iy0, setup->fs.stored,
+         use_32bits ? lp_rast_32_tri_tab[nr_planes] : lp_rast_tri_tab[nr_planes],
+         lp_rast_arg_triangle(tri, (1<<nr_planes)-1));
    }
    else
    {
@@ -746,6 +767,8 @@ lp_setup_bin_triangle( struct lp_setup_context *setup,
                
                if (!lp_scene_bin_cmd_with_state( scene, x, y,
                                                  setup->fs.stored,
+                                                 use_32bits ?
+                                                 lp_rast_32_tri_tab[count] :
                                                  lp_rast_tri_tab[count],
                                                  lp_rast_arg_triangle(tri, partial) ))
                   goto fail;

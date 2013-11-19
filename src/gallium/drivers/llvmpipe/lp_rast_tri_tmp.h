@@ -50,7 +50,7 @@ TAG(do_block_4)(struct lp_rasterizer_task *task,
    int j;
 
    for (j = 0; j < NR_PLANES; j++) {
-      mask &= ~build_mask_linear(c[j] - 1, 
+      mask &= ~BUILD_MASK_LINEAR(c[j] - 1, 
 				 -plane[j].dcdx,
 				 plane[j].dcdy);
    }
@@ -85,7 +85,7 @@ TAG(do_block_16)(struct lp_rasterizer_task *task,
       const int64_t ei = plane[j].dcdy - plane[j].dcdx - plane[j].eo;
       const int64_t cio = IMUL64(ei, 4) - 1;
 
-      build_masks(c[j] + cox,
+      BUILD_MASKS(c[j] + cox,
 		  cio - cox,
 		  dcdx, dcdy, 
 		  &outmask,   /* sign bits from c[i][0..15] + cox */
@@ -185,7 +185,7 @@ TAG(lp_rast_triangle)(struct lp_rasterizer_task *task,
          const int64_t ei = plane[j].dcdy - plane[j].dcdx - plane[j].eo;
          const int64_t cio = IMUL64(ei, 16) - 1;
 
-         build_masks(c[j] + cox,
+         BUILD_MASKS(c[j] + cox,
                      cio - cox,
                      dcdx, dcdy,
                      &outmask,   /* sign bits from c[i][0..15] + cox */
