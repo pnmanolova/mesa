@@ -44,9 +44,6 @@
 
 #define NUM_CHANNELS 4
 
-/* TODO */
-#undef PIPE_ARCH_SSE
-
 #if defined(PIPE_ARCH_SSE)
 #include <emmintrin.h>
 #endif
@@ -381,7 +378,10 @@ do_triangle_ccw(struct lp_setup_context *setup,
    plane = GET_PLANES(tri);
 
 #if defined(PIPE_ARCH_SSE)
-   {
+   if (setup->fb.width <= MAX_FIXED_LENGTH32 &&
+       setup->fb.height <= MAX_FIXED_LENGTH32 &&
+       (bbox.x1 - bbox.x0) <= MAX_FIXED_LENGTH32 &&
+       (bbox.y1 - bbox.y0) <= MAX_FIXED_LENGTH32) {
       __m128i vertx, verty;
       __m128i shufx, shufy;
       __m128i dcdx, dcdy, c;
@@ -393,9 +393,12 @@ do_triangle_ccw(struct lp_setup_context *setup,
       __m128i c_inc_mask, c_inc;
       __m128i eo, p0, p1, p2;
       __m128i zero = _mm_setzero_si128();
+      PIPE_ALIGN_VAR(16) int32_t temp_vec[4];
 
-      vertx = _mm_loadu_si128((__m128i *)position->x); /* vertex x coords */
-      verty = _mm_loadu_si128((__m128i *)position->y); /* vertex y coords */
+      vertx = _mm_setr_epi32((int32_t)position->x[0], (int32_t)position->x[1],
+                             (int32_t)position->x[2], (int32_t)position->x[3]);
+      verty = _mm_setr_epi32((int32_t)position->y[0], (int32_t)position->y[1],
+                             (int32_t)position->y[2], (int32_t)position->y[3]);
 
       shufx = _mm_shuffle_epi32(vertx, _MM_SHUFFLE(3,0,2,1));
       shufy = _mm_shuffle_epi32(verty, _MM_SHUFFLE(3,0,2,1));
@@ -439,11 +442,20 @@ do_triangle_ccw(struct lp_setup_context *setup,
       transpose4_epi32(&c, &dcdx, &dcdy, &eo,
                        &p0, &p1, &p2, &unused);
 
-      _mm_store_si128((__m128i *)&plane[0], p0);
-      _mm_store_si128((__m128i *)&plane[1], p1);
-      _mm_store_si128((__m128i *)&plane[2], p2);
-   }
-#else
+#define STORE_PLANE(plane, vec) do {                 \
+         _mm_store_si128((__m128i *)&temp_vec, vec); \
+         plane.c    = (int64_t)temp_vec[0];          \
+         plane.dcdx = temp_vec[1];                   \
+         plane.dcdy = temp_vec[2];                   \
+         plane.eo   = temp_vec[3];                   \
+      } while(0)
+
+      STORE_PLANE(plane[0], p0);
+      STORE_PLANE(plane[1], p1);
+      STORE_PLANE(plane[2], p2);
+#undef STORE_PLANE
+   } else
+#endif
    {
       int i;
       plane[0].dcdy = position->dx01;
@@ -496,7 +508,6 @@ do_triangle_ccw(struct lp_setup_context *setup,
          if (plane[i].dcdy > 0) plane[i].eo += plane[i].dcdy;
       }
    }
-#endif
 
    if (0) {
       debug_printf("p0: %"PRIx64"/%08x/%08x/%"PRIx64"\n",
