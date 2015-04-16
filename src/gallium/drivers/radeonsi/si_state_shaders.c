@@ -33,7 +33,19 @@
 #include "util/u_memory.h"
 #include "util/u_simple_shaders.h"
 
-static void si_shader_es(struct si_shader *shader)
+/* TODO: the compiler has a better workaround, remove this */
+static unsigned si_adjust_num_sgprs(struct si_screen *sscreen, unsigned num_sgprs)
+{
+	assert(num_sgprs <= 104);
+
+	if (sscreen->b.family == CHIP_TONGA ||
+	    sscreen->b.family == CHIP_ICELAND)
+		num_sgprs = 104;
+
+	return num_sgprs;
+}
+
+static void si_shader_es(struct si_screen *sscreen, struct si_shader *shader)
 {
 	struct si_pm4_state *pm4;
 	unsigned num_sgprs, num_user_sgprs;
@@ -57,7 +69,7 @@ static void si_shader_es(struct si_shader *shader)
 		/* Last 2 reserved SGPRs are used for VCC */
 		num_sgprs = num_user_sgprs + 1 + 2;
 	}
-	assert(num_sgprs <= 104);
+	num_sgprs = si_adjust_num_sgprs(sscreen, num_sgprs);
 
 	si_pm4_set_reg(pm4, R_00B320_SPI_SHADER_PGM_LO_ES, va >> 8);
 	si_pm4_set_reg(pm4, R_00B324_SPI_SHADER_PGM_HI_ES, va >> 40);
@@ -71,7 +83,7 @@ static void si_shader_es(struct si_shader *shader)
 		       S_00B32C_SCRATCH_EN(shader->scratch_bytes_per_wave > 0));
 }
 
-static void si_shader_gs(struct si_shader *shader)
+static void si_shader_gs(struct si_screen *sscreen, struct si_shader *shader)
 {
 	unsigned gs_vert_itemsize = shader->selector->info.num_outputs * (16 >> 2);
 	unsigned gs_max_vert_out = shader->selector->gs_max_out_vertices;
@@ -130,7 +142,7 @@ static void si_shader_gs(struct si_shader *shader)
 		/* Last 2 reserved SGPRs are used for VCC */
 		num_sgprs = num_user_sgprs + 2 + 2;
 	}
-	assert(num_sgprs <= 104);
+	num_sgprs = si_adjust_num_sgprs(sscreen, num_sgprs);
 
 	si_pm4_set_reg(pm4, R_00B228_SPI_SHADER_PGM_RSRC1_GS,
 		       S_00B228_VGPRS((shader->num_vgprs - 1) / 4) |
@@ -141,7 +153,7 @@ static void si_shader_gs(struct si_shader *shader)
 		       S_00B22C_SCRATCH_EN(shader->scratch_bytes_per_wave > 0));
 }
 
-static void si_shader_vs(struct si_shader *shader)
+static void si_shader_vs(struct si_screen *sscreen, struct si_shader *shader)
 {
 	struct tgsi_shader_info *info = &shader->selector->info;
 	struct si_pm4_state *pm4;
@@ -173,7 +185,7 @@ static void si_shader_vs(struct si_shader *shader)
 		/* Last 2 reserved SGPRs are used for VCC */
 		num_sgprs = num_user_sgprs + 2;
 	}
-	assert(num_sgprs <= 104);
+	num_sgprs = si_adjust_num_sgprs(sscreen, num_sgprs);
 
 	/* Certain attributes (position, psize, etc.) don't count as params.
 	 * VS is required to export at least one param and r600_shader_from_tgsi()
@@ -238,7 +250,7 @@ static void si_shader_vs(struct si_shader *shader)
 			       S_028818_VPORT_Z_SCALE_ENA(1) | S_028818_VPORT_Z_OFFSET_ENA(1));
 }
 
-static void si_shader_ps(struct si_shader *shader)
+static void si_shader_ps(struct si_screen *sscreen, struct si_shader *shader)
 {
 	struct tgsi_shader_info *info = &shader->selector->info;
 	struct si_pm4_state *pm4;
@@ -313,7 +325,7 @@ static void si_shader_ps(struct si_shader *shader)
 		/* Last 2 reserved SGPRs are used for VCC */
 		num_sgprs = num_user_sgprs + 1 + 2;
 	}
-	assert(num_sgprs <= 104);
+	num_sgprs = si_adjust_num_sgprs(sscreen, num_sgprs);
 
 	si_pm4_set_reg(pm4, R_00B028_SPI_SHADER_PGM_RSRC1_PS,
 		       S_00B028_VGPRS((shader->num_vgprs - 1) / 4) |
@@ -325,7 +337,8 @@ static void si_shader_ps(struct si_shader *shader)
 		       S_00B32C_SCRATCH_EN(shader->scratch_bytes_per_wave > 0));
 }
 
-static void si_shader_init_pm4_state(struct si_shader *shader)
+static void si_shader_init_pm4_state(struct si_screen *sscreen,
+				     struct si_shader *shader)
 {
 
 	if (shader->pm4)
@@ -334,16 +347,16 @@ static void si_shader_init_pm4_state(struct si_shader *shader)
 	switch (shader->selector->type) {
 	case PIPE_SHADER_VERTEX:
 		if (shader->key.vs.as_es)
-			si_shader_es(shader);
+			si_shader_es(sscreen, shader);
 		else
-			si_shader_vs(shader);
+			si_shader_vs(sscreen, shader);
 		break;
 	case PIPE_SHADER_GEOMETRY:
-		si_shader_gs(shader);
-		si_shader_vs(shader->gs_copy_shader);
+		si_shader_gs(sscreen, shader);
+		si_shader_vs(sscreen, shader->gs_copy_shader);
 		break;
 	case PIPE_SHADER_FRAGMENT:
-		si_shader_ps(shader);
+		si_shader_ps(sscreen, shader);
 		break;
 	default:
 		assert(0);
@@ -451,6 +464,8 @@ static int si_shader_select(struct pipe_context *ctx,
 		shader->next_variant = sel->current;
 		sel->current = shader;
 	} else {
+		struct si_screen *sscreen = (struct si_screen*)ctx->screen;
+
 		shader = CALLOC(1, sizeof(struct si_shader));
 		shader->selector = sel;
 		shader->key = key;
@@ -466,7 +481,7 @@ static int si_shader_select(struct pipe_context *ctx,
 			FREE(shader);
 			return r;
 		}
-		si_shader_init_pm4_state(shader);
+		si_shader_init_pm4_state(sscreen, shader);
 		sel->num_shaders++;
 	}
 
@@ -798,7 +813,7 @@ static unsigned si_update_scratch_buffer(struct si_context *sctx,
 	sctx->screen->b.ws->buffer_unmap(shader->bo->cs_buf);
 
 	/* Update the shader state to use the new shader bo. */
-	si_shader_init_pm4_state(shader);
+	si_shader_init_pm4_state(sctx->screen, shader);
 
 	r600_resource_reference(&shader->scratch_bo, sctx->scratch_buffer);
 
