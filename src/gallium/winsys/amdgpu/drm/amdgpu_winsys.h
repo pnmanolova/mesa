@@ -33,6 +33,7 @@
 #define AMDGPU_WINSYS_H
 
 #include "gallium/drivers/radeon/radeon_winsys.h"
+#include "addrlib/addrinterface.h"
 #include "os/os_thread.h"
 #include <amdgpu.h>
 
@@ -69,6 +70,9 @@ struct amdgpu_winsys {
    struct amdgpu_cs *cs_stack[RING_LAST];
 
    struct amdgpu_gpu_info amdinfo;
+   ADDR_HANDLE addrlib;
+   uint32_t rev_id;
+   unsigned family;
 };
 
 static INLINE struct amdgpu_winsys *
@@ -78,5 +82,7 @@ amdgpu_winsys(struct radeon_winsys *base)
 }
 
 void amdgpu_ws_queue_cs(struct amdgpu_winsys *ws, struct amdgpu_cs *cs);
+void amdgpu_surface_init_functions(struct amdgpu_winsys *ws);
+ADDR_HANDLE amdgpu_addr_create(struct amdgpu_winsys *ws);
 
 #endif

@@ -39,6 +39,7 @@
 #include <xf86drm.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include "amdgpu_id.h"
 
 #define CIK_TILE_MODE_COLOR_2D			14
 
@@ -198,6 +199,51 @@ static boolean do_winsys_init(struct amdgpu_winsys *ws)
       goto fail;
    }
 
+   /* family and rev_id are for addrlib */
+   switch (ws->info.family) {
+   case CHIP_BONAIRE:
+      ws->family = FAMILY_CI;
+      ws->rev_id = CI_BONAIRE_M_A0;
+      break;
+   case CHIP_KAVERI:
+      ws->family = FAMILY_KV;
+      ws->rev_id = KV_SPECTRE_A0;
+      break;
+   case CHIP_KABINI:
+      ws->family = FAMILY_KV;
+      ws->rev_id = KB_KALINDI_A0;
+      break;
+   case CHIP_HAWAII:
+      ws->family = FAMILY_CI;
+      ws->rev_id = CI_HAWAII_P_A0;
+      break;
+   case CHIP_MULLINS:
+      ws->family = FAMILY_KV;
+      ws->rev_id = ML_GODAVARI_A0;
+      break;
+   case CHIP_TONGA:
+      ws->family = FAMILY_VI;
+      ws->rev_id = VI_TONGA_P_A0;
+      break;
+   case CHIP_ICELAND:
+      ws->family = FAMILY_VI;
+      ws->rev_id = VI_ICELAND_M_A0;
+      break;
+   case CHIP_CARRIZO:
+      ws->family = FAMILY_CZ;
+      ws->rev_id = CZ_CARRIZO_A0;
+      break;
+   default:
+      fprintf(stderr, "amdgpu: Unknown family.\n");
+      goto fail;
+   }
+
+   ws->addrlib = amdgpu_addr_create(ws);
+   if (!ws->addrlib) {
+      fprintf(stderr, "amdgpu: Cannot create addrlib.\n");
+      goto fail;
+   }
+
    /* Set hardware information. */
    ws->info.gart_size = gtt.heap_size;
    ws->info.vram_size = vram.heap_size;
@@ -232,6 +278,8 @@ fail:
    if (ws->ctx) {
       amdgpu_cs_ctx_free(ws->ctx);
    }
+   if (ws->addrlib)
+      AddrDestroy(ws->addrlib);
    amdgpu_device_deinitialize(ws->dev);
    ws->dev = NULL;
    return FALSE;
@@ -251,6 +299,7 @@ static void amdgpu_winsys_destroy(struct radeon_winsys *rws)
 
    ws->cman->destroy(ws->cman);
    ws->kman->destroy(ws->kman);
+   AddrDestroy(ws->addrlib);
 
    amdgpu_cs_ctx_free(ws->ctx);
    amdgpu_device_deinitialize(ws->dev);
@@ -469,6 +518,7 @@ struct radeon_winsys *
 
    amdgpu_bomgr_init_functions(ws);
    amdgpu_cs_init_functions(ws);
+   amdgpu_surface_init_functions(ws);
 
    pipe_mutex_init(ws->cs_stack_lock);
 
