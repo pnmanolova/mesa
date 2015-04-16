@@ -398,6 +398,9 @@ static const char* r600_get_name(struct pipe_screen* pscreen)
 	case CHIP_KABINI: return "AMD KABINI";
 	case CHIP_HAWAII: return "AMD HAWAII";
 	case CHIP_MULLINS: return "AMD MULLINS";
+	case CHIP_TONGA: return "AMD TONGA";
+	case CHIP_ICELAND: return "AMD ICELAND";
+	case CHIP_CARRIZO: return "AMD CARRIZO";
 	default: return "AMD unknown";
 	}
 }
@@ -515,6 +518,9 @@ const char *r600_get_llvm_processor_name(enum radeon_family family)
 #else
 		return "kabini";
 #endif
+	case CHIP_TONGA: return "tonga";
+	case CHIP_ICELAND: return "iceland";
+	case CHIP_CARRIZO: return "carrizo";
 	default: return "";
 	}
 }
