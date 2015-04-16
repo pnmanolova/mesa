@@ -136,6 +136,9 @@ enum radeon_family {
     CHIP_KABINI,
     CHIP_HAWAII,
     CHIP_MULLINS,
+    CHIP_TONGA,
+    CHIP_ICELAND,
+    CHIP_CARRIZO,
     CHIP_LAST,
 };
 
@@ -150,6 +153,7 @@ enum chip_class {
     CAYMAN,
     SI,
     CIK,
+    VI,
 };
 
 enum ring_type {
