@@ -538,12 +538,12 @@ static void si_set_viewport_states(struct pipe_context *ctx,
 		return;
 
 	viewport->viewport = *state;
-	si_pm4_set_reg(pm4, R_02843C_PA_CL_VPORT_XSCALE_0, fui(state->scale[0]));
-	si_pm4_set_reg(pm4, R_028440_PA_CL_VPORT_XOFFSET_0, fui(state->translate[0]));
-	si_pm4_set_reg(pm4, R_028444_PA_CL_VPORT_YSCALE_0, fui(state->scale[1]));
-	si_pm4_set_reg(pm4, R_028448_PA_CL_VPORT_YOFFSET_0, fui(state->translate[1]));
-	si_pm4_set_reg(pm4, R_02844C_PA_CL_VPORT_ZSCALE_0, fui(state->scale[2]));
-	si_pm4_set_reg(pm4, R_028450_PA_CL_VPORT_ZOFFSET_0, fui(state->translate[2]));
+	si_pm4_set_reg(pm4, R_02843C_PA_CL_VPORT_XSCALE, fui(state->scale[0]));
+	si_pm4_set_reg(pm4, R_028440_PA_CL_VPORT_XOFFSET, fui(state->translate[0]));
+	si_pm4_set_reg(pm4, R_028444_PA_CL_VPORT_YSCALE, fui(state->scale[1]));
+	si_pm4_set_reg(pm4, R_028448_PA_CL_VPORT_YOFFSET, fui(state->translate[1]));
+	si_pm4_set_reg(pm4, R_02844C_PA_CL_VPORT_ZSCALE, fui(state->scale[2]));
+	si_pm4_set_reg(pm4, R_028450_PA_CL_VPORT_ZOFFSET, fui(state->translate[2]));
 
 	si_pm4_set_state(sctx, viewport, viewport);
 }
