@@ -164,12 +164,6 @@ static boolean do_winsys_init(struct amdgpu_winsys *ws)
       goto fail;
    }
 
-   r = amdgpu_cs_ctx_create(ws->dev, &ws->ctx);
-   if (r) {
-      fprintf(stderr, "amdgpu: amdgpu_cs_ctx_create failed.\n");
-      goto fail;
-   }
-
    /* Set chip identification. */
    ws->info.pci_id = ws->amdinfo.asic_id; /* TODO: is this correct? */
 
@@ -275,9 +269,6 @@ static boolean do_winsys_init(struct amdgpu_winsys *ws)
    return TRUE;
 
 fail:
-   if (ws->ctx) {
-      amdgpu_cs_ctx_free(ws->ctx);
-   }
    if (ws->addrlib)
       AddrDestroy(ws->addrlib);
    amdgpu_device_deinitialize(ws->dev);
@@ -301,7 +292,6 @@ static void amdgpu_winsys_destroy(struct radeon_winsys *rws)
    ws->kman->destroy(ws->kman);
    AddrDestroy(ws->addrlib);
 
-   amdgpu_cs_ctx_free(ws->ctx);
    amdgpu_device_deinitialize(ws->dev);
    FREE(rws);
 }

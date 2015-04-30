@@ -35,6 +35,11 @@
 #include "amdgpu_bo.h"
 #include "util/u_memory.h"
 
+struct amdgpu_ctx {
+   struct amdgpu_winsys *ws;
+   amdgpu_context_handle ctx;
+};
+
 struct amdgpu_cs_buffer {
    struct amdgpu_winsys_bo *bo;
    enum radeon_bo_usage usage;
@@ -73,8 +78,7 @@ struct amdgpu_cs {
    /* The CS being currently-owned by the other thread. */
    struct amdgpu_cs_context *cst;
 
-   /* The winsys. */
-   struct amdgpu_winsys *ws;
+   struct amdgpu_ctx *ctx;
 
    /* Flush CS. */
    void (*flush_cs)(void *ctx, unsigned flags, struct pipe_fence_handle **fence);
@@ -86,6 +90,7 @@ struct amdgpu_cs {
 struct amdgpu_fence {
    struct pipe_reference reference;
 
+   struct amdgpu_ctx *ctx;  /* submission context */
    uint64_t fence;          /* fence ID */
    unsigned ip_type;        /* which hw ip block the fence belongs to */
    uint32_t ring;           /* ring index of the hw ip block */

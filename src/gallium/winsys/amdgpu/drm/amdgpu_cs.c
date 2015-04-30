@@ -39,11 +39,12 @@
 /* FENCES */
 
 static struct pipe_fence_handle *
-amdgpu_fence_create(unsigned ip, uint32_t instance)
+amdgpu_fence_create(struct amdgpu_ctx *ctx, unsigned ip, uint32_t instance)
 {
    struct amdgpu_fence *fence = CALLOC_STRUCT(amdgpu_fence);
 
    fence->reference.count = 1;
+   fence->ctx = ctx;
    fence->ip_type = ip;
    fence->ring = instance;
    fence->submission_in_progress = true;
@@ -70,7 +71,6 @@ static bool amdgpu_fence_wait(struct radeon_winsys *rws,
                               struct pipe_fence_handle *fence,
                               uint64_t timeout)
 {
-   struct amdgpu_winsys *ws = (struct amdgpu_winsys*)rws;
    struct amdgpu_fence *rfence = (struct amdgpu_fence*)fence;
    struct amdgpu_cs_query_fence query = {0};
    uint32_t expired;
@@ -107,7 +107,7 @@ static bool amdgpu_fence_wait(struct radeon_winsys *rws,
    /* Now use the libdrm query. */
    query.timeout_ns = timeout;
    query.fence = rfence->fence;
-   query.context = ws->ctx;
+   query.context = rfence->ctx->ctx;
    query.ip_type = rfence->ip_type;
    query.ip_instance = 0;
    query.ring = rfence->ring;
@@ -122,16 +122,42 @@ static bool amdgpu_fence_wait(struct radeon_winsys *rws,
    return rfence->signalled;
 }
 
+/* CONTEXTS */
+
+static struct radeon_winsys_ctx *amdgpu_ctx_create(struct radeon_winsys *ws)
+{
+   struct amdgpu_ctx *ctx = CALLOC_STRUCT(amdgpu_ctx);
+   int r;
+
+   ctx->ws = amdgpu_winsys(ws);
+
+   r = amdgpu_cs_ctx_create(ctx->ws->dev, &ctx->ctx);
+   if (r) {
+      fprintf(stderr, "amdgpu: amdgpu_cs_ctx_create failed. (%i)\n", r);
+      FREE(ctx);
+      return NULL;
+   }
+
+   return (struct radeon_winsys_ctx*)ctx;
+}
+
+static void amdgpu_ctx_destroy(struct radeon_winsys_ctx *rwctx)
+{
+   struct amdgpu_ctx *ctx = (struct amdgpu_ctx*)rwctx;
+
+   amdgpu_cs_ctx_free(ctx->ctx);
+   FREE(ctx);
+}
+
 /* COMMAND SUBMISSION */
 
 static bool amdgpu_get_new_ib(struct amdgpu_cs *cs)
 {
    struct amdgpu_cs_context *cur_cs = cs->csc;
-   struct amdgpu_winsys *ws = cs->ws;
    struct amdgpu_cs_ib_alloc_result ib;
    int r;
 
-   r = amdgpu_cs_alloc_ib(ws->ctx, amdgpu_cs_ib_size_64K, &ib);
+   r = amdgpu_cs_alloc_ib(cs->ctx->ctx, amdgpu_cs_ib_size_64K, &ib);
    if (r)
       return false;
 
@@ -206,14 +232,14 @@ static void amdgpu_destroy_cs_context(struct amdgpu_cs_context *csc)
 
 
 static struct radeon_winsys_cs *
-amdgpu_cs_create(struct radeon_winsys *rws,
+amdgpu_cs_create(struct radeon_winsys_ctx *rwctx,
                  enum ring_type ring_type,
                  void (*flush)(void *ctx, unsigned flags,
                                struct pipe_fence_handle **fence),
                  void *flush_ctx,
                  struct radeon_winsys_cs_handle *trace_buf)
 {
-   struct amdgpu_winsys *ws = amdgpu_winsys(rws);
+   struct amdgpu_ctx *ctx = (struct amdgpu_ctx*)rwctx;
    struct amdgpu_cs *cs;
 
    cs = CALLOC_STRUCT(amdgpu_cs);
@@ -223,7 +249,7 @@ amdgpu_cs_create(struct radeon_winsys *rws,
 
    pipe_semaphore_init(&cs->flush_completed, 1);
 
-   cs->ws = ws;
+   cs->ctx = ctx;
    cs->flush_cs = flush;
    cs->flush_data = flush_ctx;
 
@@ -249,7 +275,7 @@ amdgpu_cs_create(struct radeon_winsys *rws,
       return NULL;
    }
 
-   p_atomic_inc(&ws->num_cs);
+   p_atomic_inc(&ctx->ws->num_cs);
    return &cs->base;
 }
 
@@ -376,19 +402,18 @@ static boolean amdgpu_cs_memory_below_limit(struct radeon_winsys_cs *rcs, uint64
 {
    struct amdgpu_cs *cs = amdgpu_cs(rcs);
    boolean status =
-         (cs->csc->used_gart + gtt) < cs->ws->info.gart_size * 0.7 &&
-         (cs->csc->used_vram + vram) < cs->ws->info.vram_size * 0.7;
+         (cs->csc->used_gart + gtt) < cs->ctx->ws->info.gart_size * 0.7 &&
+         (cs->csc->used_vram + vram) < cs->ctx->ws->info.vram_size * 0.7;
 
    return status;
 }
 
 void amdgpu_cs_emit_ioctl_oneshot(struct amdgpu_cs *cs, struct amdgpu_cs_context *csc)
 {
-   struct amdgpu_winsys *ws = cs->ws;
    int i, r;
    uint64_t fence;
 
-   r = amdgpu_cs_submit(ws->ctx, 0, &csc->request, 1, &fence);
+   r = amdgpu_cs_submit(cs->ctx->ctx, 0, &csc->request, 1, &fence);
    if (r) {
       fprintf(stderr, "amdgpu: The CS has been rejected, "
               "see dmesg for more information.\n");
@@ -421,7 +446,7 @@ void amdgpu_cs_sync_flush(struct radeon_winsys_cs *rcs)
    struct amdgpu_cs *cs = amdgpu_cs(rcs);
 
    /* Wait for any pending ioctl to complete. */
-   if (cs->ws->thread) {
+   if (cs->ctx->ws->thread) {
       pipe_semaphore_wait(&cs->flush_completed);
       pipe_semaphore_signal(&cs->flush_completed);
    }
@@ -435,12 +460,13 @@ static void amdgpu_cs_flush(struct radeon_winsys_cs *rcs,
                             uint32_t cs_trace_id)
 {
    struct amdgpu_cs *cs = amdgpu_cs(rcs);
+   struct amdgpu_winsys *ws = cs->ctx->ws;
    struct amdgpu_cs_context *tmp;
 
    switch (cs->base.ring_type) {
    case RING_DMA:
       /* pad DMA ring to 8 DWs */
-      if (cs->ws->info.chip_class <= SI) {
+      if (ws->info.chip_class <= SI) {
          while (rcs->cdw & 7)
             OUT_CS(&cs->base, 0xf0000000); /* NOP packet */
       } else {
@@ -452,7 +478,7 @@ static void amdgpu_cs_flush(struct radeon_winsys_cs *rcs,
       /* pad DMA ring to 8 DWs to meet CP fetch alignment requirements
              * r6xx, requires at least 4 dw alignment to avoid a hw bug.
              */
-      if (cs->ws->info.chip_class <= SI) {
+      if (ws->info.chip_class <= SI) {
          while (rcs->cdw & 7)
             OUT_CS(&cs->base, 0x80000000); /* type2 nop packet */
       } else {
@@ -484,7 +510,7 @@ static void amdgpu_cs_flush(struct radeon_winsys_cs *rcs,
       unsigned i, num_buffers = cs->cst->num_buffers;
       int r;
 
-      r = amdgpu_bo_list_create(cs->ws->dev, cs->cst->num_buffers,
+      r = amdgpu_bo_list_create(ws->dev, cs->cst->num_buffers,
                                 cs->cst->handles, cs->cst->flags,
                                 &cs->cst->request.resources);
 
@@ -524,15 +550,16 @@ static void amdgpu_cs_flush(struct radeon_winsys_cs *rcs,
       }
 
       amdgpu_fence_reference(&cs->cst->fence, NULL);
-      cs->cst->fence = amdgpu_fence_create(cs->cst->request.ip_type,
+      cs->cst->fence = amdgpu_fence_create(cs->ctx,
+                                           cs->cst->request.ip_type,
                                            cs->cst->request.ring);
 
       if (fence)
          amdgpu_fence_reference(fence, cs->cst->fence);
 
-      if (cs->ws->thread) {
+      if (ws->thread) {
          pipe_semaphore_wait(&cs->flush_completed);
-         amdgpu_ws_queue_cs(cs->ws, cs);
+         amdgpu_ws_queue_cs(ws, cs);
          if (!(flags & RADEON_FLUSH_ASYNC))
             amdgpu_cs_sync_flush(rcs);
       } else {
@@ -544,7 +571,7 @@ static void amdgpu_cs_flush(struct radeon_winsys_cs *rcs,
 
    amdgpu_get_new_ib(cs);
 
-   cs->ws->num_cs_flushes++;
+   ws->num_cs_flushes++;
 }
 
 static void amdgpu_cs_destroy(struct radeon_winsys_cs *rcs)
@@ -555,7 +582,7 @@ static void amdgpu_cs_destroy(struct radeon_winsys_cs *rcs)
    pipe_semaphore_destroy(&cs->flush_completed);
    amdgpu_cs_context_cleanup(&cs->csc1);
    amdgpu_cs_context_cleanup(&cs->csc2);
-   p_atomic_dec(&cs->ws->num_cs);
+   p_atomic_dec(&cs->ctx->ws->num_cs);
    amdgpu_cs_free_ib(cs->csc->ib.ib_handle);
    amdgpu_destroy_cs_context(&cs->csc1);
    amdgpu_destroy_cs_context(&cs->csc2);
@@ -574,6 +601,8 @@ static boolean amdgpu_bo_is_referenced(struct radeon_winsys_cs *rcs,
 
 void amdgpu_cs_init_functions(struct amdgpu_winsys *ws)
 {
+   ws->base.ctx_create = amdgpu_ctx_create;
+   ws->base.ctx_destroy = amdgpu_ctx_destroy;
    ws->base.cs_create = amdgpu_cs_create;
    ws->base.cs_destroy = amdgpu_cs_destroy;
    ws->base.cs_add_reloc = amdgpu_cs_add_reloc;

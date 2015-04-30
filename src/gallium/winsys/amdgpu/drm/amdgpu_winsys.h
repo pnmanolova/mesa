@@ -45,8 +45,6 @@ struct amdgpu_winsys {
 
    int fd; /* DRM file descriptor */
    amdgpu_device_handle dev;
-   /* This only affects the order in which IBs are executed. */
-   amdgpu_context_handle ctx;
 
    int num_cs; /* The number of command streams created. */
    uint64_t allocated_vram;
