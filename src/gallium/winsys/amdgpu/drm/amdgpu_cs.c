@@ -149,6 +149,32 @@ static void amdgpu_ctx_destroy(struct radeon_winsys_ctx *rwctx)
    FREE(ctx);
 }
 
+static enum pipe_reset_status
+amdgpu_ctx_query_reset_status(struct radeon_winsys_ctx *rwctx)
+{
+   struct amdgpu_ctx *ctx = (struct amdgpu_ctx*)rwctx;
+   uint32_t result, hangs;
+   int r;
+
+   r = amdgpu_cs_query_reset_state(ctx->ctx, &result, &hangs);
+   if (r) {
+      fprintf(stderr, "amdgpu: amdgpu_cs_query_reset_state failed. (%i)\n", r);
+      return PIPE_NO_RESET;
+   }
+
+   switch (result) {
+   case AMDGPU_CTX_GUILTY_RESET:
+      return PIPE_GUILTY_CONTEXT_RESET;
+   case AMDGPU_CTX_INNOCENT_RESET:
+      return PIPE_INNOCENT_CONTEXT_RESET;
+   case AMDGPU_CTX_UNKNOWN_RESET:
+      return PIPE_UNKNOWN_CONTEXT_RESET;
+   case AMDGPU_CTX_NO_RESET:
+   default:
+      return PIPE_NO_RESET;
+   }
+}
+
 /* COMMAND SUBMISSION */
 
 static bool amdgpu_get_new_ib(struct amdgpu_cs *cs)
@@ -603,6 +629,7 @@ void amdgpu_cs_init_functions(struct amdgpu_winsys *ws)
 {
    ws->base.ctx_create = amdgpu_ctx_create;
    ws->base.ctx_destroy = amdgpu_ctx_destroy;
+   ws->base.ctx_query_reset_status = amdgpu_ctx_query_reset_status;
    ws->base.cs_create = amdgpu_cs_create;
    ws->base.cs_destroy = amdgpu_cs_destroy;
    ws->base.cs_add_reloc = amdgpu_cs_add_reloc;
