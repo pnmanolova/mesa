@@ -198,6 +198,10 @@ static void *amdgpu_bo_map(struct radeon_winsys_cs_handle *buf,
       }
    }
 
+   /* If the buffer is created from user memory, return the user pointer. */
+   if (bo->user_ptr)
+       return bo->user_ptr;
+
    r = amdgpu_bo_cpu_map(bo->bo, &cpu);
    return r ? NULL : cpu;
 }
@@ -626,6 +630,45 @@ static boolean amdgpu_bo_get_handle(struct pb_buffer *buffer,
    return TRUE;
 }
 
+static struct pb_buffer *amdgpu_bo_from_ptr(struct radeon_winsys *rws,
+					    void *pointer, unsigned size)
+{
+    struct amdgpu_winsys *ws = amdgpu_winsys(rws);
+    struct amdgpu_bo_alloc_result result;
+    struct amdgpu_winsys_bo *bo;
+
+    bo = CALLOC_STRUCT(amdgpu_winsys_bo);
+    if (!bo)
+        return NULL;
+
+    if (amdgpu_create_bo_from_user_mem(ws->dev, pointer, size, &result)) {
+        FREE(bo);
+        return NULL;
+    }
+
+    /* Initialize it. */
+    pipe_reference_init(&bo->base.reference, 1);
+    bo->bo = result.buf_handle;
+    bo->base.alignment = 0;
+    bo->base.usage = PB_USAGE_GPU_WRITE | PB_USAGE_GPU_READ;
+    bo->base.size = size;
+    bo->base.vtbl = &amdgpu_winsys_bo_vtbl;
+    bo->rws = ws;
+    bo->user_ptr = pointer;
+    bo->va = result.virtual_mc_base_address;
+    bo->initial_domain = RADEON_DOMAIN_GTT;
+
+    if (amdgpu_bo_export(bo->bo, amdgpu_bo_handle_type_kms, &bo->handle)) {
+       amdgpu_bo_free(bo->bo);
+       FREE(bo);
+       return NULL;
+    }
+
+    ws->allocated_gtt += align(bo->base.size, 4096);
+
+    return (struct pb_buffer*)bo;
+}
+
 static uint64_t amdgpu_bo_get_va(struct radeon_winsys_cs_handle *buf)
 {
    return ((struct amdgpu_winsys_bo*)buf)->va;
@@ -642,6 +685,7 @@ void amdgpu_bomgr_init_functions(struct amdgpu_winsys *ws)
    ws->base.buffer_is_busy = amdgpu_bo_is_busy;
    ws->base.buffer_create = amdgpu_bo_create;
    ws->base.buffer_from_handle = amdgpu_bo_from_handle;
+   ws->base.buffer_from_ptr = amdgpu_bo_from_ptr;
    ws->base.buffer_get_handle = amdgpu_bo_get_handle;
    ws->base.buffer_get_virtual_address = amdgpu_bo_get_va;
    ws->base.buffer_get_initial_domain = amdgpu_bo_get_initial_domain;

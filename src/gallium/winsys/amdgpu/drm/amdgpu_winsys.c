@@ -249,6 +249,7 @@ static boolean do_winsys_init(struct amdgpu_winsys *ws)
    ws->info.has_uvd = uvd.available_rings != 0;
    ws->info.vce_fw_version =
          vce.available_rings ? vce_version : 0;
+   ws->info.has_userptr = TRUE;
    ws->info.r600_num_backends = ws->amdinfo.rb_pipes;
    ws->info.r600_clock_crystal_freq = ws->amdinfo.gpu_counter_freq;
    ws->info.r600_tiling_config = r600_get_gb_tiling_config(&ws->amdinfo);
