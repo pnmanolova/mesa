@@ -48,6 +48,7 @@ amdgpu_fence_create(struct amdgpu_ctx *ctx, unsigned ip, uint32_t instance)
    fence->ip_type = ip;
    fence->ring = instance;
    fence->submission_in_progress = true;
+   p_atomic_inc(&ctx->refcount);
    return (struct pipe_fence_handle *)fence;
 }
 
@@ -130,6 +131,7 @@ static struct radeon_winsys_ctx *amdgpu_ctx_create(struct radeon_winsys *ws)
    int r;
 
    ctx->ws = amdgpu_winsys(ws);
+   ctx->refcount = 1;
 
    r = amdgpu_cs_ctx_create(ctx->ws->dev, &ctx->ctx);
    if (r) {
@@ -143,10 +145,7 @@ static struct radeon_winsys_ctx *amdgpu_ctx_create(struct radeon_winsys *ws)
 
 static void amdgpu_ctx_destroy(struct radeon_winsys_ctx *rwctx)
 {
-   struct amdgpu_ctx *ctx = (struct amdgpu_ctx*)rwctx;
-
-   amdgpu_cs_ctx_free(ctx->ctx);
-   FREE(ctx);
+   amdgpu_ctx_unref((struct amdgpu_ctx*)rwctx);
 }
 
 static enum pipe_reset_status

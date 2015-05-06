@@ -38,6 +38,7 @@
 struct amdgpu_ctx {
    struct amdgpu_winsys *ws;
    amdgpu_context_handle ctx;
+   int refcount;
 };
 
 struct amdgpu_cs_buffer {
@@ -101,14 +102,24 @@ struct amdgpu_fence {
    bool signalled;
 };
 
+static INLINE void amdgpu_ctx_unref(struct amdgpu_ctx *ctx)
+{
+   if (p_atomic_dec_zero(&ctx->refcount)) {
+      amdgpu_cs_ctx_free(ctx->ctx);
+      FREE(ctx);
+   }
+}
+
 static INLINE void amdgpu_fence_reference(struct pipe_fence_handle **dst,
                                           struct pipe_fence_handle *src)
 {
    struct amdgpu_fence **rdst = (struct amdgpu_fence **)dst;
    struct amdgpu_fence *rsrc = (struct amdgpu_fence *)src;
 
-   if (pipe_reference(&(*rdst)->reference, &rsrc->reference))
+   if (pipe_reference(&(*rdst)->reference, &rsrc->reference)) {
+      amdgpu_ctx_unref((*rdst)->ctx);
       FREE(*rdst);
+   }
    *rdst = rsrc;
 }
 
