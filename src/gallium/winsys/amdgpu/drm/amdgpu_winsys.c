@@ -107,8 +107,8 @@ static unsigned r600_get_gb_tiling_config(struct amdgpu_gpu_info *info)
 static boolean do_winsys_init(struct amdgpu_winsys *ws)
 {
    struct amdgpu_heap_info vram, gtt;
-   struct drm_amdgpu_info_hw_ip dma, uvd, vce;
-   uint32_t vce_version, vce_feature;
+   struct drm_amdgpu_info_hw_ip dma = {}, uvd = {}, vce = {};
+   uint32_t vce_version = 0, vce_feature = 0;
    int r;
 
    ws->num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
