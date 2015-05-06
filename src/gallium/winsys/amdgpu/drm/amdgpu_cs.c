@@ -447,10 +447,6 @@ void amdgpu_cs_emit_ioctl_oneshot(struct amdgpu_cs *cs, struct amdgpu_cs_context
    } else {
       /* Success. */
       amdgpu_fence_submitted(csc->fence, fence);
-
-      for (i = 0; i < csc->num_buffers; i++) {
-         amdgpu_fence_reference(&csc->buffers[i].bo->fence, csc->fence);
-      }
    }
 
    /* Cleanup. */
