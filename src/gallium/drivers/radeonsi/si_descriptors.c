@@ -139,7 +139,7 @@ static void si_emit_cp_dma_clear_buffer(struct si_context *sctx,
 	}
 }
 
-static void si_init_descriptors(struct si_context *sctx,
+static bool si_init_descriptors(struct si_context *sctx,
 				struct si_descriptors *desc,
 				unsigned shader_userdata_reg,
 				unsigned element_dw_size,
@@ -159,6 +159,8 @@ static void si_init_descriptors(struct si_context *sctx,
 		pipe_buffer_create(sctx->b.b.screen, PIPE_BIND_CUSTOM,
 				   PIPE_USAGE_DEFAULT,
 				   SI_NUM_CONTEXTS * desc->context_size);
+	if (!desc->buffer)
+		return false;
 
 	r600_context_bo_reloc(&sctx->b, &sctx->b.rings.gfx, desc->buffer,
 			      RADEON_USAGE_READWRITE, RADEON_PRIO_SHADER_DATA);
@@ -168,6 +170,7 @@ static void si_init_descriptors(struct si_context *sctx,
 	si_emit_cp_dma_clear_buffer(sctx, desc->buffer->gpu_address,
 				    desc->buffer->b.b.width0, 0,
 				    R600_CP_DMA_SYNC | CIK_CP_DMA_USE_L2);
+	return true;
 }
 
 static void si_release_descriptors(struct si_descriptors *desc)
@@ -324,22 +327,24 @@ static void si_emit_sampler_views(struct si_context *sctx, struct r600_atom *ato
 	si_emit_descriptors(sctx, &views->desc, views->desc_data);
 }
 
-static void si_init_sampler_views(struct si_context *sctx,
+static bool si_init_sampler_views(struct si_context *sctx,
 				  struct si_sampler_views *views,
 				  unsigned shader)
 {
 	int i;
 
-	si_init_descriptors(sctx, &views->desc,
-			    si_get_shader_user_data_base(shader) +
-			    SI_SGPR_RESOURCE * 4,
-			    8, SI_NUM_SAMPLER_VIEWS, si_emit_sampler_views);
+	if (!si_init_descriptors(sctx, &views->desc,
+				 si_get_shader_user_data_base(shader) +
+				 SI_SGPR_RESOURCE * 4,
+				 8, SI_NUM_SAMPLER_VIEWS, si_emit_sampler_views))
+		return false;
 
 	for (i = 0; i < views->desc.num_elements; i++) {
 		views->desc_data[i] = null_descriptor;
 		views->desc.dirty_mask |= 1llu << i;
 	}
 	si_update_descriptors(sctx, &views->desc);
+	return true;
 }
 
 static void si_release_sampler_views(struct si_sampler_views *views)
@@ -534,7 +539,7 @@ static void si_emit_buffer_resources(struct si_context *sctx, struct r600_atom *
 	si_emit_descriptors(sctx, &buffers->desc, buffers->desc_data);
 }
 
-static void si_init_buffer_resources(struct si_context *sctx,
+static bool si_init_buffer_resources(struct si_context *sctx,
 				     struct si_buffer_resources *buffers,
 				     unsigned num_buffers, unsigned shader,
 				     unsigned shader_userdata_index,
@@ -556,10 +561,10 @@ static void si_init_buffer_resources(struct si_context *sctx,
 		buffers->desc_data[i] = &buffers->desc_storage[i*4];
 	}
 
-	si_init_descriptors(sctx, &buffers->desc,
-			    si_get_shader_user_data_base(shader) +
-			    shader_userdata_index*4, 4, num_buffers,
-			    si_emit_buffer_resources);
+	return si_init_descriptors(sctx, &buffers->desc,
+				   si_get_shader_user_data_base(shader) +
+				   shader_userdata_index*4, 4, num_buffers,
+				   si_emit_buffer_resources);
 }
 
 static void si_release_buffer_resources(struct si_buffer_resources *buffers)
@@ -1288,25 +1293,30 @@ void si_copy_buffer(struct si_context *sctx,
 
 /* INIT/DEINIT */
 
-void si_init_all_descriptors(struct si_context *sctx)
+bool si_init_all_descriptors(struct si_context *sctx)
 {
 	int i;
 
 	for (i = 0; i < SI_NUM_SHADERS; i++) {
-		si_init_buffer_resources(sctx, &sctx->const_buffers[i],
-					 SI_NUM_CONST_BUFFERS, i, SI_SGPR_CONST,
-					 RADEON_USAGE_READ, RADEON_PRIO_SHADER_BUFFER_RO);
-		si_init_buffer_resources(sctx, &sctx->rw_buffers[i],
-					 i == PIPE_SHADER_VERTEX ?
-					 SI_NUM_RW_BUFFERS : SI_NUM_RING_BUFFERS,
-					 i, SI_SGPR_RW_BUFFERS,
-					 RADEON_USAGE_READWRITE, RADEON_PRIO_SHADER_RESOURCE_RW);
+		if (!si_init_buffer_resources(sctx, &sctx->const_buffers[i],
+					      SI_NUM_CONST_BUFFERS, i, SI_SGPR_CONST,
+					      RADEON_USAGE_READ, RADEON_PRIO_SHADER_BUFFER_RO))
+			return false;
 
-		si_init_sampler_views(sctx, &sctx->samplers[i].views, i);
+		if (!si_init_buffer_resources(sctx, &sctx->rw_buffers[i],
+					      i == PIPE_SHADER_VERTEX ?
+					      SI_NUM_RW_BUFFERS : SI_NUM_RING_BUFFERS,
+					      i, SI_SGPR_RW_BUFFERS,
+					      RADEON_USAGE_READWRITE, RADEON_PRIO_SHADER_RESOURCE_RW))
+			return false;
 
-		si_init_descriptors(sctx, &sctx->samplers[i].states.desc,
-				    si_get_shader_user_data_base(i) + SI_SGPR_SAMPLER * 4,
-				    4, SI_NUM_SAMPLER_STATES, si_emit_sampler_states);
+		if (!si_init_sampler_views(sctx, &sctx->samplers[i].views, i))
+			return false;
+
+		if (!si_init_descriptors(sctx, &sctx->samplers[i].states.desc,
+					 si_get_shader_user_data_base(i) + SI_SGPR_SAMPLER * 4,
+					 4, SI_NUM_SAMPLER_STATES, si_emit_sampler_states))
+			return false;
 
 		sctx->atoms.s.const_buffers[i] = &sctx->const_buffers[i].desc.atom;
 		sctx->atoms.s.rw_buffers[i] = &sctx->rw_buffers[i].desc.atom;
@@ -1314,10 +1324,12 @@ void si_init_all_descriptors(struct si_context *sctx)
 		sctx->atoms.s.sampler_states[i] = &sctx->samplers[i].states.desc.atom;
 	}
 
-	si_init_descriptors(sctx, &sctx->vertex_buffers,
-			    si_get_shader_user_data_base(PIPE_SHADER_VERTEX) +
-			    SI_SGPR_VERTEX_BUFFER*4, 4, SI_NUM_VERTEX_BUFFERS,
-			    si_emit_shader_pointer);
+	if (!si_init_descriptors(sctx, &sctx->vertex_buffers,
+				 si_get_shader_user_data_base(PIPE_SHADER_VERTEX) +
+				 SI_SGPR_VERTEX_BUFFER*4, 4, SI_NUM_VERTEX_BUFFERS,
+				 si_emit_shader_pointer))
+		return false;
+
 	sctx->atoms.s.vertex_buffers = &sctx->vertex_buffers.atom;
 
 	/* Set pipe_context functions. */
@@ -1326,6 +1338,7 @@ void si_init_all_descriptors(struct si_context *sctx)
 	sctx->b.b.set_stream_output_targets = si_set_streamout_targets;
 	sctx->b.clear_buffer = si_clear_buffer;
 	sctx->b.invalidate_buffer = si_invalidate_buffer;
+	return true;
 }
 
 void si_release_all_descriptors(struct si_context *sctx)

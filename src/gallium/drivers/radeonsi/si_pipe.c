@@ -123,7 +123,8 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, void *
 						sscreen->b.trace_bo->cs_buf : NULL);
 	sctx->b.rings.gfx.flush = si_context_gfx_flush;
 
-	si_init_all_descriptors(sctx);
+	if (!si_init_all_descriptors(sctx))
+		goto fail;
 
 	/* Initialize cache_flush. */
 	sctx->cache_flush = si_atom_cache_flush;

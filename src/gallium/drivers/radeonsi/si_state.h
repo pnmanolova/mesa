@@ -238,7 +238,7 @@ void si_set_ring_buffer(struct pipe_context *ctx, uint shader, uint slot,
 			unsigned stride, unsigned num_records,
 			bool add_tid, bool swizzle,
 			unsigned element_size, unsigned index_stride);
-void si_init_all_descriptors(struct si_context *sctx);
+bool si_init_all_descriptors(struct si_context *sctx);
 void si_release_all_descriptors(struct si_context *sctx);
 void si_all_descriptors_begin_new_cs(struct si_context *sctx);
 void si_copy_buffer(struct si_context *sctx,
