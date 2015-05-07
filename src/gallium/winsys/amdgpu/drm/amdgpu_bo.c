@@ -263,7 +263,7 @@ static struct pb_buffer *amdgpu_bomgr_create_bo(struct pb_manager *_mgr,
    if (rdesc->initial_domain & RADEON_DOMAIN_GTT) {
       request.preferred_heap |= AMDGPU_GEM_DOMAIN_GTT;
       if (rdesc->flags & RADEON_FLAG_GTT_WC)
-         request.flags |= AMDGPU_GEM_CREATE_CPU_GTT_WC;
+         request.flags |= AMDGPU_GEM_CREATE_CPU_GTT_USWC;
    }
 
    r = amdgpu_bo_alloc(rws->dev, &request, &result);
