@@ -402,23 +402,20 @@ static void amdgpu_bo_get_tiling(struct pb_buffer *_buf,
 
    *microtiled = RADEON_LAYOUT_LINEAR;
    *macrotiled = RADEON_LAYOUT_LINEAR;
-   if (tiling_flags & AMDGPU_TILING_MICRO)
-      *microtiled = RADEON_LAYOUT_TILED;
-   else if (tiling_flags & AMDGPU_TILING_MICRO_SQUARE)
-      *microtiled = RADEON_LAYOUT_SQUARETILED;
 
-   if (tiling_flags & AMDGPU_TILING_MACRO)
+   if (AMDGPU_TILING_GET(tiling_flags, ARRAY_MODE) == 4)  /* 2D_TILED_THIN1 */
       *macrotiled = RADEON_LAYOUT_TILED;
-   if (bankw && tile_split && stencil_tile_split && mtilea && tile_split) {
-      *bankw = (tiling_flags >> AMDGPU_TILING_EG_BANKW_SHIFT) & AMDGPU_TILING_EG_BANKW_MASK;
-      *bankh = (tiling_flags >> AMDGPU_TILING_EG_BANKH_SHIFT) & AMDGPU_TILING_EG_BANKH_MASK;
-      *tile_split = (tiling_flags >> AMDGPU_TILING_EG_TILE_SPLIT_SHIFT) & AMDGPU_TILING_EG_TILE_SPLIT_MASK;
-      *stencil_tile_split = (tiling_flags >> AMDGPU_TILING_EG_STENCIL_TILE_SPLIT_SHIFT) & AMDGPU_TILING_EG_STENCIL_TILE_SPLIT_MASK;
-      *mtilea = (tiling_flags >> AMDGPU_TILING_EG_MACRO_TILE_ASPECT_SHIFT) & AMDGPU_TILING_EG_MACRO_TILE_ASPECT_MASK;
-      *tile_split = eg_tile_split(*tile_split);
+   else if (AMDGPU_TILING_GET(tiling_flags, ARRAY_MODE) == 2) /* 1D_TILED_THIN1 */
+      *microtiled = RADEON_LAYOUT_TILED;
+
+   if (bankw && tile_split && mtilea && tile_split) {
+      *bankw = 1 << AMDGPU_TILING_GET(tiling_flags, BANK_WIDTH);
+      *bankh = 1 << AMDGPU_TILING_GET(tiling_flags, BANK_HEIGHT);
+      *tile_split = eg_tile_split(AMDGPU_TILING_GET(tiling_flags, TILE_SPLIT));
+      *mtilea = 1 << AMDGPU_TILING_GET(tiling_flags, MACRO_TILE_ASPECT);
    }
    if (scanout)
-      *scanout = !(tiling_flags & AMDGPU_TILING_R600_NO_SCANOUT);
+      *scanout = AMDGPU_TILING_GET(tiling_flags, MICRO_TILE_MODE) == 0; /* DISPLAY */
 }
 
 static void amdgpu_bo_set_tiling(struct pb_buffer *_buf,
@@ -437,7 +434,6 @@ static void amdgpu_bo_set_tiling(struct pb_buffer *_buf,
    struct amdgpu_bo_metadata metadata = {0};
    uint32_t tiling_flags = 0;
 
-
    /* Tiling determines how DRM treats the buffer data.
      * We must flush CS when changing it if the buffer is referenced. */
    if (cs && amdgpu_bo_is_referenced_by_cs(cs, bo)) {
@@ -448,31 +444,23 @@ static void amdgpu_bo_set_tiling(struct pb_buffer *_buf,
       sched_yield();
    }
 
-   if (microtiled == RADEON_LAYOUT_TILED)
-      tiling_flags |= AMDGPU_TILING_MICRO;
-   else if (microtiled == RADEON_LAYOUT_SQUARETILED)
-      tiling_flags |= AMDGPU_TILING_MICRO_SQUARE;
-
    if (macrotiled == RADEON_LAYOUT_TILED)
-      tiling_flags |= AMDGPU_TILING_MACRO;
+      tiling_flags |= AMDGPU_TILING_SET(ARRAY_MODE, 4); /* 2D_TILED_THIN1 */
+   else if (microtiled == RADEON_LAYOUT_TILED)
+      tiling_flags |= AMDGPU_TILING_SET(ARRAY_MODE, 2); /* 1D_TILED_THIN1 */
+   else
+      tiling_flags |= AMDGPU_TILING_SET(ARRAY_MODE, 1); /* LINEAR_ALIGNED */
 
-   tiling_flags |= (bankw & AMDGPU_TILING_EG_BANKW_MASK) <<
-                   AMDGPU_TILING_EG_BANKW_SHIFT;
-   tiling_flags |= (bankh & AMDGPU_TILING_EG_BANKH_MASK) <<
-                   AMDGPU_TILING_EG_BANKH_SHIFT;
-   if (tile_split) {
-      tiling_flags |= (eg_tile_split_rev(tile_split) &
-                       AMDGPU_TILING_EG_TILE_SPLIT_MASK) <<
-                      AMDGPU_TILING_EG_TILE_SPLIT_SHIFT;
-   }
-   tiling_flags |= (stencil_tile_split &
-                    AMDGPU_TILING_EG_STENCIL_TILE_SPLIT_MASK) <<
-                   AMDGPU_TILING_EG_STENCIL_TILE_SPLIT_SHIFT;
-   tiling_flags |= (mtilea & AMDGPU_TILING_EG_MACRO_TILE_ASPECT_MASK) <<
-                   AMDGPU_TILING_EG_MACRO_TILE_ASPECT_SHIFT;
+   tiling_flags |= AMDGPU_TILING_SET(BANK_WIDTH, util_logbase2(bankw));
+   tiling_flags |= AMDGPU_TILING_SET(BANK_HEIGHT, util_logbase2(bankh));
+   if (tile_split)
+      tiling_flags |= AMDGPU_TILING_SET(TILE_SPLIT, eg_tile_split_rev(tile_split));
+   tiling_flags |= AMDGPU_TILING_SET(MACRO_TILE_ASPECT, util_logbase2(mtilea));
 
-   if (!scanout)
-      tiling_flags |= AMDGPU_TILING_R600_NO_SCANOUT;
+   if (scanout)
+      tiling_flags |= AMDGPU_TILING_SET(MICRO_TILE_MODE, 0); /* DISPLAY_MICRO_TILING */
+   else
+      tiling_flags |= AMDGPU_TILING_SET(MICRO_TILE_MODE, 1); /* THIN_MICRO_TILING */
 
    metadata.tiling_info = tiling_flags;
 
