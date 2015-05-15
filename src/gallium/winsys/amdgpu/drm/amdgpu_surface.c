@@ -385,6 +385,7 @@ static int amdgpu_surface_init(struct radeon_winsys *rws,
 
       if (level == 0) {
          surf->bo_alignment = AddrSurfInfoOut.baseAlign;
+         surf->pipe_config = AddrSurfInfoOut.pTileInfo->pipeConfig - 1;
 
          /* For 2D modes only. */
          if (AddrSurfInfoOut.tileMode >= ADDR_TM_2D_TILED_THIN1) {
@@ -392,6 +393,7 @@ static int amdgpu_surface_init(struct radeon_winsys *rws,
             surf->bankh = AddrSurfInfoOut.pTileInfo->bankHeight;
             surf->mtilea = AddrSurfInfoOut.pTileInfo->macroAspectRatio;
             surf->tile_split = AddrSurfInfoOut.pTileInfo->tileSplitBytes;
+            surf->num_banks = AddrSurfInfoOut.pTileInfo->banks;
          }
       }
    }

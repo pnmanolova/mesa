@@ -323,6 +323,8 @@ struct radeon_surf {
     struct radeon_surf_level    stencil_level[RADEON_SURF_MAX_LEVEL];
     uint32_t                    tiling_index[RADEON_SURF_MAX_LEVEL];
     uint32_t                    stencil_tiling_index[RADEON_SURF_MAX_LEVEL];
+    uint32_t                    pipe_config;
+    uint32_t                    num_banks;
 };
 
 struct radeon_winsys {
@@ -456,10 +458,11 @@ struct radeon_winsys {
                               struct radeon_winsys_cs *rcs,
                               enum radeon_bo_layout microtile,
                               enum radeon_bo_layout macrotile,
+                              unsigned pipe_config,
                               unsigned bankw, unsigned bankh,
                               unsigned tile_split,
                               unsigned stencil_tile_split,
-                              unsigned mtilea,
+                              unsigned mtilea, unsigned num_banks,
                               unsigned stride,
                               bool scanout);
 
