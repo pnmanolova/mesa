@@ -76,29 +76,28 @@ static struct amdgpu_winsys_bo *get_amdgpu_winsys_bo(struct pb_buffer *_buf)
 static void amdgpu_bo_wait(struct pb_buffer *_buf, enum radeon_bo_usage usage)
 {
    struct amdgpu_winsys_bo *bo = get_amdgpu_winsys_bo(_buf);
-   bool busy;
+   struct radeon_winsys *ws = &bo->rws->base;
 
    while (p_atomic_read(&bo->num_active_ioctls)) {
       sched_yield();
    }
 
-   amdgpu_bo_wait_for_idle(bo->bo, AMDGPU_TIMEOUT_INFINITE, &busy);
+   if (bo->fence) {
+      ws->fence_wait(ws, bo->fence, PIPE_TIMEOUT_INFINITE);
+   }
 }
 
 static boolean amdgpu_bo_is_busy(struct pb_buffer *_buf,
                                  enum radeon_bo_usage usage)
 {
    struct amdgpu_winsys_bo *bo = get_amdgpu_winsys_bo(_buf);
-   bool busy;
+   struct radeon_winsys *ws = &bo->rws->base;
 
    if (p_atomic_read(&bo->num_active_ioctls)) {
       return TRUE;
    }
 
-   if (amdgpu_bo_wait_for_idle(bo->bo, 0, &busy))
-      return false;
-
-   return busy;
+   return bo->fence && !ws->fence_wait(ws, bo->fence, 0);
 }
 
 static enum radeon_bo_domain amdgpu_bo_get_initial_domain(
@@ -112,6 +111,7 @@ static void amdgpu_bo_destroy(struct pb_buffer *_buf)
    struct amdgpu_winsys_bo *bo = amdgpu_winsys_bo(_buf);
 
    amdgpu_bo_free(bo->bo);
+   amdgpu_fence_reference(&bo->fence, NULL);
 
    if (bo->initial_domain & RADEON_DOMAIN_VRAM)
       bo->rws->allocated_vram -= align(bo->base.size, 4096);

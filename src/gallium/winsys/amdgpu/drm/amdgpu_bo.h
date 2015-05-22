@@ -60,6 +60,8 @@ struct amdgpu_winsys_bo {
    /* how many command streams, which are being emitted in a separate
     * thread, is this bo referenced in? */
    int num_active_ioctls;
+
+   struct pipe_fence_handle *fence; /* for buffer_wait & buffer_is_busy */
 };
 
 struct pb_manager *amdgpu_bomgr_create(struct amdgpu_winsys *rws);
