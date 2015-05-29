@@ -50,6 +50,9 @@ struct amdgpu_cs_buffer {
 struct amdgpu_cs_context {
    struct amdgpu_cs_request    request;
    struct amdgpu_cs_ib_info    ib;
+   /* just for holding the buffer reference during thread offloading */
+   struct pb_buffer            *ib_buffer;
+   struct amdgpu_winsys_bo     *ib_winsys_buffer;
 
    /* Relocs. */
    unsigned                    max_num_buffers;
@@ -86,6 +89,12 @@ struct amdgpu_cs {
    void *flush_data;
 
    pipe_semaphore flush_completed;
+
+   /* A buffer out of which new IBs are allocated. */
+   struct pb_buffer *big_ib_buffer; /* for holding the reference */
+   struct amdgpu_winsys_bo *big_ib_winsys_buffer;
+   uint8_t *ib_mapped;
+   unsigned used_ib_space;
 };
 
 struct amdgpu_fence {

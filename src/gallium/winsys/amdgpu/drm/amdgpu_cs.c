@@ -179,17 +179,44 @@ amdgpu_ctx_query_reset_status(struct radeon_winsys_ctx *rwctx)
 static bool amdgpu_get_new_ib(struct amdgpu_cs *cs)
 {
    struct amdgpu_cs_context *cur_cs = cs->csc;
-   struct amdgpu_cs_ib_alloc_result ib;
-   int r;
+   unsigned max_ib_size = RADEON_MAX_CMDBUF_DWORDS * 4;
 
-   r = amdgpu_cs_alloc_ib(cs->ctx->ctx, amdgpu_cs_ib_size_64K, &ib);
-   if (r)
-      return false;
-
-   cs->base.buf = ib.cpu;
    cs->base.cdw = 0;
+   cs->base.buf = NULL;
 
-   cur_cs->ib.ib_handle = ib.handle;
+   /* Allocate a new buffer for IBs if the current buffer is all used. */
+   if (!cs->big_ib_buffer ||
+       cs->used_ib_space + max_ib_size > cs->big_ib_buffer->size) {
+      struct radeon_winsys *ws = &cs->ctx->ws->base;
+      struct radeon_winsys_cs_handle *winsys_bo;
+
+      pb_reference(&cs->big_ib_buffer, NULL);
+      cs->big_ib_winsys_buffer = NULL;
+      cs->ib_mapped = NULL;
+      cs->used_ib_space = 0;
+
+      cs->big_ib_buffer = ws->buffer_create(ws, 256 * 1024, 4096, true,
+                                            RADEON_DOMAIN_GTT,
+                                            RADEON_FLAG_CPU_ACCESS);
+      if (!cs->big_ib_buffer)
+         return false;
+
+      winsys_bo = ws->buffer_get_cs_handle(cs->big_ib_buffer);
+
+      cs->ib_mapped = ws->buffer_map(winsys_bo, NULL, PIPE_TRANSFER_WRITE);
+      if (!cs->ib_mapped) {
+         pb_reference(&cs->big_ib_buffer, NULL);
+         return false;
+      }
+
+      cs->big_ib_winsys_buffer = (struct amdgpu_winsys_bo*)winsys_bo;
+   }
+
+   pb_reference(&cur_cs->ib_buffer, cs->big_ib_buffer);
+   cur_cs->ib_winsys_buffer = cs->big_ib_winsys_buffer;
+   cur_cs->ib.bo_handle = cs->big_ib_winsys_buffer->bo;
+   cur_cs->ib.offset_dw = cs->used_ib_space / 4;
+   cs->base.buf = (uint32_t*)(cs->ib_mapped + cs->used_ib_space);
    return true;
 }
 
@@ -250,6 +277,7 @@ static void amdgpu_cs_context_cleanup(struct amdgpu_cs_context *csc)
 static void amdgpu_destroy_cs_context(struct amdgpu_cs_context *csc)
 {
    amdgpu_cs_context_cleanup(csc);
+   pb_reference(&csc->ib_buffer, NULL);
    FREE(csc->flags);
    FREE(csc->buffers);
    FREE(csc->handles);
@@ -451,15 +479,17 @@ void amdgpu_cs_emit_ioctl_oneshot(struct amdgpu_cs *cs, struct amdgpu_cs_context
       for (i = 0; i < csc->num_buffers; i++) {
          amdgpu_fence_reference(&csc->buffers[i].bo->fence, csc->fence);
       }
+      amdgpu_fence_reference(&csc->ib_winsys_buffer->fence, csc->fence);
    }
 
    /* Cleanup. */
-   if (cs->cst->request.resources)
-      amdgpu_bo_list_destroy(cs->cst->request.resources);
+   if (csc->request.resources)
+      amdgpu_bo_list_destroy(csc->request.resources);
 
    for (i = 0; i < csc->num_buffers; i++) {
       p_atomic_dec(&csc->buffers[i].bo->num_active_ioctls);
    }
+   p_atomic_dec(&csc->ib_winsys_buffer->num_active_ioctls);
    amdgpu_cs_context_cleanup(csc);
 }
 
@@ -545,11 +575,13 @@ static void amdgpu_cs_flush(struct radeon_winsys_cs *rcs,
       }
 
       cs->cst->ib.size = cs->base.cdw;
+      cs->used_ib_space += cs->base.cdw * 4;
 
       for (i = 0; i < num_buffers; i++) {
          /* Update the number of active asynchronous CS ioctls for the buffer. */
          p_atomic_inc(&cs->cst->buffers[i].bo->num_active_ioctls);
       }
+      p_atomic_inc(&cs->cst->ib_winsys_buffer->num_active_ioctls);
 
       switch (cs->base.ring_type) {
       case RING_DMA:
@@ -608,9 +640,9 @@ static void amdgpu_cs_destroy(struct radeon_winsys_cs *rcs)
    amdgpu_cs_context_cleanup(&cs->csc1);
    amdgpu_cs_context_cleanup(&cs->csc2);
    p_atomic_dec(&cs->ctx->ws->num_cs);
-   amdgpu_cs_free_ib(cs->csc->ib.ib_handle);
    amdgpu_destroy_cs_context(&cs->csc1);
    amdgpu_destroy_cs_context(&cs->csc2);
+   pb_reference(&cs->big_ib_buffer, NULL);
    FREE(cs);
 }
 
