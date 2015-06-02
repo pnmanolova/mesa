@@ -214,8 +214,7 @@ static bool amdgpu_get_new_ib(struct amdgpu_cs *cs)
 
    pb_reference(&cur_cs->ib_buffer, cs->big_ib_buffer);
    cur_cs->ib_winsys_buffer = cs->big_ib_winsys_buffer;
-   cur_cs->ib.bo_handle = cs->big_ib_winsys_buffer->bo;
-   cur_cs->ib.offset_dw = cs->used_ib_space / 4;
+   cur_cs->ib.ib_mc_address = cs->big_ib_winsys_buffer->va + cs->used_ib_space;
    cs->base.buf = (uint32_t*)(cs->ib_mapped + cs->used_ib_space);
    return true;
 }
@@ -479,7 +478,6 @@ void amdgpu_cs_emit_ioctl_oneshot(struct amdgpu_cs *cs, struct amdgpu_cs_context
       for (i = 0; i < csc->num_buffers; i++) {
          amdgpu_fence_reference(&csc->buffers[i].bo->fence, csc->fence);
       }
-      amdgpu_fence_reference(&csc->ib_winsys_buffer->fence, csc->fence);
    }
 
    /* Cleanup. */
@@ -489,7 +487,6 @@ void amdgpu_cs_emit_ioctl_oneshot(struct amdgpu_cs *cs, struct amdgpu_cs_context
    for (i = 0; i < csc->num_buffers; i++) {
       p_atomic_dec(&csc->buffers[i].bo->num_active_ioctls);
    }
-   p_atomic_dec(&csc->ib_winsys_buffer->num_active_ioctls);
    amdgpu_cs_context_cleanup(csc);
 }
 
@@ -553,6 +550,9 @@ static void amdgpu_cs_flush(struct radeon_winsys_cs *rcs,
       fprintf(stderr, "amdgpu: command stream overflowed\n");
    }
 
+   amdgpu_cs_add_reloc(rcs, (void*)cs->csc->ib_winsys_buffer,
+		       RADEON_USAGE_READ, 0, RADEON_PRIO_MIN);
+
    amdgpu_cs_sync_flush(rcs);
 
    /* Swap command streams. */
@@ -581,7 +581,6 @@ static void amdgpu_cs_flush(struct radeon_winsys_cs *rcs,
          /* Update the number of active asynchronous CS ioctls for the buffer. */
          p_atomic_inc(&cs->cst->buffers[i].bo->num_active_ioctls);
       }
-      p_atomic_inc(&cs->cst->ib_winsys_buffer->num_active_ioctls);
 
       switch (cs->base.ring_type) {
       case RING_DMA:
