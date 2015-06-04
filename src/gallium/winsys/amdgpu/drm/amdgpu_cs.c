@@ -335,7 +335,7 @@ amdgpu_cs_create(struct radeon_winsys_ctx *rwctx,
 
 int amdgpu_get_reloc(struct amdgpu_cs_context *csc, struct amdgpu_winsys_bo *bo)
 {
-   unsigned hash = bo->handle & (Elements(csc->buffer_indices_hashlist)-1);
+   unsigned hash = bo->unique_id & (Elements(csc->buffer_indices_hashlist)-1);
    int i = csc->buffer_indices_hashlist[hash];
 
    /* not found or found */
@@ -370,7 +370,7 @@ static unsigned amdgpu_add_reloc(struct amdgpu_cs *cs,
 {
    struct amdgpu_cs_context *csc = cs->csc;
    struct amdgpu_cs_buffer *reloc;
-   unsigned hash = bo->handle & (Elements(csc->buffer_indices_hashlist)-1);
+   unsigned hash = bo->unique_id & (Elements(csc->buffer_indices_hashlist)-1);
    int i = -1;
 
    priority = MIN2(priority, 15);

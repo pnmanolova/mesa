@@ -50,7 +50,7 @@ struct amdgpu_winsys_bo {
    void *user_ptr; /* from buffer_from_ptr */
 
    amdgpu_bo_handle bo;
-   uint32_t handle;
+   uint32_t unique_id;
    uint64_t va;
    enum radeon_bo_domain initial_domain;
 

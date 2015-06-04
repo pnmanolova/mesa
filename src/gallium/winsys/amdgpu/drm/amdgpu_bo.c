@@ -292,12 +292,7 @@ static struct pb_buffer *amdgpu_bomgr_create_bo(struct pb_manager *_mgr,
    bo->bo = result.buf_handle;
    bo->va = result.virtual_mc_base_address;
    bo->initial_domain = rdesc->initial_domain;
-
-   if (amdgpu_bo_export(bo->bo, amdgpu_bo_handle_type_kms, &bo->handle)) {
-      amdgpu_bo_free(bo->bo);
-      FREE(bo);
-      return NULL;
-   }
+   bo->unique_id = __sync_fetch_and_add(&rws->next_bo_unique_id, 1);
 
    if (rdesc->initial_domain & RADEON_DOMAIN_VRAM)
       rws->allocated_vram += align(size, 4096);
@@ -573,12 +568,7 @@ static struct pb_buffer *amdgpu_bo_from_handle(struct radeon_winsys *rws,
    bo->rws = ws;
    bo->va = result.virtual_mc_base_address;
    bo->initial_domain = initial;
-
-   if (amdgpu_bo_export(bo->bo, amdgpu_bo_handle_type_kms, &bo->handle)) {
-      amdgpu_bo_free(bo->bo);
-      FREE(bo);
-      return NULL;
-   }
+   bo->unique_id = __sync_fetch_and_add(&ws->next_bo_unique_id, 1);
 
    if (stride)
       *stride = whandle->stride;
@@ -648,12 +638,7 @@ static struct pb_buffer *amdgpu_bo_from_ptr(struct radeon_winsys *rws,
     bo->user_ptr = pointer;
     bo->va = result.virtual_mc_base_address;
     bo->initial_domain = RADEON_DOMAIN_GTT;
-
-    if (amdgpu_bo_export(bo->bo, amdgpu_bo_handle_type_kms, &bo->handle)) {
-       amdgpu_bo_free(bo->bo);
-       FREE(bo);
-       return NULL;
-    }
+    bo->unique_id = __sync_fetch_and_add(&ws->next_bo_unique_id, 1);
 
     ws->allocated_gtt += align(bo->base.size, 4096);
 

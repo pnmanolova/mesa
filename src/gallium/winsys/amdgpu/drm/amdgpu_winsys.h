@@ -47,6 +47,7 @@ struct amdgpu_winsys {
    amdgpu_device_handle dev;
 
    int num_cs; /* The number of command streams created. */
+   uint32_t next_bo_unique_id;
    uint64_t allocated_vram;
    uint64_t allocated_gtt;
    uint64_t buffer_wait_time; /* time spent in buffer_wait in ns */
