@@ -484,6 +484,16 @@ amdgpu_bo_create(struct radeon_winsys *rws,
    struct pb_manager *provider;
    struct pb_buffer *buffer;
 
+   /* Don't use VRAM if the GPU doesn't have much. This is only the initial
+    * domain. The kernel is free to move the buffer if it wants to.
+    *
+    * 64MB means no VRAM by todays standards.
+    */
+   if (domain & RADEON_DOMAIN_VRAM && ws->info.vram_size <= 64*1024*1024) {
+      domain = RADEON_DOMAIN_GTT;
+      flags = RADEON_FLAG_GTT_WC;
+   }
+
    memset(&desc, 0, sizeof(desc));
    desc.base.alignment = alignment;
 

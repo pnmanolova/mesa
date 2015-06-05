@@ -424,10 +424,14 @@ static unsigned amdgpu_cs_add_reloc(struct radeon_winsys_cs *rcs,
                                     enum radeon_bo_domain domains,
                                     enum radeon_bo_priority priority)
 {
+   /* Don't use the "domains" parameter. Amdgpu doesn't support changing
+    * the buffer placement during command submission.
+    */
    struct amdgpu_cs *cs = amdgpu_cs(rcs);
    struct amdgpu_winsys_bo *bo = (struct amdgpu_winsys_bo*)buf;
    enum radeon_bo_domain added_domains;
-   unsigned index = amdgpu_add_reloc(cs, bo, usage, domains, priority, &added_domains);
+   unsigned index = amdgpu_add_reloc(cs, bo, usage, bo->initial_domain,
+                                     priority, &added_domains);
 
    if (added_domains & RADEON_DOMAIN_GTT)
       cs->csc->used_gart += bo->base.size;
