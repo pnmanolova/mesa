@@ -317,6 +317,15 @@ driConfigEqual(const __DRIcoreExtension *core,
             return GL_FALSE;
          break;
 
+      case __DRI_ATTRIB_FRAMEBUFFER_SRGB_CAPABLE:
+         /* Don't expose sRGB-capable configs.
+          * DRI drivers only expose them for EGL_KHR_gl_colorspace,
+          * but historically no drivers have exposed them for GLX.
+          */
+         if (!scalarEqual(config, attrib, 0))
+            return GL_FALSE;
+         break;
+
       default:
          if (!scalarEqual(config, attrib, value))
             return GL_FALSE;
