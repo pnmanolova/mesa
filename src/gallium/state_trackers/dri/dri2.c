@@ -189,9 +189,11 @@ dri2_drawable_get_buffers(struct dri_drawable *drawable,
        */
       switch(format) {
       case PIPE_FORMAT_B8G8R8A8_UNORM:
+      case PIPE_FORMAT_B8G8R8A8_SRGB:
 	 depth = 32;
 	 break;
       case PIPE_FORMAT_B8G8R8X8_UNORM:
+      case PIPE_FORMAT_B8G8R8X8_SRGB:
 	 depth = 24;
 	 break;
       case PIPE_FORMAT_B5G6R5_UNORM:
