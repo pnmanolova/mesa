@@ -517,11 +517,7 @@ const char *r600_get_llvm_processor_name(enum radeon_family family)
 	case CHIP_KAVERI: return "kaveri";
 	case CHIP_HAWAII: return "hawaii";
 	case CHIP_MULLINS:
-#if HAVE_LLVM >= 0x0305
 		return "mullins";
-#else
-		return "kabini";
-#endif
 	case CHIP_TONGA: return "tonga";
 	case CHIP_ICELAND: return "iceland";
 	case CHIP_CARRIZO: return "carrizo";
@@ -540,24 +536,12 @@ static int r600_get_compute_param(struct pipe_screen *screen,
 	case PIPE_COMPUTE_CAP_IR_TARGET: {
 		const char *gpu;
 		const char *triple;
-		if (rscreen->family <= CHIP_ARUBA || HAVE_LLVM < 0x0306) {
+		if (rscreen->family <= CHIP_ARUBA) {
 			triple = "r600--";
 		} else {
 			triple = "amdgcn--";
 		}
-		switch(rscreen->family) {
-		/* Clang < 3.6 is missing Hainan in its list of
-		 * GPUs, so we need to use the name of a similar GPU.
-		 */
-#if HAVE_LLVM < 0x0306
-		case CHIP_HAINAN:
-			gpu = "oland";
-			break;
-#endif
-		default:
-			gpu = r600_get_llvm_processor_name(rscreen->family);
-			break;
-		}
+		gpu = r600_get_llvm_processor_name(rscreen->family);
 		if (ret) {
 			sprintf(ret, "%s-%s", gpu, triple);
 		}

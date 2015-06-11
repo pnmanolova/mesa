@@ -71,10 +71,7 @@ static void si_destroy_context(struct pipe_context *context)
 
 	r600_common_context_cleanup(&sctx->b);
 
-#if HAVE_LLVM >= 0x0306
 	LLVMDisposeTargetMachine(sctx->tm);
-#endif
-
 	FREE(sctx);
 }
 
@@ -92,9 +89,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, void *
 	struct si_screen* sscreen = (struct si_screen *)screen;
 	struct radeon_winsys *ws = sscreen->b.ws;
 	LLVMTargetRef r600_target;
-#if HAVE_LLVM >= 0x0306
 	const char *triple = "amdgcn--";
-#endif
 	int shader, i;
 
 	if (sctx == NULL)
@@ -193,7 +188,6 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, void *
 	 */
 	sctx->scratch_waves = 32 * sscreen->b.info.max_compute_units;
 
-#if HAVE_LLVM >= 0x0306
 	/* Initialize LLVM TargetMachine */
 	r600_target = radeon_llvm_get_r600_target(triple);
 	sctx->tm = LLVMCreateTargetMachine(r600_target, triple,
@@ -204,7 +198,6 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, void *
 					   LLVMCodeGenLevelDefault,
 					   LLVMRelocDefault,
 					   LLVMCodeModelDefault);
-#endif
 
 	return &sctx->b.b;
 fail:
@@ -303,9 +296,9 @@ static int si_get_param(struct pipe_screen* pscreen, enum pipe_cap param)
 
 	case PIPE_CAP_TEXTURE_QUERY_LOD:
 	case PIPE_CAP_TEXTURE_GATHER_SM5:
-		return HAVE_LLVM >= 0x0305;
+		return 1;
 	case PIPE_CAP_MAX_TEXTURE_GATHER_COMPONENTS:
-		return HAVE_LLVM >= 0x0305 ? 4 : 0;
+		return 4;
 
 	/* Unsupported features. */
 	case PIPE_CAP_TGSI_FS_COORD_ORIGIN_LOWER_LEFT:
@@ -403,11 +396,7 @@ static int si_get_shader_param(struct pipe_screen* pscreen, unsigned shader, enu
 	case PIPE_SHADER_COMPUTE:
 		switch (param) {
 		case PIPE_SHADER_CAP_PREFERRED_IR:
-#if HAVE_LLVM < 0x0306
-			return PIPE_SHADER_IR_LLVM;
-#else
 			return PIPE_SHADER_IR_NATIVE;
-#endif
 		case PIPE_SHADER_CAP_DOUBLES:
 			return HAVE_LLVM >= 0x0307;
 

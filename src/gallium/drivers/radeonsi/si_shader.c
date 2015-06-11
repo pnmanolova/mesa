@@ -1571,7 +1571,7 @@ static void tex_fetch_args(
 	unsigned chan;
 	unsigned sampler_src = emit_data->inst->Instruction.NumSrcRegs - 1;
 	unsigned sampler_index = emit_data->inst->Src[sampler_src].Register.Index;
-	bool has_offset = HAVE_LLVM >= 0x0305 ? inst->Texture.NumOffsets > 0 : false;
+	bool has_offset = inst->Texture.NumOffsets > 0;
 
 	if (target == TGSI_TEXTURE_BUFFER) {
 		LLVMTypeRef i128 = LLVMIntTypeInContext(gallivm->context, 128);
@@ -1936,8 +1936,7 @@ static void build_tex_intrinsic(const struct lp_build_tgsi_action * action,
 	unsigned opcode = emit_data->inst->Instruction.Opcode;
 	unsigned target = emit_data->inst->Texture.Texture;
 	char intr_name[127];
-	bool has_offset = HAVE_LLVM >= 0x0305 ?
-				emit_data->inst->Texture.NumOffsets > 0 : false;
+	bool has_offset = emit_data->inst->Texture.NumOffsets > 0;
 
 	if (target == TGSI_TEXTURE_BUFFER) {
 		emit_data->output[emit_data->chan] = build_intrinsic(
@@ -2910,12 +2909,10 @@ int si_shader_create(struct si_screen *sscreen, LLVMTargetMachineRef tm,
 	bld_base->op_actions[TGSI_OPCODE_EMIT].emit = si_llvm_emit_vertex;
 	bld_base->op_actions[TGSI_OPCODE_ENDPRIM].emit = si_llvm_emit_primitive;
 
-	if (HAVE_LLVM >= 0x0306) {
-		bld_base->op_actions[TGSI_OPCODE_MAX].emit = build_tgsi_intrinsic_nomem;
-		bld_base->op_actions[TGSI_OPCODE_MAX].intr_name = "llvm.maxnum.f32";
-		bld_base->op_actions[TGSI_OPCODE_MIN].emit = build_tgsi_intrinsic_nomem;
-		bld_base->op_actions[TGSI_OPCODE_MIN].intr_name = "llvm.minnum.f32";
-	}
+	bld_base->op_actions[TGSI_OPCODE_MAX].emit = build_tgsi_intrinsic_nomem;
+	bld_base->op_actions[TGSI_OPCODE_MAX].intr_name = "llvm.maxnum.f32";
+	bld_base->op_actions[TGSI_OPCODE_MIN].emit = build_tgsi_intrinsic_nomem;
+	bld_base->op_actions[TGSI_OPCODE_MIN].intr_name = "llvm.minnum.f32";
 
 	si_shader_ctx.radeon_bld.load_system_value = declare_system_value;
 	si_shader_ctx.shader = shader;
