@@ -469,6 +469,19 @@ void amdgpu_cs_emit_ioctl_oneshot(struct amdgpu_cs *cs, struct amdgpu_cs_context
    int i, r;
    uint64_t fence;
 
+   for (i = 0; i < csc->num_buffers; i++) {
+      struct amdgpu_fence *bo_fence = (void *)csc->buffers[i].bo->fence;
+      if (!bo_fence)
+         continue;
+
+      if (bo_fence->ctx == cs->ctx &&
+          bo_fence->ip_type == cs->cst->request.ip_type &&
+          bo_fence->ring == cs->cst->request.ring)
+         continue;
+
+      amdgpu_fence_wait(&cs->ctx->ws->base, (void *)bo_fence, PIPE_TIMEOUT_INFINITE);
+   }
+
    r = amdgpu_cs_submit(cs->ctx->ctx, 0, &csc->request, 1, &fence);
    if (r) {
       fprintf(stderr, "amdgpu: The CS has been rejected, "
