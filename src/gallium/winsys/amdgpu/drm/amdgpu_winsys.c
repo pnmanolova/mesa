@@ -186,6 +186,13 @@ static boolean do_winsys_init(struct amdgpu_winsys *ws)
       goto fail;
    }
 
+   /* LLVM 3.6 is required for VI. */
+   if (ws->info.chip_class >= VI && HAVE_LLVM < 0x0306) {
+      fprintf(stderr, "amdgpu: LLVM 3.6 is required, got LLVM %i.%i.\n",
+              HAVE_LLVM >> 8, HAVE_LLVM & 255);
+      goto fail;
+   }
+
    /* family and rev_id are for addrlib */
    switch (ws->info.family) {
    case CHIP_BONAIRE:
