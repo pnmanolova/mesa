@@ -33,10 +33,14 @@
 #include "sid.h"
 
 #define MAX_GLOBAL_BUFFERS 20
+#if HAVE_LLVM < 0x0305
+#define NUM_USER_SGPRS 2
+#else
 /* XXX: Even though we don't pass the scratch buffer via user sgprs any more
  * LLVM still expects that we specify 4 USER_SGPRS so it can remain compatible
  * with older mesa. */
 #define NUM_USER_SGPRS 4
+#endif
 
 struct si_compute {
 	struct si_context *ctx;
@@ -49,6 +53,12 @@ struct si_compute {
 
 	struct r600_resource *input_buffer;
 	struct pipe_resource *global_buffers[MAX_GLOBAL_BUFFERS];
+
+#if HAVE_LLVM < 0x0306
+	unsigned num_kernels;
+	struct si_shader *kernels;
+	LLVMContextRef llvm_ctx;
+#endif
 };
 
 static void init_scratch_buffer(struct si_context *sctx, struct si_compute *program)
@@ -109,6 +119,24 @@ static void *si_create_compute_state(
 	program->private_size = cso->req_private_mem;
 	program->input_size = cso->req_input_mem;
 
+#if HAVE_LLVM < 0x0306
+	{
+		unsigned i;
+		program->llvm_ctx = LLVMContextCreate();
+	        program->num_kernels = radeon_llvm_get_num_kernels(program->llvm_ctx,
+					code, header->num_bytes);
+	        program->kernels = CALLOC(sizeof(struct si_shader),
+                                                        program->num_kernels);
+	        for (i = 0; i < program->num_kernels; i++) {
+		        LLVMModuleRef mod = radeon_llvm_get_kernel_module(program->llvm_ctx, i,
+                                                        code, header->num_bytes);
+			si_compile_llvm(sctx->screen, &program->kernels[i], sctx->tm,
+					mod);
+			LLVMDisposeModule(mod);
+		}
+	}
+#else
+
 	radeon_elf_read(code, header->num_bytes, &program->shader.binary, true);
 
 	/* init_scratch_buffer patches the shader code with the scratch address,
@@ -118,6 +146,7 @@ static void *si_create_compute_state(
 	init_scratch_buffer(sctx, program);
 	si_shader_binary_read(sctx->screen, &program->shader, &program->shader.binary);
 
+#endif
 	program->input_buffer =	si_resource_create_custom(sctx->b.b.screen,
 		PIPE_USAGE_IMMUTABLE, program->input_size);
 
@@ -218,6 +247,11 @@ static void si_launch_grid(
 	unsigned lds_blocks;
 	unsigned num_waves_for_scratch;
 
+#if HAVE_LLVM < 0x0306
+	shader = &program->kernels[pc];
+#endif
+
+
 	radeon_emit(cs, PKT3(PKT3_CONTEXT_CONTROL, 1, 0) | PKT3_SHADER_TYPE_S(1));
 	radeon_emit(cs, 0x80000000);
 	radeon_emit(cs, 0x80000000);
@@ -232,8 +266,10 @@ static void si_launch_grid(
 
 	pm4->compute_pkt = true;
 
+#if HAVE_LLVM >= 0x0306
 	/* Read the config information */
 	si_shader_binary_read_config(sctx->screen, shader, pc);
+#endif
 
 	/* Upload the kernel arguments */
 
@@ -322,8 +358,11 @@ static void si_launch_grid(
 						0x190 /* Default value */);
 	}
 
-	shader_va = shader->bo->gpu_address + pc;
+	shader_va = shader->bo->gpu_address;
 
+#if HAVE_LLVM >= 0x0306
+	shader_va += pc;
+#endif
 	si_pm4_add_bo(pm4, shader->bo, RADEON_USAGE_READ, RADEON_PRIO_SHADER_DATA);
 	si_pm4_set_reg(pm4, R_00B830_COMPUTE_PGM_LO, (shader_va >> 8) & 0xffffffff);
 	si_pm4_set_reg(pm4, R_00B834_COMPUTE_PGM_HI, shader_va >> 40);
@@ -427,10 +466,25 @@ static void si_delete_compute_state(struct pipe_context *ctx, void* state){
 		return;
 	}
 
+#if HAVE_LLVM < 0x0306
+	if (program->kernels) {
+		for (int i = 0; i < program->num_kernels; i++){
+			if (program->kernels[i].bo){
+				si_shader_destroy(ctx, &program->kernels[i]);
+			}
+		}
+		FREE(program->kernels);
+	}
+
+	if (program->llvm_ctx){
+		LLVMContextDispose(program->llvm_ctx);
+	}
+#else
 	FREE(program->shader.binary.config);
 	FREE(program->shader.binary.rodata);
 	FREE(program->shader.binary.global_symbol_offsets);
 	si_shader_destroy(ctx, &program->shader);
+#endif
 
 	pipe_resource_reference(
 		(struct pipe_resource **)&program->input_buffer, NULL);
