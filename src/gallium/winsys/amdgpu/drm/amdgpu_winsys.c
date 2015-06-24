@@ -111,8 +111,6 @@ static boolean do_winsys_init(struct amdgpu_winsys *ws)
    uint32_t vce_version = 0, vce_feature = 0;
    int r;
 
-   ws->num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
-
    r = amdgpu_device_initialize(ws->fd, &ws->info.drm_major,
                                 &ws->info.drm_minor, &ws->dev);
    if (r) {
@@ -517,7 +515,7 @@ struct radeon_winsys *
 
    ws->num_enqueued_cs = 0;
    pipe_semaphore_init(&ws->cs_queued, 0);
-   if (ws->num_cpus > 1 && debug_get_option_thread())
+   if (sysconf(_SC_NPROCESSORS_ONLN) > 1 && debug_get_option_thread())
       ws->thread = pipe_thread_create(amdgpu_cs_emit_ioctl, ws);
 
    /* Create the screen at the end. The winsys must be initialized

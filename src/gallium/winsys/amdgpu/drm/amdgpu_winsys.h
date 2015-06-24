@@ -58,8 +58,6 @@ struct amdgpu_winsys {
    struct pb_manager *kman;
    struct pb_manager *cman;
 
-   uint32_t num_cpus;      /* Number of CPUs. */
-
    /* rings submission thread */
    pipe_mutex cs_stack_lock;
    pipe_semaphore cs_queued;
