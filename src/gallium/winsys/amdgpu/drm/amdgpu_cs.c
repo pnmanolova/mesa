@@ -280,6 +280,7 @@ static void amdgpu_destroy_cs_context(struct amdgpu_cs_context *csc)
    FREE(csc->flags);
    FREE(csc->buffers);
    FREE(csc->handles);
+   FREE(csc->request.dependencies);
 }
 
 
@@ -469,8 +470,12 @@ void amdgpu_cs_emit_ioctl_oneshot(struct amdgpu_cs *cs, struct amdgpu_cs_context
    int i, r;
    uint64_t fence;
 
+   csc->request.number_of_dependencies = 0;
    for (i = 0; i < csc->num_buffers; i++) {
       struct amdgpu_fence *bo_fence = (void *)csc->buffers[i].bo->fence;
+      struct amdgpu_cs_dep_info *dep;
+      unsigned idx;
+
       if (!bo_fence)
          continue;
 
@@ -479,7 +484,24 @@ void amdgpu_cs_emit_ioctl_oneshot(struct amdgpu_cs *cs, struct amdgpu_cs_context
           bo_fence->ring == cs->cst->request.ring)
          continue;
 
-      amdgpu_fence_wait(&cs->ctx->ws->base, (void *)bo_fence, PIPE_TIMEOUT_INFINITE);
+      if (amdgpu_fence_wait(&cs->ctx->ws->base, (void *)bo_fence, 0))
+         continue;
+
+      idx = csc->request.number_of_dependencies++;
+      if (idx >= csc->max_dependencies) {
+         unsigned size;
+
+         csc->max_dependencies = idx + 8;
+         size = csc->max_dependencies * sizeof(struct amdgpu_cs_dep_info);
+         csc->request.dependencies = realloc(csc->request.dependencies, size);
+      }
+
+      dep = &csc->request.dependencies[idx];
+      dep->context = bo_fence->ctx->ctx;
+      dep->ip_type = bo_fence->ip_type;
+      dep->ip_instance = 0;
+      dep->ring = bo_fence->ring;
+      dep->fence = bo_fence->fence;
    }
 
    r = amdgpu_cs_submit(cs->ctx->ctx, 0, &csc->request, 1, &fence);

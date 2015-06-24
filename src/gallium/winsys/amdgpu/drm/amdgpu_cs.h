@@ -66,6 +66,8 @@ struct amdgpu_cs_context {
    unsigned                    used_vram;
    unsigned                    used_gart;
 
+   unsigned                    max_dependencies;
+
    struct pipe_fence_handle    *fence;
 };
 
