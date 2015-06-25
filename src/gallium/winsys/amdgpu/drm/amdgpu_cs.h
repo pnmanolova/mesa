@@ -174,6 +174,8 @@ amdgpu_bo_is_referenced_by_any_cs(struct amdgpu_winsys_bo *bo)
    return bo->num_cs_references != 0;
 }
 
+bool amdgpu_fence_wait(struct pipe_fence_handle *fence, uint64_t timeout,
+                       bool absolute);
 void amdgpu_cs_sync_flush(struct radeon_winsys_cs *rcs);
 void amdgpu_cs_init_functions(struct amdgpu_winsys *ws);
 void amdgpu_cs_emit_ioctl_oneshot(struct amdgpu_cs *cs, struct amdgpu_cs_context *csc);

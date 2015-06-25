@@ -45,6 +45,8 @@ struct amdgpu_winsys {
 
    amdgpu_device_handle dev;
 
+   pipe_mutex bo_fence_lock;
+
    int num_cs; /* The number of command streams created. */
    uint32_t next_bo_unique_id;
    uint64_t allocated_vram;

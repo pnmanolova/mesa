@@ -281,6 +281,7 @@ static void amdgpu_winsys_destroy(struct radeon_winsys *rws)
    }
    pipe_semaphore_destroy(&ws->cs_queued);
    pipe_mutex_destroy(ws->cs_stack_lock);
+   pipe_mutex_destroy(ws->bo_fence_lock);
 
    ws->cman->destroy(ws->cman);
    ws->kman->destroy(ws->kman);
@@ -512,6 +513,7 @@ struct radeon_winsys *
    amdgpu_surface_init_functions(ws);
 
    pipe_mutex_init(ws->cs_stack_lock);
+   pipe_mutex_init(ws->bo_fence_lock);
 
    ws->num_enqueued_cs = 0;
    pipe_semaphore_init(&ws->cs_queued, 0);
