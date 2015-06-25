@@ -426,19 +426,8 @@ static void amdgpu_bo_set_tiling(struct pb_buffer *_buf,
                                  bool scanout)
 {
    struct amdgpu_winsys_bo *bo = get_amdgpu_winsys_bo(_buf);
-   struct amdgpu_cs *cs = amdgpu_cs(rcs);
    struct amdgpu_bo_metadata metadata = {0};
    uint32_t tiling_flags = 0;
-
-   /* Tiling determines how DRM treats the buffer data.
-     * We must flush CS when changing it if the buffer is referenced. */
-   if (cs && amdgpu_bo_is_referenced_by_cs(cs, bo)) {
-      cs->flush_cs(cs->flush_data, 0, NULL);
-   }
-
-   while (p_atomic_read(&bo->num_active_ioctls)) {
-      sched_yield();
-   }
 
    if (macrotiled == RADEON_LAYOUT_TILED)
       tiling_flags |= AMDGPU_TILING_SET(ARRAY_MODE, 4); /* 2D_TILED_THIN1 */
