@@ -73,7 +73,8 @@ static struct amdgpu_winsys_bo *get_amdgpu_winsys_bo(struct pb_buffer *_buf)
    return bo;
 }
 
-static void amdgpu_bo_wait(struct pb_buffer *_buf, enum radeon_bo_usage usage)
+static bool amdgpu_bo_wait(struct pb_buffer *_buf, uint64_t timeout,
+                           enum radeon_bo_usage usage)
 {
    struct amdgpu_winsys_bo *bo = get_amdgpu_winsys_bo(_buf);
    struct radeon_winsys *ws = &bo->rws->base;
@@ -82,22 +83,10 @@ static void amdgpu_bo_wait(struct pb_buffer *_buf, enum radeon_bo_usage usage)
       sched_yield();
    }
 
-   if (bo->fence) {
-      ws->fence_wait(ws, bo->fence, PIPE_TIMEOUT_INFINITE);
-   }
-}
+   if (!bo->fence)
+      return true;
 
-static boolean amdgpu_bo_is_busy(struct pb_buffer *_buf,
-                                 enum radeon_bo_usage usage)
-{
-   struct amdgpu_winsys_bo *bo = get_amdgpu_winsys_bo(_buf);
-   struct radeon_winsys *ws = &bo->rws->base;
-
-   if (p_atomic_read(&bo->num_active_ioctls)) {
-      return TRUE;
-   }
-
-   return bo->fence && !ws->fence_wait(ws, bo->fence, 0);
+   return ws->fence_wait(ws, bo->fence, timeout);
 }
 
 static enum radeon_bo_domain amdgpu_bo_get_initial_domain(
@@ -147,8 +136,8 @@ static void *amdgpu_bo_map(struct radeon_winsys_cs_handle *buf,
                return NULL;
             }
 
-            if (amdgpu_bo_is_busy((struct pb_buffer*)bo,
-                                  RADEON_USAGE_WRITE)) {
+            if (!amdgpu_bo_wait((struct pb_buffer*)bo, 0,
+                                RADEON_USAGE_WRITE)) {
                return NULL;
             }
          } else {
@@ -157,8 +146,8 @@ static void *amdgpu_bo_map(struct radeon_winsys_cs_handle *buf,
                return NULL;
             }
 
-            if (amdgpu_bo_is_busy((struct pb_buffer*)bo,
-                                  RADEON_USAGE_READWRITE)) {
+            if (!amdgpu_bo_wait((struct pb_buffer*)bo, 0,
+                                RADEON_USAGE_READWRITE)) {
                return NULL;
             }
          }
@@ -177,7 +166,7 @@ static void *amdgpu_bo_map(struct radeon_winsys_cs_handle *buf,
                                                                RADEON_USAGE_WRITE)) {
                cs->flush_cs(cs->flush_data, 0, NULL);
             }
-            amdgpu_bo_wait((struct pb_buffer*)bo,
+            amdgpu_bo_wait((struct pb_buffer*)bo, PIPE_TIMEOUT_INFINITE,
                            RADEON_USAGE_WRITE);
          } else {
             /* Mapping for write. */
@@ -191,7 +180,8 @@ static void *amdgpu_bo_map(struct radeon_winsys_cs_handle *buf,
                }
             }
 
-            amdgpu_bo_wait((struct pb_buffer*)bo, RADEON_USAGE_READWRITE);
+            amdgpu_bo_wait((struct pb_buffer*)bo, PIPE_TIMEOUT_INFINITE,
+                           RADEON_USAGE_READWRITE);
          }
 
          bo->rws->buffer_wait_time += os_time_get_nano() - time;
@@ -317,7 +307,7 @@ static boolean amdgpu_bomgr_is_buffer_busy(struct pb_manager *_mgr,
       return TRUE;
    }
 
-   if (amdgpu_bo_is_busy((struct pb_buffer*)bo, RADEON_USAGE_READWRITE)) {
+   if (!amdgpu_bo_wait((struct pb_buffer*)bo, 0, RADEON_USAGE_READWRITE)) {
       return TRUE;
    }
 
@@ -663,7 +653,6 @@ void amdgpu_bomgr_init_functions(struct amdgpu_winsys *ws)
    ws->base.buffer_map = amdgpu_bo_map;
    ws->base.buffer_unmap = amdgpu_bo_unmap;
    ws->base.buffer_wait = amdgpu_bo_wait;
-   ws->base.buffer_is_busy = amdgpu_bo_is_busy;
    ws->base.buffer_create = amdgpu_bo_create;
    ws->base.buffer_from_handle = amdgpu_bo_from_handle;
    ws->base.buffer_from_ptr = amdgpu_bo_from_ptr;
