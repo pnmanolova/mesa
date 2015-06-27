@@ -179,8 +179,10 @@ amdgpu_ctx_query_reset_status(struct radeon_winsys_ctx *rwctx)
 static bool amdgpu_get_new_ib(struct amdgpu_cs *cs)
 {
    struct amdgpu_cs_context *cur_cs = cs->csc;
-   const unsigned max_ib_size = 16 * 1024 * 4;
-   const unsigned min_ib_size = 16 * 1024 * 4;
+   /* The maximum size is 4MB - 1B, which is unaligned.
+    * Use aligned size 4MB - 16B. */
+   const unsigned max_ib_size = (1024 * 1024 - 16) * 4;
+   const unsigned min_ib_size = 24 * 1024 * 4;
 
    cs->base.cdw = 0;
    cs->base.buf = NULL;
