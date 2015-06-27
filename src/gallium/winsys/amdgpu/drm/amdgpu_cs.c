@@ -74,46 +74,33 @@ bool amdgpu_fence_wait(struct pipe_fence_handle *fence, uint64_t timeout,
    struct amdgpu_fence *rfence = (struct amdgpu_fence*)fence;
    struct amdgpu_cs_query_fence query = {0};
    uint32_t expired;
+   int64_t abs_timeout;
    int r;
 
    /* XXX Access to rfence->signalled is racy here. */
    if (rfence->signalled)
       return true;
 
-   /* The fence may not have a number assigned if its IB is being
+   if (absolute)
+      abs_timeout = timeout;
+   else
+      abs_timeout = os_time_get_absolute_timeout(timeout);
+
+   /* The fence might not have a number assigned if its IB is being
     * submitted in the other thread right now. Wait until the submission
     * is done. */
-   if (rfence->submission_in_progress) {
-      if (!timeout) {
-         return FALSE;
-      } else if (timeout == PIPE_TIMEOUT_INFINITE) {
-         while (rfence->submission_in_progress)
-            sched_yield();
-      } else {
-         int64_t start_time = os_time_get_nano();
-         int64_t elapsed_time = 0;
-
-         while (rfence->submission_in_progress) {
-            elapsed_time = os_time_get_nano() - start_time;
-            if (elapsed_time >= timeout) {
-               return FALSE;
-            }
-            sched_yield();
-         }
-         timeout -= elapsed_time;
-      }
-   }
+   if (!os_wait_until_zero_abs_timeout(&rfence->submission_in_progress,
+                                       abs_timeout))
+      return false;
 
    /* Now use the libdrm query. */
-   query.timeout_ns = timeout;
+   query.timeout_ns = abs_timeout;
    query.fence = rfence->fence;
    query.context = rfence->ctx->ctx;
    query.ip_type = rfence->ip_type;
    query.ip_instance = 0;
    query.ring = rfence->ring;
-
-   if (absolute)
-      query.flags |= AMDGPU_QUERY_FENCE_TIMEOUT_IS_ABSOLUTE;
+   query.flags = AMDGPU_QUERY_FENCE_TIMEOUT_IS_ABSOLUTE;
 
    r = amdgpu_cs_query_fence_status(&query, &expired);
    if (r) {
