@@ -77,7 +77,6 @@ bool amdgpu_fence_wait(struct pipe_fence_handle *fence, uint64_t timeout,
    int64_t abs_timeout;
    int r;
 
-   /* XXX Access to rfence->signalled is racy here. */
    if (rfence->signalled)
       return true;
 
@@ -108,8 +107,13 @@ bool amdgpu_fence_wait(struct pipe_fence_handle *fence, uint64_t timeout,
       return FALSE;
    }
 
-   rfence->signalled = expired != 0;
-   return rfence->signalled;
+   if (expired) {
+      /* This variable can only transition from false to true, so it doesn't
+       * matter if threads race for it. */
+      rfence->signalled = true;
+      return true;
+   }
+   return false;
 }
 
 static bool amdgpu_fence_wait_rel_timeout(struct radeon_winsys *rws,

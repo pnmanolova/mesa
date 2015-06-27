@@ -108,9 +108,9 @@ struct amdgpu_fence {
    uint32_t ring;           /* ring index of the hw ip block */
 
    /* If the fence is unknown due to an IB still being submitted
-     * in the other thread. */
-   bool submission_in_progress;
-   bool signalled;
+    * in the other thread. */
+   volatile int submission_in_progress; /* bool (int for atomicity) */
+   volatile int signalled;              /* bool (int for atomicity) */
 };
 
 static INLINE void amdgpu_ctx_unref(struct amdgpu_ctx *ctx)
