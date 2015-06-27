@@ -105,7 +105,8 @@ struct amdgpu_fence {
    struct amdgpu_ctx *ctx;  /* submission context */
    uint64_t fence;          /* fence ID */
    unsigned ip_type;        /* which hw ip block the fence belongs to */
-   uint32_t ring;           /* ring index of the hw ip block */
+   unsigned ip_instance;    /* index of the HW ip block if there are more than 1 */
+   unsigned ring;           /* ring index of the hw ip block */
 
    /* If the fence is unknown due to an IB still being submitted
     * in the other thread. */

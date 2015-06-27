@@ -39,14 +39,16 @@
 /* FENCES */
 
 static struct pipe_fence_handle *
-amdgpu_fence_create(struct amdgpu_ctx *ctx, unsigned ip, uint32_t instance)
+amdgpu_fence_create(struct amdgpu_ctx *ctx, unsigned ip_type,
+                    unsigned ip_instance, unsigned ring)
 {
    struct amdgpu_fence *fence = CALLOC_STRUCT(amdgpu_fence);
 
    fence->reference.count = 1;
    fence->ctx = ctx;
-   fence->ip_type = ip;
-   fence->ring = instance;
+   fence->ip_type = ip_type;
+   fence->ip_instance = ip_instance;
+   fence->ring = ring;
    fence->submission_in_progress = true;
    p_atomic_inc(&ctx->refcount);
    return (struct pipe_fence_handle *)fence;
@@ -97,7 +99,7 @@ bool amdgpu_fence_wait(struct pipe_fence_handle *fence, uint64_t timeout,
    query.fence = rfence->fence;
    query.context = rfence->ctx->ctx;
    query.ip_type = rfence->ip_type;
-   query.ip_instance = 0;
+   query.ip_instance = rfence->ip_instance;
    query.ring = rfence->ring;
    query.flags = AMDGPU_QUERY_FENCE_TIMEOUT_IS_ABSOLUTE;
 
@@ -491,8 +493,9 @@ void amdgpu_cs_emit_ioctl_oneshot(struct amdgpu_cs *cs, struct amdgpu_cs_context
             continue;
 
          if (bo_fence->ctx == cs->ctx &&
-             bo_fence->ip_type == cs->cst->request.ip_type &&
-             bo_fence->ring == cs->cst->request.ring)
+             bo_fence->ip_type == csc->request.ip_type &&
+             bo_fence->ip_instance == csc->request.ip_instance &&
+             bo_fence->ring == csc->request.ring)
             continue;
 
          if (amdgpu_fence_wait((void *)bo_fence, 0, false))
@@ -662,6 +665,7 @@ static void amdgpu_cs_flush(struct radeon_winsys_cs *rcs,
       amdgpu_fence_reference(&cs->cst->fence, NULL);
       cs->cst->fence = amdgpu_fence_create(cs->ctx,
                                            cs->cst->request.ip_type,
+                                           cs->cst->request.ip_instance,
                                            cs->cst->request.ring);
 
       if (fence)
