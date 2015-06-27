@@ -226,9 +226,33 @@ static bool amdgpu_get_new_ib(struct amdgpu_cs *cs)
    return true;
 }
 
-static boolean amdgpu_init_cs_context(struct amdgpu_cs_context *csc)
+static boolean amdgpu_init_cs_context(struct amdgpu_cs_context *csc,
+                                      enum ring_type ring_type)
 {
    int i;
+
+   switch (ring_type) {
+   case RING_DMA:
+      csc->request.ip_type = AMDGPU_HW_IP_DMA;
+      break;
+
+   case RING_UVD:
+      csc->request.ip_type = AMDGPU_HW_IP_UVD;
+      break;
+
+   case RING_VCE:
+      csc->request.ip_type = AMDGPU_HW_IP_VCE;
+      break;
+
+   case RING_COMPUTE:
+      csc->request.ip_type = AMDGPU_HW_IP_COMPUTE;
+      break;
+
+   default:
+   case RING_GFX:
+      csc->request.ip_type = AMDGPU_HW_IP_GFX;
+      break;
+   }
 
    csc->request.number_of_ibs = 1;
    csc->request.ibs = &csc->ib;
@@ -313,11 +337,11 @@ amdgpu_cs_create(struct radeon_winsys_ctx *rwctx,
    cs->flush_cs = flush;
    cs->flush_data = flush_ctx;
 
-   if (!amdgpu_init_cs_context(&cs->csc1)) {
+   if (!amdgpu_init_cs_context(&cs->csc1, ring_type)) {
       FREE(cs);
       return NULL;
    }
-   if (!amdgpu_init_cs_context(&cs->csc2)) {
+   if (!amdgpu_init_cs_context(&cs->csc2, ring_type)) {
       amdgpu_destroy_cs_context(&cs->csc1);
       FREE(cs);
       return NULL;
@@ -637,29 +661,6 @@ static void amdgpu_cs_flush(struct radeon_winsys_cs *rcs,
       for (i = 0; i < num_buffers; i++) {
          /* Update the number of active asynchronous CS ioctls for the buffer. */
          p_atomic_inc(&cs->cst->buffers[i].bo->num_active_ioctls);
-      }
-
-      switch (cs->base.ring_type) {
-      case RING_DMA:
-         cs->cst->request.ip_type = AMDGPU_HW_IP_DMA;
-         break;
-
-      case RING_UVD:
-         cs->cst->request.ip_type = AMDGPU_HW_IP_UVD;
-         break;
-
-      case RING_VCE:
-         cs->cst->request.ip_type = AMDGPU_HW_IP_VCE;
-         break;
-
-      case RING_COMPUTE:
-         cs->cst->request.ip_type = AMDGPU_HW_IP_COMPUTE;
-         break;
-
-      default:
-      case RING_GFX:
-         cs->cst->request.ip_type = AMDGPU_HW_IP_GFX;
-         break;
       }
 
       amdgpu_fence_reference(&cs->cst->fence, NULL);
