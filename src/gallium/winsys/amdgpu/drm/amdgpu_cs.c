@@ -652,13 +652,13 @@ static void amdgpu_cs_flush(struct radeon_winsys_cs *rcs,
          cs->cst->request.ip_type = AMDGPU_HW_IP_VCE;
          break;
 
+      case RING_COMPUTE:
+         cs->cst->request.ip_type = AMDGPU_HW_IP_COMPUTE;
+         break;
+
       default:
       case RING_GFX:
-         if (flags & RADEON_FLUSH_COMPUTE) {
-            cs->cst->request.ip_type = AMDGPU_HW_IP_COMPUTE;
-         } else {
-            cs->cst->request.ip_type = AMDGPU_HW_IP_GFX;
-         }
+         cs->cst->request.ip_type = AMDGPU_HW_IP_GFX;
          break;
       }
 
