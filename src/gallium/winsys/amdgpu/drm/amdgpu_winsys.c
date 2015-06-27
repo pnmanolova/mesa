@@ -491,7 +491,7 @@ struct radeon_winsys *
    ws->kman = amdgpu_bomgr_create(ws);
    if (!ws->kman)
       goto fail;
-   ws->cman = pb_cache_manager_create(ws->kman, 1000000, 2.0f, 0,
+   ws->cman = pb_cache_manager_create(ws->kman, 500000, 2.0f, 0,
 			(ws->info.vram_size + ws->info.gart_size) / 8);
    if (!ws->cman)
       goto fail;
