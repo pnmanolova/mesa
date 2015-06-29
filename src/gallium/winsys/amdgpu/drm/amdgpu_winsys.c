@@ -59,8 +59,8 @@
 #define     CIK__PIPE_CONFIG__ADDR_SURF_P16_32X32_8X16   16
 #define     CIK__PIPE_CONFIG__ADDR_SURF_P16_32X32_16X16  17
 
-static struct util_hash_table *fd_tab = NULL;
-pipe_static_mutex(fd_tab_mutex);
+static struct util_hash_table *dev_tab = NULL;
+pipe_static_mutex(dev_tab_mutex);
 
 static unsigned cik_get_num_tile_pipes(struct amdgpu_gpu_info *info)
 {
@@ -110,13 +110,6 @@ static boolean do_winsys_init(struct amdgpu_winsys *ws)
    struct drm_amdgpu_info_hw_ip dma = {}, uvd = {}, vce = {};
    uint32_t vce_version = 0, vce_feature = 0;
    int r;
-
-   r = amdgpu_device_initialize(ws->fd, &ws->info.drm_major,
-                                &ws->info.drm_minor, &ws->dev);
-   if (r) {
-      fprintf(stderr, "amdgpu: amdgpu_device_initialize failed.\n");
-      return FALSE;
-   }
 
    /* Query hardware and driver information. */
    r = amdgpu_query_gpu_info(ws->dev, &ws->amdinfo);
@@ -359,26 +352,18 @@ static void amdgpu_read_registers(struct radeon_winsys *rws,
                             0xffffffff, 0, out);
 }
 
-static unsigned hash_fd(void *key)
+static unsigned hash_dev(void *key)
 {
-   int fd = pointer_to_intptr(key);
-   struct stat stat;
-   fstat(fd, &stat);
-
-   return stat.st_dev ^ stat.st_ino ^ stat.st_rdev;
+#if defined(PIPE_ARCH_X86_64)
+   return pointer_to_intptr(key) ^ (pointer_to_intptr(key) >> 32);
+#else
+   return pointer_to_intptr(key);
+#endif
 }
 
-static int compare_fd(void *key1, void *key2)
+static int compare_dev(void *key1, void *key2)
 {
-   int fd1 = pointer_to_intptr(key1);
-   int fd2 = pointer_to_intptr(key2);
-   struct stat stat1, stat2;
-   fstat(fd1, &stat1);
-   fstat(fd2, &stat2);
-
-   return stat1.st_dev != stat2.st_dev ||
-          stat1.st_ino != stat2.st_ino ||
-          stat1.st_rdev != stat2.st_rdev;
+   return key1 != key2;
 }
 
 void amdgpu_ws_queue_cs(struct amdgpu_winsys *ws, struct amdgpu_cs *cs)
@@ -436,17 +421,18 @@ static bool amdgpu_winsys_unref(struct radeon_winsys *ws)
    struct amdgpu_winsys *rws = (struct amdgpu_winsys*)ws;
    bool destroy;
 
-   /* When the reference counter drops to zero, remove the fd from the table.
+   /* When the reference counter drops to zero, remove the device pointer
+    * from the table.
     * This must happen while the mutex is locked, so that
     * amdgpu_winsys_create in another thread doesn't get the winsys
     * from the table when the counter drops to 0. */
-   pipe_mutex_lock(fd_tab_mutex);
+   pipe_mutex_lock(dev_tab_mutex);
 
    destroy = pipe_reference(&rws->reference, NULL);
-   if (destroy && fd_tab)
-      util_hash_table_remove(fd_tab, intptr_to_pointer(rws->fd));
+   if (destroy && dev_tab)
+      util_hash_table_remove(dev_tab, rws->dev);
 
-   pipe_mutex_unlock(fd_tab_mutex);
+   pipe_mutex_unlock(dev_tab_mutex);
    return destroy;
 }
 
@@ -455,6 +441,8 @@ struct radeon_winsys *
 {
    struct amdgpu_winsys *ws;
    drmVersionPtr version = drmGetVersion(fd);
+   amdgpu_device_handle dev;
+   uint32_t drm_major, drm_minor, r;
 
    /* The DRM driver version of amdgpu is 3.x.x. */
    if (version->version_major != 3) {
@@ -463,26 +451,38 @@ struct radeon_winsys *
    }
    drmFreeVersion(version);
 
-   /* Look up the winsys from the fd table. */
-   pipe_mutex_lock(fd_tab_mutex);
-   if (!fd_tab) {
-      fd_tab = util_hash_table_create(hash_fd, compare_fd);
-   }
+   /* Look up the winsys from the dev table. */
+   pipe_mutex_lock(dev_tab_mutex);
+   if (!dev_tab)
+      dev_tab = util_hash_table_create(hash_dev, compare_dev);
 
-   ws = util_hash_table_get(fd_tab, intptr_to_pointer(fd));
-   if (ws) {
-      pipe_reference(NULL, &ws->reference);
-      pipe_mutex_unlock(fd_tab_mutex);
-      return &ws->base;
-   }
-
-   ws = CALLOC_STRUCT(amdgpu_winsys);
-   if (!ws) {
-      pipe_mutex_unlock(fd_tab_mutex);
+   /* Initialize the amdgpu device. This should always return the same pointer
+    * for the same fd. */
+   r = amdgpu_device_initialize(fd, &drm_major, &drm_minor, &dev);
+   if (r) {
+      pipe_mutex_unlock(dev_tab_mutex);
+      fprintf(stderr, "amdgpu: amdgpu_device_initialize failed.\n");
       return NULL;
    }
 
-   ws->fd = fd;
+   /* Lookup a winsys if we have already created one for this device. */
+   ws = util_hash_table_get(dev_tab, dev);
+   if (ws) {
+      pipe_reference(NULL, &ws->reference);
+      pipe_mutex_unlock(dev_tab_mutex);
+      return &ws->base;
+   }
+
+   /* Create a new winsys. */
+   ws = CALLOC_STRUCT(amdgpu_winsys);
+   if (!ws) {
+      pipe_mutex_unlock(dev_tab_mutex);
+      return NULL;
+   }
+
+   ws->dev = dev;
+   ws->info.drm_major = drm_major;
+   ws->info.drm_minor = drm_minor;
 
    if (!do_winsys_init(ws))
       goto fail;
@@ -526,21 +526,21 @@ struct radeon_winsys *
    ws->base.screen = screen_create(&ws->base);
    if (!ws->base.screen) {
       amdgpu_winsys_destroy(&ws->base);
-      pipe_mutex_unlock(fd_tab_mutex);
+      pipe_mutex_unlock(dev_tab_mutex);
       return NULL;
    }
 
-   util_hash_table_set(fd_tab, intptr_to_pointer(fd), ws);
+   util_hash_table_set(dev_tab, dev, ws);
 
    /* We must unlock the mutex once the winsys is fully initialized, so that
     * other threads attempting to create the winsys from the same fd will
     * get a fully initialized winsys and not just half-way initialized. */
-   pipe_mutex_unlock(fd_tab_mutex);
+   pipe_mutex_unlock(dev_tab_mutex);
 
    return &ws->base;
 
 fail:
-   pipe_mutex_unlock(fd_tab_mutex);
+   pipe_mutex_unlock(dev_tab_mutex);
    if (ws->cman)
       ws->cman->destroy(ws->cman);
    if (ws->kman)

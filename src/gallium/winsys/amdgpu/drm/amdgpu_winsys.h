@@ -43,7 +43,6 @@ struct amdgpu_winsys {
    struct radeon_winsys base;
    struct pipe_reference reference;
 
-   int fd; /* DRM file descriptor */
    amdgpu_device_handle dev;
 
    int num_cs; /* The number of command streams created. */
