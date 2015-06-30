@@ -157,9 +157,9 @@ static void amdgpu_bo_destroy(struct pb_buffer *_buf)
       amdgpu_fence_reference(&bo->fence[i], NULL);
 
    if (bo->initial_domain & RADEON_DOMAIN_VRAM)
-      bo->rws->allocated_vram -= align(bo->base.size, 4096);
+      bo->rws->allocated_vram -= align(bo->base.size, bo->rws->gart_page_size);
    else if (bo->initial_domain & RADEON_DOMAIN_GTT)
-      bo->rws->allocated_gtt -= align(bo->base.size, 4096);
+      bo->rws->allocated_gtt -= align(bo->base.size, bo->rws->gart_page_size);
    FREE(bo);
 }
 
@@ -339,9 +339,9 @@ static struct pb_buffer *amdgpu_bomgr_create_bo(struct pb_manager *_mgr,
    bo->unique_id = __sync_fetch_and_add(&rws->next_bo_unique_id, 1);
 
    if (rdesc->initial_domain & RADEON_DOMAIN_VRAM)
-      rws->allocated_vram += align(size, 4096);
+      rws->allocated_vram += align(size, rws->gart_page_size);
    else if (rdesc->initial_domain & RADEON_DOMAIN_GTT)
-      rws->allocated_gtt += align(size, 4096);
+      rws->allocated_gtt += align(size, rws->gart_page_size);
 
    return &bo->base;
 }
@@ -534,7 +534,7 @@ amdgpu_bo_create(struct radeon_winsys *rws,
     * BOs. Aligning this here helps the cached bufmgr. Especially small BOs,
     * like constant/uniform buffers, can benefit from better and more reuse.
     */
-   size = align(size, 4096);
+   size = align(size, ws->gart_page_size);
 
    /* Only set one usage bit each for domains and flags, or the cache manager
     * might consider different sets of domains / flags compatible
@@ -623,9 +623,9 @@ static struct pb_buffer *amdgpu_bo_from_handle(struct radeon_winsys *rws,
       *stride = whandle->stride;
 
    if (bo->initial_domain & RADEON_DOMAIN_VRAM)
-      ws->allocated_vram += align(bo->base.size, 4096);
+      ws->allocated_vram += align(bo->base.size, ws->gart_page_size);
    else if (bo->initial_domain & RADEON_DOMAIN_GTT)
-      ws->allocated_gtt += align(bo->base.size, 4096);
+      ws->allocated_gtt += align(bo->base.size, ws->gart_page_size);
 
    return &bo->base;
 }
@@ -689,7 +689,7 @@ static struct pb_buffer *amdgpu_bo_from_ptr(struct radeon_winsys *rws,
     bo->initial_domain = RADEON_DOMAIN_GTT;
     bo->unique_id = __sync_fetch_and_add(&ws->next_bo_unique_id, 1);
 
-    ws->allocated_gtt += align(bo->base.size, 4096);
+    ws->allocated_gtt += align(bo->base.size, ws->gart_page_size);
 
     return (struct pb_buffer*)bo;
 }

@@ -106,6 +106,7 @@ static unsigned r600_get_gb_tiling_config(struct amdgpu_gpu_info *info)
 /* Helper function to do the ioctls needed for setup and init. */
 static boolean do_winsys_init(struct amdgpu_winsys *ws)
 {
+   struct amdgpu_buffer_size_alignments alignment_info = {};
    struct amdgpu_heap_info vram, gtt;
    struct drm_amdgpu_info_hw_ip dma = {}, uvd = {}, vce = {};
    uint32_t vce_version = 0, vce_feature = 0;
@@ -115,6 +116,12 @@ static boolean do_winsys_init(struct amdgpu_winsys *ws)
    r = amdgpu_query_gpu_info(ws->dev, &ws->amdinfo);
    if (r) {
       fprintf(stderr, "amdgpu: amdgpu_query_gpu_info failed.\n");
+      goto fail;
+   }
+
+   r = amdgpu_query_buffer_size_alignment(ws->dev, &alignment_info);
+   if (r) {
+      fprintf(stderr, "amdgpu: amdgpu_query_buffer_size_alignment failed.\n");
       goto fail;
    }
 
@@ -259,6 +266,8 @@ static boolean do_winsys_init(struct amdgpu_winsys *ws)
    memcpy(ws->info.cik_macrotile_mode_array, ws->amdinfo.gb_macro_tile_mode,
           sizeof(ws->amdinfo.gb_macro_tile_mode));
    ws->info.cik_macrotile_mode_array_valid = TRUE;
+
+   ws->gart_page_size = alignment_info.size_remote;
 
    return TRUE;
 
