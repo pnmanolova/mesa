@@ -605,7 +605,7 @@ static boolean radeon_bomgr_is_buffer_busy(struct pb_manager *_mgr,
        return TRUE;
    }
 
-   if (radeon_bo_is_busy((struct pb_buffer*)bo, RADEON_USAGE_READWRITE)) {
+   if (!radeon_bo_wait((struct pb_buffer*)bo, 0, RADEON_USAGE_READWRITE)) {
        return TRUE;
    }
 
