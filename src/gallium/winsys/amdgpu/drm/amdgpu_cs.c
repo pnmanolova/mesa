@@ -95,15 +95,16 @@ bool amdgpu_fence_wait(struct pipe_fence_handle *fence, uint64_t timeout,
       return false;
 
    /* Now use the libdrm query. */
-   query.timeout_ns = abs_timeout;
    query.fence = rfence->fence;
    query.context = rfence->ctx->ctx;
    query.ip_type = rfence->ip_type;
    query.ip_instance = rfence->ip_instance;
    query.ring = rfence->ring;
-   query.flags = AMDGPU_QUERY_FENCE_TIMEOUT_IS_ABSOLUTE;
 
-   r = amdgpu_cs_query_fence_status(&query, &expired);
+   r = amdgpu_cs_query_fence_status(&query,
+				    abs_timeout,
+				    AMDGPU_QUERY_FENCE_TIMEOUT_IS_ABSOLUTE,
+				    &expired);
    if (r) {
       fprintf(stderr, "amdgpu: amdgpu_cs_query_fence_status failed.\n");
       return FALSE;
