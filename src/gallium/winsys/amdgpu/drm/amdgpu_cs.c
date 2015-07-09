@@ -74,7 +74,7 @@ bool amdgpu_fence_wait(struct pipe_fence_handle *fence, uint64_t timeout,
                        bool absolute)
 {
    struct amdgpu_fence *rfence = (struct amdgpu_fence*)fence;
-   struct amdgpu_cs_query_fence query = {0};
+   struct amdgpu_cs_fence query = {0};
    uint32_t expired;
    int64_t abs_timeout;
    int r;
@@ -510,7 +510,7 @@ void amdgpu_cs_emit_ioctl_oneshot(struct amdgpu_cs *cs, struct amdgpu_cs_context
    pipe_mutex_lock(ws->bo_fence_lock);
    for (i = 0; i < csc->num_buffers; i++) {
       for (j = 0; j < RING_LAST; j++) {
-         struct amdgpu_cs_dep_info *dep;
+         struct amdgpu_cs_fence *dep;
          unsigned idx;
 
          struct amdgpu_fence *bo_fence = (void *)csc->buffers[i].bo->fence[j];
@@ -531,7 +531,7 @@ void amdgpu_cs_emit_ioctl_oneshot(struct amdgpu_cs *cs, struct amdgpu_cs_context
             unsigned size;
 
             csc->max_dependencies = idx + 8;
-            size = csc->max_dependencies * sizeof(struct amdgpu_cs_dep_info);
+            size = csc->max_dependencies * sizeof(struct amdgpu_cs_fence);
             csc->request.dependencies = realloc(csc->request.dependencies, size);
          }
 
