@@ -1048,6 +1048,7 @@ struct __DRIdri2LoaderExtensionRec {
  */
 #define __DRI_CTX_FLAG_ROBUST_BUFFER_ACCESS	0x00000004
 
+#define __DRI_CTX_FLAG_RESET_ISOLATION	0x00000008
 /**
  * \name Context reset strategies.
  */
@@ -1544,6 +1545,22 @@ struct __DRI2configQueryExtensionRec {
 
 typedef struct __DRIrobustnessExtensionRec __DRIrobustnessExtension;
 struct __DRIrobustnessExtensionRec {
+   __DRIextension base;
+};
+
+#define __DRI2_ROBUSTNESS_APPLICATION_ISOLATION "DRI_RobustnessApplicationIsolation"
+#define __DRI2_ROBUSTNESS_APPLICATION_ISOLATION_VERSION 1
+
+typedef struct __DRIrobustnessApplicationIsolationExtensionRec __DRIrobustnessApplicationIsolationExtension;
+struct __DRIrobustnessApplicationIsolationExtensionRec {
+   __DRIextension base;
+};
+
+#define __DRI2_ROBUSTNESS_SHARE_GROUP_ISOLATION "DRI_RobustnessShareGroupIsolation"
+#define __DRI2_ROBUSTNESS_SHARE_GROUP_ISOLATION_VERSION 1
+
+typedef struct __DRIrobustnessShareGroupIsolationExtensionRec __DRIrobustnessShareGroupIsolationExtension;
+struct __DRIrobustnessShareGroupIsolationExtensionRec {
    __DRIextension base;
 };
 

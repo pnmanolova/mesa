@@ -139,6 +139,8 @@ static const struct extension_info known_glx_extensions[] = {
    { GLX(ARB_framebuffer_sRGB),        VER(0,0), Y, Y, N, N },
    { GLX(ARB_get_proc_address),        VER(1,4), Y, N, Y, N },
    { GLX(ARB_multisample),             VER(1,4), Y, Y, N, N },
+   { GLX(ARB_robustness_application_isolation), VER(0,0), Y, Y, N, N },
+   { GLX(ARB_robustness_share_group_isolation), VER(0,0), Y, Y, N, N },
    { GLX(ATI_pixel_format_float),      VER(0,0), N, N, N, N },
    { GLX(EXT_import_context),          VER(0,0), Y, Y, N, N },
    { GLX(EXT_visual_info),             VER(0,0), Y, Y, N, N },

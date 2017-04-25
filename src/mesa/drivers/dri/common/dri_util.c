@@ -402,8 +402,9 @@ driCreateContextAttribs(__DRIscreen *screen, int api,
      */
     if (mesa_api != API_OPENGL_COMPAT
         && mesa_api != API_OPENGL_CORE
-        && (flags & ~(__DRI_CTX_FLAG_DEBUG |
-	              __DRI_CTX_FLAG_ROBUST_BUFFER_ACCESS))) {
+        && (flags & ~(__DRI_CTX_FLAG_DEBUG
+                      | __DRI_CTX_FLAG_ROBUST_BUFFER_ACCESS
+                      | __DRI_CTX_FLAG_RESET_ISOLATION))) {
 	*error = __DRI_CTX_ERROR_BAD_FLAG;
 	return NULL;
     }
@@ -425,7 +426,8 @@ driCreateContextAttribs(__DRIscreen *screen, int api,
 
     const uint32_t allowed_flags = (__DRI_CTX_FLAG_DEBUG
                                     | __DRI_CTX_FLAG_FORWARD_COMPATIBLE
-                                    | __DRI_CTX_FLAG_ROBUST_BUFFER_ACCESS);
+                                    | __DRI_CTX_FLAG_ROBUST_BUFFER_ACCESS
+                                    | __DRI_CTX_FLAG_RESET_ISOLATION);
     if (flags & ~allowed_flags) {
 	*error = __DRI_CTX_ERROR_UNKNOWN_FLAG;
 	return NULL;

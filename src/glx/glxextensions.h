@@ -43,6 +43,8 @@ enum
    ARB_fbconfig_float_bit,
    ARB_get_proc_address_bit,
    ARB_multisample_bit,
+   ARB_robustness_application_isolation_bit,
+   ARB_robustness_share_group_isolation_bit,
    ATI_pixel_format_float_bit,
    EXT_visual_info_bit,
    EXT_visual_rating_bit,

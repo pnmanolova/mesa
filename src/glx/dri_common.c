@@ -567,7 +567,8 @@ dri2_convert_glx_attribs(unsigned num_attribs, const uint32_t *attribs,
    /* Unknown flag value.
     */
    if (*flags & ~(__DRI_CTX_FLAG_DEBUG | __DRI_CTX_FLAG_FORWARD_COMPATIBLE
-                  | __DRI_CTX_FLAG_ROBUST_BUFFER_ACCESS)) {
+                  | __DRI_CTX_FLAG_ROBUST_BUFFER_ACCESS
+                  | __DRI_CTX_FLAG_RESET_ISOLATION)) {
       *error = __DRI_CTX_ERROR_UNKNOWN_FLAG;
       return false;
    }

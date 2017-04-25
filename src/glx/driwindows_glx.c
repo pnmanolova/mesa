@@ -419,6 +419,8 @@ driwindowsBindExtensions(struct driwindows_screen *psc)
       { "WGL_ARB_create_context_profile", "GLX_ARB_create_context_profile", 0 },
       { "WGL_ARB_create_context_robustness", "GLX_ARB_create_context_robustness", 0 },
       { "WGL_EXT_create_context_es2_profile", "GLX_EXT_create_context_es2_profile", 0 },
+      { "WGL_ARB_robustness_application_isolation", "GLX_ARB_robustness_application_isolation", 0},
+      { "WGL_ARB_robustness_share_group_isolation", "GLX_ARB_robustness_share_group_isolation", 0},
    };
 
    char *wgl_extensions;

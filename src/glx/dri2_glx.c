@@ -1146,6 +1146,14 @@ dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
          __glXEnableDirectExtension(&psc->base,
                                     "GLX_ARB_create_context_robustness");
 
+      if (psc->dri2->base.version >= 3
+          && strcmp(extensions[i]->name, __DRI2_ROBUSTNESS_APPLICATION_ISOLATION) == 0)
+         __glXEnableDirectExtension(&psc->base, "GLX_ARB_robustness_application_isolation");
+
+      if (psc->dri2->base.version >= 3
+          && strcmp(extensions[i]->name, __DRI2_ROBUSTNESS_SHARE_GROUP_ISOLATION) == 0)
+         __glXEnableDirectExtension(&psc->base, "GLX_ARB_robustness_share_group_isolation");
+
       /* DRI2 version 3 is also required because GLX_MESA_query_renderer
        * requires GLX_ARB_create_context_profile.
        */

@@ -738,6 +738,12 @@ dri3_bind_extensions(struct dri3_screen *psc, struct glx_display * priv,
          __glXEnableDirectExtension(&psc->base,
                                     "GLX_ARB_create_context_robustness");
 
+      if (strcmp(extensions[i]->name, __DRI2_ROBUSTNESS_APPLICATION_ISOLATION) == 0)
+         __glXEnableDirectExtension(&psc->base, "GLX_ARB_robustness_application_isolation");
+
+      if (strcmp(extensions[i]->name, __DRI2_ROBUSTNESS_SHARE_GROUP_ISOLATION) == 0)
+         __glXEnableDirectExtension(&psc->base, "GLX_ARB_robustness_share_group_isolation");
+
       if (strcmp(extensions[i]->name, __DRI2_RENDERER_QUERY) == 0) {
          psc->rendererQuery = (__DRI2rendererQueryExtension *) extensions[i];
          __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");
