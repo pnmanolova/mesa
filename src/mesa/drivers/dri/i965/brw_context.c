@@ -971,6 +971,9 @@ brwCreateContext(gl_api api,
    if (screen->has_context_reset_notification)
       allowed_flags |= __DRI_CTX_FLAG_ROBUST_BUFFER_ACCESS;
 
+   if (screen->has_context_reset_notification_isolation)
+      allowed_flags |= __DRI_CTX_FLAG_RESET_ISOLATION;
+
    if (flags & ~allowed_flags) {
       *dri_ctx_error = __DRI_CTX_ERROR_UNKNOWN_FLAG;
       return false;
@@ -1146,6 +1149,33 @@ brwCreateContext(gl_api api,
    if ((flags & __DRI_CTX_FLAG_ROBUST_BUFFER_ACCESS) != 0) {
       ctx->Const.ContextFlags |= GL_CONTEXT_FLAG_ROBUST_ACCESS_BIT_ARB;
       ctx->Const.RobustAccess = GL_TRUE;
+   }
+
+   if ((flags & __DRI_CTX_FLAG_RESET_ISOLATION) != 0) {
+      if (ctx->Extensions.ARB_robustness_isolation) {
+         if (ctx->Const.ResetStrategy == GL_LOSE_CONTEXT_ON_RESET_ARB) {
+            struct drm_i915_gem_context_param param = {
+               .ctx_id = brw->hw_ctx,
+               .size = 0,
+               .param = I915_CONTEXT_PARAM_RESET_STRATEGY,
+               .value = I915_RESET_STRATEGY_GUILTY_ENGINES
+            };
+
+            /**
+             * __DRI_CTX_FLAG_RESET_ISOLATION and GLX_CONTEXT_RESET_ISOLATION_BIT_ARB
+             * are the same.
+             */
+            ctx->Const.ContextFlags |= __DRI_CTX_FLAG_RESET_ISOLATION;
+            if (drmIoctl(screen->driScrnPriv->fd,
+                DRM_IOCTL_I915_GEM_CONTEXT_SETPARAM, &param) != 0) {
+               *dri_ctx_error = __DRI_CTX_ERROR_BAD_FLAG;
+               return false;
+            }
+         }
+      } else {
+         *dri_ctx_error = __DRI_CTX_ERROR_UNKNOWN_FLAG;
+         return false;
+      }
    }
 
    if (INTEL_DEBUG & DEBUG_SHADER_TIME)

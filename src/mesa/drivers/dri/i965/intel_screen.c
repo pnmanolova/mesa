@@ -1044,6 +1044,14 @@ static const __DRIrobustnessExtension dri2Robustness = {
    .base = { __DRI2_ROBUSTNESS, 1 }
 };
 
+static const __DRIrobustnessApplicationIsolationExtension dri2RobustnessApplicationIsolation = {
+   .base = { __DRI2_ROBUSTNESS_APPLICATION_ISOLATION, 1 }
+};
+
+static const __DRIrobustnessShareGroupIsolationExtension dri2RobustnessShareGroupIsolation = {
+   .base = { __DRI2_ROBUSTNESS_SHARE_GROUP_ISOLATION, 1 }
+};
+
 static const __DRIextension *screenExtensions[] = {
     &intelTexBufferExtension.base,
     &intelFenceExtension.base,
@@ -1063,6 +1071,19 @@ static const __DRIextension *intelRobustScreenExtensions[] = {
     &dri2ConfigQueryExtension.base,
     &dri2Robustness.base,
     NULL
+};
+
+static const __DRIextension *intelRobustIsolatedScreenExtensions[] = {
+   &intelTexBufferExtension.base,
+   &intelFenceExtension.base,
+   &intelFlushExtension.base,
+   &intelImageExtension.base,
+   &intelRendererQueryExtension.base,
+   &dri2ConfigQueryExtension.base,
+   &dri2Robustness.base,
+   &dri2RobustnessApplicationIsolation.base,
+   &dri2RobustnessShareGroupIsolation.base,
+   NULL
 };
 
 static int
@@ -2047,17 +2068,30 @@ __DRIconfig **intelInitScreen2(__DRIscreen *dri_screen)
     * Don't even try on pre-Gen6, since we don't attempt to use contexts there.
     */
    if (devinfo->gen >= 6) {
+      int ret;
       struct drm_i915_reset_stats stats;
+      struct drm_i915_gem_context_param param = {
+         .ctx_id = 0,
+         .size = 0,
+         .param = I915_CONTEXT_PARAM_RESET_STRATEGY
+      };
+
       memset(&stats, 0, sizeof(stats));
 
-      const int ret = drmIoctl(dri_screen->fd, DRM_IOCTL_I915_GET_RESET_STATS, &stats);
+      ret = drmIoctl(dri_screen->fd, DRM_IOCTL_I915_GET_RESET_STATS, &stats);
 
       screen->has_context_reset_notification =
          (ret != -1 || errno != EINVAL);
+
+      ret = drmIoctl(dri_screen->fd, DRM_IOCTL_I915_GEM_CONTEXT_GETPARAM, &param);
+
+      screen->has_context_reset_notification_isolation = (ret != -1 ||
+         errno != EINVAL) && screen->has_context_reset_notification;
    }
 
    dri_screen->extensions = !screen->has_context_reset_notification
-      ? screenExtensions : intelRobustScreenExtensions;
+      ? screenExtensions : !screen->has_context_reset_notification_isolation
+         ? intelRobustScreenExtensions : intelRobustIsolatedScreenExtensions;
 
    screen->compiler = brw_compiler_create(screen, devinfo);
    screen->compiler->shader_debug_log = shader_debug_log_mesa;

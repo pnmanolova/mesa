@@ -65,6 +65,13 @@ struct intel_screen
    bool has_context_reset_notification;
 
    /**
+    * Does the kernel support isolated (per guilty context) context reset
+    * notifications?
+    */
+
+   bool has_context_reset_notification_isolation;
+
+   /**
     * Does the kernel support features such as pipelined register access to
     * specific registers?
     */

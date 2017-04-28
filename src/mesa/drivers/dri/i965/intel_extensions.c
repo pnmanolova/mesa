@@ -134,6 +134,10 @@ intelInitExtensions(struct gl_context *ctx)
    ctx->Extensions.OES_texture_half_float = true;
    ctx->Extensions.OES_texture_half_float_linear = true;
 
+   if (brw->screen->has_context_reset_notification_isolation) {
+      ctx->Extensions.ARB_robustness_isolation = true;
+   }
+
    if (brw->gen >= 8)
       ctx->Const.GLSLVersion = 450;
    else if (brw->is_haswell && can_do_pipelined_register_writes(brw->screen))
