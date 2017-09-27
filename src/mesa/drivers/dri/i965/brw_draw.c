@@ -593,26 +593,11 @@ brw_postdraw_reconcile_align_wa_slices(struct brw_context *brw)
    }
 }
 
-/* May fail if out of video memory for texture or vbo upload, or on
- * fallback conditions.
- */
 static void
-brw_try_draw_prims(struct gl_context *ctx,
-                   const struct gl_vertex_array *arrays[],
-                   const struct _mesa_prim *prims,
-                   GLuint nr_prims,
-                   const struct _mesa_index_buffer *ib,
-                   bool index_bounds_valid,
-                   GLuint min_index,
-                   GLuint max_index,
-                   struct brw_transform_feedback_object *xfb_obj,
-                   unsigned stream,
-                   struct gl_buffer_object *indirect)
+brw_prepare_drawing(struct gl_context *ctx,
+                    const struct gl_vertex_array *arrays[])
 {
    struct brw_context *brw = brw_context(ctx);
-   const struct gen_device_info *devinfo = &brw->screen->devinfo;
-   GLuint i;
-   bool fail_next = false;
 
    if (ctx->NewState)
       _mesa_update_state(ctx);
@@ -659,6 +644,28 @@ brw_try_draw_prims(struct gl_context *ctx,
    /* Bind all inputs, derive varying and size information:
     */
    brw_merge_inputs(brw, arrays);
+}
+
+/* May fail if out of video memory for texture or vbo upload, or on
+ * fallback conditions.
+ */
+static void
+brw_try_draw_prims(struct gl_context *ctx,
+                   const struct gl_vertex_array *arrays[],
+                   const struct _mesa_prim *prims,
+                   GLuint nr_prims,
+                   const struct _mesa_index_buffer *ib,
+                   bool index_bounds_valid,
+                   GLuint min_index,
+                   GLuint max_index,
+                   struct brw_transform_feedback_object *xfb_obj,
+                   unsigned stream,
+                   struct gl_buffer_object *indirect)
+{
+   struct brw_context *brw = brw_context(ctx);
+   const struct gen_device_info *devinfo = &brw->screen->devinfo;
+   GLuint i;
+   bool fail_next = false;
 
    brw->ib.ib = ib;
    brw->ctx.NewDriverState |= BRW_NEW_INDICES;
@@ -849,6 +856,7 @@ brw_draw_prims(struct gl_context *ctx,
       index_bounds_valid = true;
    }
 
+   brw_prepare_drawing(ctx, arrays);
    /* Try drawing with the hardware, but don't do anything else if we can't
     * manage it.  swrast doesn't support our featureset, so we can't fall back
     * to it.
