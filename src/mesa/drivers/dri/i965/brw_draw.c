@@ -646,6 +646,19 @@ brw_prepare_drawing(struct gl_context *ctx,
    brw_merge_inputs(brw, arrays);
 }
 
+static void
+brw_finish_drawing(struct gl_context *ctx)
+{
+   struct brw_context *brw = brw_context(ctx);
+
+   if (brw->always_flush_batch)
+      intel_batchbuffer_flush(brw);
+
+   brw_program_cache_check_size(brw);
+   brw_postdraw_reconcile_align_wa_slices(brw);
+   brw_postdraw_set_buffers_need_resolve(brw);
+}
+
 /* May fail if out of video memory for texture or vbo upload, or on
  * fallback conditions.
  */
@@ -796,13 +809,6 @@ retry:
          brw_render_state_finished(brw);
    }
 
-   if (brw->always_flush_batch)
-      intel_batchbuffer_flush(brw);
-
-   brw_program_cache_check_size(brw);
-   brw_postdraw_reconcile_align_wa_slices(brw);
-   brw_postdraw_set_buffers_need_resolve(brw);
-
    return;
 }
 
@@ -863,6 +869,8 @@ brw_draw_prims(struct gl_context *ctx,
     */
    brw_try_draw_prims(ctx, arrays, prims, nr_prims, ib, index_bounds_valid,
                       min_index, max_index, xfb_obj, stream, indirect);
+
+   brw_finish_drawing(ctx);
 }
 
 void
