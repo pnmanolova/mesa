@@ -1002,6 +1002,7 @@ struct brw_context
        * need in this case.
        */
       uint32_t surf_offset[BRW_MAX_SOL_BINDINGS];
+      uint64_t next_bindless_surf_offset;
    } ff_gs;
 
    struct {

@@ -288,6 +288,11 @@ intelInitExtensions(struct gl_context *ctx)
       ctx->Extensions.INTEL_conservative_rasterization = true;
       ctx->Extensions.MESA_shader_framebuffer_fetch = true;
       ctx->Extensions.ARB_post_depth_coverage = true;
+      ctx->Extensions.ARB_bindless_texture = true;
+   }
+
+   if (devinfo->gen > 9 || devinfo->is_kabylake) {
+      ctx->Extensions.ARB_bindless_texture = true;
    }
 
    if (gen_device_info_is_9lp(devinfo))

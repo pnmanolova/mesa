@@ -618,6 +618,7 @@ make_surface(struct brw_context *brw, GLenum target, mesa_format format,
    mt->compressed = _mesa_is_format_compressed(format);
    mt->drm_modifier = DRM_FORMAT_MOD_INVALID;
 
+   printf("ss offset: %i %i %i\n", brw->isl_dev.ss.addr_offset, mt->surf.alignment, mt->bo->gtt_offset);
    return mt;
 
 fail:

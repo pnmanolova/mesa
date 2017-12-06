@@ -175,6 +175,7 @@ brw_emit_surface_state(struct brw_context *brw,
                                  brw->isl_dev.ss.align,
                                  surf_offset);
 
+   printf("WM: STATE ADDRESS: %i %i\n", *surf_offset + brw->isl_dev.ss.addr_offset, offset);
    isl_surf_fill_state(&brw->isl_dev, state, .surf = &mt->surf, .view = &view,
                        .address = brw_state_reloc(&brw->batch,
                                                   *surf_offset + brw->isl_dev.ss.addr_offset,

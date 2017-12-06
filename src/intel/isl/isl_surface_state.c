@@ -507,6 +507,7 @@ isl_genX(surf_fill_state_s)(const struct isl_device *dev, void *state,
 #endif
 
    s.SurfaceBaseAddress = info->address;
+   printf("surface base address %i\n", info->address);
 
 #if GEN_GEN >= 6
    s.MOCS = info->mocs;

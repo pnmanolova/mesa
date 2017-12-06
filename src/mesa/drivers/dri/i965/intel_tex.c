@@ -382,6 +382,56 @@ intel_texture_barrier(struct gl_context *ctx)
    }
 }
 
+static GLuint64
+intel_new_texture_handle(struct gl_context *ctx,
+                         struct gl_texture_object *texObj,
+                         struct gl_sampler_object *sampObj)
+{
+   struct brw_context *brw = brw_context(ctx);
+   GLuint64 tex_handle = brw->ff_gs.next_bindless_surf_offset;
+
+   brw->ff_gs.next_bindless_surf_offset += brw->screen->isl_dev.ss.size;
+   return tex_handle;
+}
+
+static GLuint64
+intel_new_image_handle(struct gl_context *ctx,
+                       struct gl_image_unit *imgObj)
+{
+   struct brw_context *brw = brw_context(ctx);
+   GLuint64 tex_handle = brw->ff_gs.next_bindless_surf_offset;
+
+   brw->ff_gs.next_bindless_surf_offset += brw->screen->isl_dev.ss.size;
+   return tex_handle;
+}
+
+static void
+intel_delete_texture_handle(struct gl_context *ctx,
+                            GLuint64 handle)
+{
+}
+
+static void
+intel_delete_image_handle(struct gl_context *ctx,
+                          GLuint64 handle)
+{
+}
+
+static void
+intel_make_texture_handle_resident(struct gl_context *ctx,
+                                   GLuint64 handle,
+                                   bool resident)
+{
+}
+
+static void
+intel_make_image_handle_resident(struct gl_context *ctx,
+                                 GLuint64 handle,
+                                 GLenum access,
+                                 bool resident)
+{
+}
+
 void
 intelInitTextureFuncs(struct dd_function_table *functions)
 {
@@ -398,4 +448,16 @@ intelInitTextureFuncs(struct dd_function_table *functions)
    functions->SetTextureStorageForBufferObject =
       intel_set_texture_storage_for_buffer_object;
    functions->TextureBarrier = intel_texture_barrier;
+   functions->NewTextureHandle = intel_new_texture_handle;
+}
+
+void
+intelInitBindlessTextureFuncs(struct dd_function_table *functions)
+{
+   functions->NewTextureHandle = intel_new_texture_handle;
+   functions->NewImageHandle = intel_new_image_handle;
+   functions->DeleteTextureHandle = intel_delete_texture_handle;
+   functions->DeleteImageHandle = intel_delete_image_handle;
+   functions->MakeTextureHandleResident = intel_make_texture_handle_resident;
+   functions->MakeImageHandleResident = intel_make_image_handle_resident;
 }

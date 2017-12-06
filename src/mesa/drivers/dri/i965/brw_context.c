@@ -280,6 +280,7 @@ brw_init_driver_functions(struct brw_context *brw,
    functions->GetString = intel_get_string;
    functions->UpdateState = intel_update_state;
 
+   intelInitBindlessTextureFuncs(functions);
    intelInitTextureFuncs(functions);
    intelInitTextureImageFuncs(functions);
    intelInitTextureCopyImageFuncs(functions);
@@ -1010,6 +1011,7 @@ brwCreateContext(gl_api api,
 
    vbo_use_buffer_objects(ctx);
    vbo_always_unmap_buffers(ctx);
+   brw->ff_gs.next_bindless_surf_offset = 1;
 
    return true;
 }

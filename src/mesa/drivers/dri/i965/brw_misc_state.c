@@ -627,9 +627,18 @@ brw_upload_state_base_address(struct brw_context *brw)
                                 dc_flush);
    }
 
+   printf("State function. %i\n", devinfo->gen);
    if (devinfo->gen >= 8) {
       uint32_t mocs_wb = devinfo->gen >= 9 ? SKL_MOCS_WB : BDW_MOCS_WB;
-      int pkt_len = devinfo->gen >= 9 ? 19 : 16;
+      int pkt_len;
+
+      if (devinfo->gen < 9) {
+         pkt_len = 16;
+      } else if (devinfo->gen > 9 || devinfo->is_kabylake) {
+         pkt_len = 21;
+      } else {
+         pkt_len = 19;
+      }
 
       BEGIN_BATCH(pkt_len);
       OUT_BATCH(CMD_STATE_BASE_ADDRESS << 16 | (pkt_len - 2));
@@ -639,6 +648,7 @@ brw_upload_state_base_address(struct brw_context *brw)
       OUT_BATCH(mocs_wb << 16);
       /* Surface state base address: */
       OUT_RELOC64(brw->batch.state_bo, 0, mocs_wb << 4 | 1);
+      printf("Surface state base address: %i.\n", mocs_wb << 4 | 1);
       /* Dynamic state base address: */
       OUT_RELOC64(brw->batch.state_bo, 0, mocs_wb << 4 | 1);
       /* Indirect object base address: MEDIA_OBJECT data */
@@ -655,6 +665,13 @@ brw_upload_state_base_address(struct brw_context *brw)
       OUT_BATCH(0xfffff001);
       /* Instruction access upper bound */
       OUT_BATCH(ALIGN(brw->cache.bo->size, 4096) | 1);
+      if (devinfo->gen > 9 || devinfo->is_kabylake) {
+         /* Bindless surface state base address */
+         OUT_RELOC64(brw->batch.state_bo, 0, mocs_wb << 4 | 1);
+         /* Bindless surface state buffer size */
+         OUT_BATCH(ALIGN(brw->batch.state_bo->size, 4096) | 1);
+         printf("Setting bindless.\n");
+      }
       if (devinfo->gen >= 9) {
          OUT_BATCH(1);
          OUT_BATCH(0);
