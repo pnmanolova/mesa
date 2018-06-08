@@ -43,6 +43,10 @@ assign_cs_binding_table_offsets(const struct gen_device_info *devinfo,
    prog_data->binding_table.work_groups_start = next_binding_table_offset;
    next_binding_table_offset++;
 
+   /* May not be used if the work group size is not variable. */
+   prog_data->binding_table.work_group_size_start = next_binding_table_offset;
+   next_binding_table_offset++;
+
    brw_assign_common_binding_table_offsets(devinfo, prog, &prog_data->base,
                                            next_binding_table_offset);
 }
@@ -58,6 +62,8 @@ brw_codegen_cs_prog(struct brw_context *brw,
    struct brw_cs_prog_data prog_data;
    bool start_busy = false;
    double start_time = 0;
+   struct gl_context *gl_ctx = &brw->ctx;
+   nir_shader *src_shader = cp->program.nir;
 
    memset(&prog_data, 0, sizeof(prog_data));
 
@@ -88,6 +94,21 @@ brw_codegen_cs_prog(struct brw_context *brw,
    int st_index = -1;
    if (INTEL_DEBUG & DEBUG_SHADER_TIME)
       st_index = brw_get_shader_time_index(brw, &cp->program, ST_CS, true);
+
+
+   /*
+    * If the work group size is variable we set it to the maximum here since
+    * the actual size is not known until the dispatch command is issued.
+    */
+   if (src_shader->info.cs.local_size_variable) {
+      prog_data.uses_variable_group_size = true;
+      src_shader->info.cs.local_size[0] = 1;
+      src_shader->info.cs.local_size[1] = 1;
+      src_shader->info.cs.local_size[2] =
+         gl_ctx->Const.MaxComputeWorkGroupSize[2];
+   } else {
+      prog_data.uses_variable_group_size = false;
+   }
 
    char *error_str;
    program = brw_compile_cs(brw->screen->compiler, brw, mem_ctx, key,
