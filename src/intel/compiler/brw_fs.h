@@ -323,6 +323,9 @@ public:
    int *push_constant_loc;
 
    fs_reg subgroup_id;
+   fs_reg group_size_x;
+   fs_reg group_size_y;
+   fs_reg group_size_z;
    fs_reg frag_depth;
    fs_reg frag_stencil;
    fs_reg sample_mask;

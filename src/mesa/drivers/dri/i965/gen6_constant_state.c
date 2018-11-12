@@ -336,6 +336,12 @@ brw_upload_cs_push_constants(struct brw_context *brw,
          for ( ; src < prog_data->nr_params; src++, dst++) {
             if (prog_data->param[src] == BRW_PARAM_BUILTIN_SUBGROUP_ID) {
                param[dst] = t;
+            } else if (prog_data->param[src] == BRW_PARAM_BUILTIN_WORK_GROUP_SIZE_X) {
+               param[dst] = brw->compute.group_size[0];
+            } else if (prog_data->param[src] == BRW_PARAM_BUILTIN_WORK_GROUP_SIZE_Y) {
+               param[dst] = brw->compute.group_size[1];
+            } else if (prog_data->param[src] == BRW_PARAM_BUILTIN_WORK_GROUP_SIZE_Z) {
+               param[dst] = brw->compute.group_size[2];
             } else {
                param[dst] = brw_param_value(brw, prog, stage_state,
                                             prog_data->param[src]);

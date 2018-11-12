@@ -567,6 +567,9 @@ enum brw_param_builtin {
    BRW_PARAM_BUILTIN_BASE_WORK_GROUP_ID_Y,
    BRW_PARAM_BUILTIN_BASE_WORK_GROUP_ID_Z,
    BRW_PARAM_BUILTIN_SUBGROUP_ID,
+   BRW_PARAM_BUILTIN_WORK_GROUP_SIZE_X,
+   BRW_PARAM_BUILTIN_WORK_GROUP_SIZE_Y,
+   BRW_PARAM_BUILTIN_WORK_GROUP_SIZE_Z,
 };
 
 #define BRW_PARAM_BUILTIN_CLIP_PLANE(idx, comp) \
@@ -851,6 +854,7 @@ struct brw_cs_prog_data {
    unsigned threads;
    bool uses_barrier;
    bool uses_num_work_groups;
+   bool uses_variable_group_size;
 
    struct {
       struct brw_push_const_block cross_thread;
@@ -863,6 +867,7 @@ struct brw_cs_prog_data {
        * surface indices the CS-specific surfaces
        */
       uint32_t work_groups_start;
+      uint32_t work_group_size_start;
       /** @} */
    } binding_table;
 };

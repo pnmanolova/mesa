@@ -100,8 +100,21 @@ fs_visitor::nir_setup_uniforms()
       /* Add a uniform for the thread local id.  It must be the last uniform
        * on the list.
        */
-      assert(uniforms == prog_data->nr_params);
+      assert(uniforms > prog_data->nr_params - 4);
+
       uint32_t *param = brw_stage_prog_data_add_params(prog_data, 1);
+      *param = BRW_PARAM_BUILTIN_WORK_GROUP_SIZE_X;
+      group_size_x = fs_reg(UNIFORM, uniforms++, BRW_REGISTER_TYPE_UD);
+
+      param = brw_stage_prog_data_add_params(prog_data, 1);
+      *param = BRW_PARAM_BUILTIN_WORK_GROUP_SIZE_Y;
+      group_size_y = fs_reg(UNIFORM, uniforms++, BRW_REGISTER_TYPE_UD);
+
+      param = brw_stage_prog_data_add_params(prog_data, 1);
+      *param = BRW_PARAM_BUILTIN_WORK_GROUP_SIZE_Z;
+      group_size_z = fs_reg(UNIFORM, uniforms++, BRW_REGISTER_TYPE_UD);
+
+      param = brw_stage_prog_data_add_params(prog_data, 1);
       *param = BRW_PARAM_BUILTIN_SUBGROUP_ID;
       subgroup_id = fs_reg(UNIFORM, uniforms++, BRW_REGISTER_TYPE_UD);
    }
@@ -3662,6 +3675,14 @@ fs_visitor::nir_emit_cs_intrinsic(const fs_builder &bld,
       break;
    }
 
+   case nir_intrinsic_load_local_group_size: {
+      bld.MOV(retype(dest, BRW_REGISTER_TYPE_UD), group_size_x);
+      dest = offset(dest, bld, 1);
+      bld.MOV(retype(dest, BRW_REGISTER_TYPE_UD), group_size_y);
+      dest = offset(dest, bld, 1);
+      bld.MOV(retype(dest, BRW_REGISTER_TYPE_UD), group_size_z);
+      break;
+   }
    default:
       nir_emit_intrinsic(bld, instr);
       break;
