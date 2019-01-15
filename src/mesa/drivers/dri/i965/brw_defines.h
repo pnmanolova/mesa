@@ -1429,6 +1429,11 @@ enum brw_pixel_shader_coverage_mask_mode {
 #define MI_STORE_DATA_IMM		(CMD_MI | (0x20 << 23))
 #define MI_LOAD_REGISTER_IMM		(CMD_MI | (0x22 << 23))
 #define MI_LOAD_REGISTER_REG		(CMD_MI | (0x2A << 23))
+#define MI_ATOMIC    (CMD_MI | (0x2F << 23))
+# define MI_ATOMIC_RETURN_DATA_CONTROL    (1 << 16)
+# define MI_ATOMIC_CS_STALL    (1 << 17)
+# define MI_ATOMIC_INLINE_DATA    (1 << 18)
+# define MI_ATOMIC_DATA_SIZE_QWORD    (1 << 19)
 
 #define MI_FLUSH_DW			(CMD_MI | (0x26 << 23))
 
