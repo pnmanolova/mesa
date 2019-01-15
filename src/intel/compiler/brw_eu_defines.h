@@ -1207,6 +1207,7 @@ enum brw_message_target {
 #define BRW_AOP_UMIN                  13
 #define BRW_AOP_CMPWR                 14
 #define BRW_AOP_PREDEC                15
+#define BRW_AOP_MOV8                  36
 
 /* Dataport atomic operations for Untyped Atomic Float Operation message. */
 #define BRW_AOP_FMAX                  1
