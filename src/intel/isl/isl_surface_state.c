@@ -618,6 +618,13 @@ isl_genX(surf_fill_state_s)(const struct isl_device *dev, void *state,
          unreachable("Gen9 and earlier do not support indirect clear colors");
 #endif
       }
+
+#if GEN_GEN == 11
+      if (info->use_clear_address) {
+         s.ClearColorConversionEnable = true;
+      }
+#endif
+
 #if GEN_GEN >= 9
       if (!info->use_clear_address) {
          s.RedClearColor = info->clear_color.u32[0];
