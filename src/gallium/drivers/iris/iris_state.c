@@ -924,7 +924,11 @@ struct iris_genx_state {
 
    struct iris_depth_buffer_state depth_buffer;
 
+#if GEN_GEN >= 12
+   uint32_t so_buffers[4 * GENX(3DSTATE_SO_BUFFER_INDEX_0_length)];
+#else
    uint32_t so_buffers[4 * GENX(3DSTATE_SO_BUFFER_length)];
+#endif
 
 #if GEN_GEN == 9
    /* Is object level preemption enabled? */
@@ -3200,6 +3204,170 @@ iris_set_stream_output_targets(struct pipe_context *ctx,
    if (!active)
       return;
 
+#if GEN_GEN >= 12
+   struct iris_stream_output_target *tgt = (void *) ice->state.so_target[0];
+   unsigned offset = offsets[0];
+
+   if (!tgt) {
+      iris_pack_command(GENX(3DSTATE_SO_BUFFER_INDEX_0), so_buffers, sobi);
+   } else {
+      struct iris_resource *res = (void *) tgt->base.buffer;
+
+      /* Note that offsets[i] will either be 0, causing us to zero
+       * the value in the buffer, or 0xFFFFFFFF, which happens to mean
+       * "continue appending at the existing offset."
+       */
+      assert(offset == 0 || offset == 0xFFFFFFFF);
+
+      /* We might be called by Begin (offset = 0), Pause, then Resume
+       * (offset = 0xFFFFFFFF) before ever drawing (where these commands
+       * will actually be sent to the GPU).  In this case, we don't want
+       * to append - we still want to do our initial zeroing.
+       */
+      if (!tgt->zeroed)
+         offset = 0;
+
+      iris_pack_command(GENX(3DSTATE_SO_BUFFER_INDEX_0), so_buffers, sobi) {
+         sobi.SOBufferIndexStateBody.SurfaceBaseAddress =
+            rw_bo(NULL, res->bo->gtt_offset + tgt->base.buffer_offset);
+         sobi.SOBufferIndexStateBody.SOBufferEnable = true;
+         sobi.SOBufferIndexStateBody.StreamOffsetWriteEnable = true;
+         sobi.SOBufferIndexStateBody.StreamOutputBufferOffsetAddressEnable = true;
+         sobi.SOBufferIndexStateBody.MOCS = mocs(res->bo);
+
+         sobi.SOBufferIndexStateBody.SurfaceSize =
+            MAX2(tgt->base.buffer_size / 4, 1) - 1;
+
+         sobi.SOBufferIndexStateBody.StreamOffset = offset;
+         sobi.SOBufferIndexStateBody.StreamOutputBufferOffsetAddress =
+            rw_bo(NULL, iris_resource_bo(tgt->offset.res)->gtt_offset +
+                        tgt->offset.offset);
+      }
+   }
+
+   so_buffers += GENX(3DSTATE_SO_BUFFER_length);
+   tgt = (void *) ice->state.so_target[1];
+   offset = offsets[1];
+
+   if (!tgt) {
+      iris_pack_command(GENX(3DSTATE_SO_BUFFER_INDEX_1), so_buffers, sobi);
+   } else {
+      struct iris_resource *res = (void *) tgt->base.buffer;
+
+      /* Note that offsets[i] will either be 0, causing us to zero
+       * the value in the buffer, or 0xFFFFFFFF, which happens to mean
+       * "continue appending at the existing offset."
+       */
+      assert(offset == 0 || offset == 0xFFFFFFFF);
+
+      /* We might be called by Begin (offset = 0), Pause, then Resume
+       * (offset = 0xFFFFFFFF) before ever drawing (where these commands
+       * will actually be sent to the GPU).  In this case, we don't want
+       * to append - we still want to do our initial zeroing.
+       */
+      if (!tgt->zeroed)
+         offset = 0;
+
+      iris_pack_command(GENX(3DSTATE_SO_BUFFER_INDEX_1), so_buffers, sobi) {
+         sobi.SOBufferIndexStateBody.SurfaceBaseAddress =
+            rw_bo(NULL, res->bo->gtt_offset + tgt->base.buffer_offset);
+         sobi.SOBufferIndexStateBody.SOBufferEnable = true;
+         sobi.SOBufferIndexStateBody.StreamOffsetWriteEnable = true;
+         sobi.SOBufferIndexStateBody.StreamOutputBufferOffsetAddressEnable = true;
+         sobi.SOBufferIndexStateBody.MOCS = mocs(res->bo);
+
+         sobi.SOBufferIndexStateBody.SurfaceSize =
+            MAX2(tgt->base.buffer_size / 4, 1) - 1;
+
+         sobi.SOBufferIndexStateBody.StreamOffset = offset;
+         sobi.SOBufferIndexStateBody.StreamOutputBufferOffsetAddress =
+            rw_bo(NULL, iris_resource_bo(tgt->offset.res)->gtt_offset +
+                        tgt->offset.offset);
+      }
+   }
+
+   so_buffers += GENX(3DSTATE_SO_BUFFER_length);
+   tgt = (void *) ice->state.so_target[2];
+   offset = offsets[2];
+
+   if (!tgt) {
+      iris_pack_command(GENX(3DSTATE_SO_BUFFER_INDEX_2), so_buffers, sobi);
+   } else {
+      struct iris_resource *res = (void *) tgt->base.buffer;
+
+      /* Note that offsets[i] will either be 0, causing us to zero
+       * the value in the buffer, or 0xFFFFFFFF, which happens to mean
+       * "continue appending at the existing offset."
+       */
+      assert(offset == 0 || offset == 0xFFFFFFFF);
+
+      /* We might be called by Begin (offset = 0), Pause, then Resume
+       * (offset = 0xFFFFFFFF) before ever drawing (where these commands
+       * will actually be sent to the GPU).  In this case, we don't want
+       * to append - we still want to do our initial zeroing.
+       */
+      if (!tgt->zeroed)
+         offset = 0;
+
+      iris_pack_command(GENX(3DSTATE_SO_BUFFER_INDEX_2), so_buffers, sobi) {
+         sobi.SOBufferIndexStateBody.SurfaceBaseAddress =
+            rw_bo(NULL, res->bo->gtt_offset + tgt->base.buffer_offset);
+         sobi.SOBufferIndexStateBody.SOBufferEnable = true;
+         sobi.SOBufferIndexStateBody.StreamOffsetWriteEnable = true;
+         sobi.SOBufferIndexStateBody.StreamOutputBufferOffsetAddressEnable = true;
+         sobi.SOBufferIndexStateBody.MOCS = mocs(res->bo);
+
+         sobi.SOBufferIndexStateBody.SurfaceSize =
+            MAX2(tgt->base.buffer_size / 4, 1) - 1;
+
+         sobi.SOBufferIndexStateBody.StreamOffset = offset;
+         sobi.SOBufferIndexStateBody.StreamOutputBufferOffsetAddress =
+            rw_bo(NULL, iris_resource_bo(tgt->offset.res)->gtt_offset +
+                        tgt->offset.offset);
+      }
+   }
+
+   so_buffers += GENX(3DSTATE_SO_BUFFER_length);
+   tgt = (void *) ice->state.so_target[3];
+   offset = offsets[3];
+
+   if (!tgt) {
+      iris_pack_command(GENX(3DSTATE_SO_BUFFER_INDEX_3), so_buffers, sobi);
+   } else {
+      struct iris_resource *res = (void *) tgt->base.buffer;
+
+      /* Note that offsets[i] will either be 0, causing us to zero
+       * the value in the buffer, or 0xFFFFFFFF, which happens to mean
+       * "continue appending at the existing offset."
+       */
+      assert(offset == 0 || offset == 0xFFFFFFFF);
+
+      /* We might be called by Begin (offset = 0), Pause, then Resume
+       * (offset = 0xFFFFFFFF) before ever drawing (where these commands
+       * will actually be sent to the GPU).  In this case, we don't want
+       * to append - we still want to do our initial zeroing.
+       */
+      if (!tgt->zeroed)
+         offset = 0;
+
+      iris_pack_command(GENX(3DSTATE_SO_BUFFER_INDEX_3), so_buffers, sobi) {
+         sobi.SOBufferIndexStateBody.SurfaceBaseAddress =
+            rw_bo(NULL, res->bo->gtt_offset + tgt->base.buffer_offset);
+         sobi.SOBufferIndexStateBody.SOBufferEnable = true;
+         sobi.SOBufferIndexStateBody.StreamOffsetWriteEnable = true;
+         sobi.SOBufferIndexStateBody.StreamOutputBufferOffsetAddressEnable = true;
+         sobi.SOBufferIndexStateBody.MOCS = mocs(res->bo);
+
+         sobi.SOBufferIndexStateBody.SurfaceSize =
+            MAX2(tgt->base.buffer_size / 4, 1) - 1;
+
+         sobi.SOBufferIndexStateBody.StreamOffset = offset;
+         sobi.SOBufferIndexStateBody.StreamOutputBufferOffsetAddress =
+            rw_bo(NULL, iris_resource_bo(tgt->offset.res)->gtt_offset +
+                        tgt->offset.offset);
+      }
+   }
+#else
    for (unsigned i = 0; i < 4; i++,
         so_buffers += GENX(3DSTATE_SO_BUFFER_length)) {
 
@@ -3245,6 +3413,7 @@ iris_set_stream_output_targets(struct pipe_context *ctx,
                         tgt->offset.offset);
       }
    }
+#endif
 
    ice->state.dirty |= IRIS_DIRTY_SO_BUFFERS;
 }
