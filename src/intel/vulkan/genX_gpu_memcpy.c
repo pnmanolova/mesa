@@ -148,20 +148,30 @@ genX(cmd_buffer_so_memcpy)(struct anv_cmd_buffer *cmd_buffer,
                         cmd_buffer->state.current_l3_config,
                         VK_SHADER_STAGE_VERTEX_BIT, entry_size);
 
+#if GEN_GEN >= 12
+   anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_SO_BUFFER_INDEX_0), sobi) {
+      sobi.SOBufferIndexStateBody.MOCS =
+         anv_mocs_for_bo(cmd_buffer->device, dst.bo),
+      sobi.SOBufferIndexStateBody.SurfaceBaseAddress = dst;
+      sobi.SOBufferIndexStateBody.SOBufferEnable = true;
+      sobi.SOBufferIndexStateBody.SurfaceSize = size / 4 - 1;
+
+      /* As SOL writes out data, it updates the SO_WRITE_OFFSET registers with
+       * the end position of the stream.  We need to reset this value to 0 at
+       * the beginning of the run or else SOL will start at the offset from
+       * the previous draw.
+       */
+      sobi.SOBufferIndexStateBody.StreamOffsetWriteEnable = true;
+      sobi.SOBufferIndexStateBody.StreamOffset = 0;
+}
+#elif GEN_GEN >= 8
    anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_SO_BUFFER), sob) {
       sob.SOBufferIndex = 0;
       sob.MOCS = anv_mocs_for_bo(cmd_buffer->device, dst.bo),
       sob.SurfaceBaseAddress = dst;
-
-#if GEN_GEN >= 8
       sob.SOBufferEnable = true;
       sob.SurfaceSize = size / 4 - 1;
-#else
-      sob.SurfacePitch = bs;
-      sob.SurfaceEndAddress = anv_address_add(dst, size);
-#endif
 
-#if GEN_GEN >= 8
       /* As SOL writes out data, it updates the SO_WRITE_OFFSET registers with
        * the end position of the stream.  We need to reset this value to 0 at
        * the beginning of the run or else SOL will start at the offset from
@@ -169,8 +179,16 @@ genX(cmd_buffer_so_memcpy)(struct anv_cmd_buffer *cmd_buffer,
        */
       sob.StreamOffsetWriteEnable = true;
       sob.StreamOffset = 0;
-#endif
    }
+#else
+   anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_SO_BUFFER), sob) {
+      sob.SOBufferIndex = 0;
+      sob.MOCS = anv_mocs_for_bo(cmd_buffer->device, dst.bo),
+      sob.SurfaceBaseAddress = dst;
+      sob.SurfacePitch = bs;
+      sob.SurfaceEndAddress = anv_address_add(dst, size);
+   }
+#endif
 
 #if GEN_GEN <= 7
    /* The hardware can do this for us on BDW+ (see above) */

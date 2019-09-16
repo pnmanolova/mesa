@@ -2716,7 +2716,61 @@ genX(cmd_buffer_flush_state)(struct anv_cmd_buffer *cmd_buffer)
 
    cmd_buffer->state.gfx.vb_dirty &= ~vb_emit;
 
-#if GEN_GEN >= 8
+#if GEN_GEN >= 12
+   if (cmd_buffer->state.gfx.dirty & ANV_CMD_DIRTY_XFB_ENABLE) {
+      struct anv_xfb_binding *xfb = &cmd_buffer->state.xfb_bindings[0];
+      anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_SO_BUFFER_INDEX_0), sobi) {
+         if (cmd_buffer->state.xfb_enabled && xfb->buffer && xfb->size != 0) {
+            sobi.SOBufferIndexStateBody.SOBufferEnable = true;
+            sobi.SOBufferIndexStateBody.MOCS = cmd_buffer->device->default_mocs,
+            sobi.SOBufferIndexStateBody.StreamOffsetWriteEnable = false;
+            sobi.SOBufferIndexStateBody.SurfaceBaseAddress =
+               anv_address_add(xfb->buffer->address, xfb->offset);
+            /* Size is in DWords - 1 */
+            sobi.SOBufferIndexStateBody.SurfaceSize = xfb->size / 4 - 1;
+         }
+      }
+
+      xfb = &cmd_buffer->state.xfb_bindings[1];
+      anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_SO_BUFFER_INDEX_1), sobi) {
+         if (cmd_buffer->state.xfb_enabled && xfb->buffer && xfb->size != 0) {
+            sobi.SOBufferIndexStateBody.SOBufferEnable = true;
+            sobi.SOBufferIndexStateBody.MOCS = cmd_buffer->device->default_mocs,
+            sobi.SOBufferIndexStateBody.StreamOffsetWriteEnable = false;
+            sobi.SOBufferIndexStateBody.SurfaceBaseAddress =
+               anv_address_add(xfb->buffer->address, xfb->offset);
+            /* Size is in DWords - 1 */
+            sobi.SOBufferIndexStateBody.SurfaceSize = xfb->size / 4 - 1;
+         }
+      }
+
+      xfb = &cmd_buffer->state.xfb_bindings[2];
+      anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_SO_BUFFER_INDEX_2), sobi) {
+         if (cmd_buffer->state.xfb_enabled && xfb->buffer && xfb->size != 0) {
+            sobi.SOBufferIndexStateBody.SOBufferEnable = true;
+            sobi.SOBufferIndexStateBody.MOCS = cmd_buffer->device->default_mocs,
+            sobi.SOBufferIndexStateBody.StreamOffsetWriteEnable = false;
+            sobi.SOBufferIndexStateBody.SurfaceBaseAddress =
+               anv_address_add(xfb->buffer->address, xfb->offset);
+            /* Size is in DWords - 1 */
+            sobi.SOBufferIndexStateBody.SurfaceSize = xfb->size / 4 - 1;
+         }
+      }
+
+      xfb = &cmd_buffer->state.xfb_bindings[3];
+      anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_SO_BUFFER_INDEX_3), sobi) {
+         if (cmd_buffer->state.xfb_enabled && xfb->buffer && xfb->size != 0) {
+            sobi.SOBufferIndexStateBody.SOBufferEnable = true;
+            sobi.SOBufferIndexStateBody.MOCS = cmd_buffer->device->default_mocs,
+            sobi.SOBufferIndexStateBody.StreamOffsetWriteEnable = false;
+            sobi.SOBufferIndexStateBody.SurfaceBaseAddress =
+               anv_address_add(xfb->buffer->address, xfb->offset);
+            /* Size is in DWords - 1 */
+            sobi.SOBufferIndexStateBody.SurfaceSize = xfb->size / 4 - 1;
+         }
+      }
+   }
+#elif GEN_GEN >= 8
    if (cmd_buffer->state.gfx.dirty & ANV_CMD_DIRTY_XFB_ENABLE) {
       /* We don't need any per-buffer dirty tracking because you're not
        * allowed to bind different XFB buffers while XFB is enabled.
